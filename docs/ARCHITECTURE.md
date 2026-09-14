@@ -538,6 +538,32 @@ Old tagger rows are pruned only after the new tagger is active and verified - ke
 2. `events.type` dropped; the duplicated rows go away with the old unique index, replaced by `dedupe_key`.
 3. New columns (`id` ULID, `dedupe_key`, `bookmarked`) backfilled; then re-ingest.
 
+---
+
+## 12. Parked
+
+Deliberately deferred, recorded so the reasoning and the sources outlive the session.
+
+### 12.1 Worldwide gazetteer
+
+**`places.dat` is India only.** It is built from GeoNames `IN.zip` +
+`alternatenames/IN.zip`, so a story about Sri Lanka, Nepal or the Gulf resolves to
+*no place at all* — not a wrong place, which is better, but a hard ceiling once
+non-India news is in the store.
+
+| Option | Coverage | Licence | Notes |
+|---|---|---|---|
+| GeoNames `cities15000` / `cities5000` / `cities1000` | worldwide | CC BY 4.0 | 25k / 50k / 150k places. Same columns, same licence, same builder — this is a bigger input file and a looser filter, not new code. |
+| GeoNames `allCountries.zip` | worldwide, everything | CC BY 4.0 | ~2 GB raw, ~1.5 M places. Filter hard; never ship raw. |
+| **Geoapify localities** — `geoapify.com/data-share/localities/` | ~245 country zips + `no-country.zip` | **unverified** | Per-country archives only, **no bulk download**. Largest: `cn.zip` 36 MB, `in.zip` 25 MB; all dated 2025-09-17. **The index page states neither the internal format nor the licence** — `readme.html` and one archive would have to be inspected first. |
+
+**Recommendation:** GeoNames. The builder, the column layout, the ASCII-matching
+rule and the licence all already hold, so worldwide becomes "download a larger
+input and relax `POP_MIN`". Geoapify is only worth revisiting if its localities
+turn out to be materially better than GeoNames' towns — currently unknown.
+
+Nothing here changes until a non-India place name actually appears in the feed.
+
 
 
 
