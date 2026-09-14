@@ -32,11 +32,30 @@ object FeedCatalog {
                 name = "Indian Express",
                 url = "https://indianexpress.com/feed/",
             ),
+            newsSource(
+                id = "et-top",
+                name = "Economic Times",
+                url = "https://economictimes.indiatimes.com/rssfeedsdefault.cms",
+            ),
+            newsSource(
+                id = "hindustantimes-india",
+                name = "Hindustan Times",
+                url = "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml",
+            ),
             // A markets desk: news that is also finance.
             newsSource(
                 id = "mint-markets",
                 name = "Mint Markets",
                 url = "https://www.livemint.com/rss/markets",
+                extraTags = setOf(Tags.FINANCE),
+            ),
+            // A money desk: news that is also finance. Seeded Sep 2026 after the
+            // bank-bandh miss showed the markets-only Mint seed never sees
+            // money-section stories (bank holidays, strikes).
+            newsSource(
+                id = "mint-money",
+                name = "Mint Money",
+                url = "https://www.livemint.com/rss/money",
                 extraTags = setOf(Tags.FINANCE),
             ),
             newsSource(

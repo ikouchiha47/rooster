@@ -7,6 +7,26 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(feed): seed ET top, HT India, Mint Money
+
+_2026-09-15_
+
+Closes the bank-bandh coverage gap: the strike lived in outlets and sections no
+seed watched (ET and HT unseeded; Mint's seed was markets-only while the story
+ran in money). Three seeds, all verified HTTP 200 keyless before adding:
+
+- et-top / Economic Times, news.
+- hindustantimes-india / Hindustan Times, news.
+- mint-money / Mint Money, news + finance, like the markets desk.
+
+Caveats recorded, not solved: ET's default feed mixes current items with stale
+evergreen filler carrying old pubDates — those sink by timestamp and dedupe
+eats repeats, so the cost is junk rows, not wrong rows. And a fast top feed
+still turns over in ~24h with no pagination (Hindu), so an hourly sync can miss
+a story on a heavy news day; Express is the only seed with ?paged=2.
+
+Verified: 132 tests green, lint clean. No install.
+
 ## feat(ui): show place and party mentions in the meta line
 
 _2026-09-15_
