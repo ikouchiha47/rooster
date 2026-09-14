@@ -33,11 +33,6 @@ object FeedCatalog {
                 url = "https://indianexpress.com/feed/",
             ),
             newsSource(
-                id = "et-top",
-                name = "Economic Times",
-                url = "https://economictimes.indiatimes.com/rssfeedsdefault.cms",
-            ),
-            newsSource(
                 id = "hindustantimes-india",
                 name = "Hindustan Times",
                 url = "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml",

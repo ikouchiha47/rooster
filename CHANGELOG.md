@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(feed): drop ET top seed, its feed is 92% stale filler
+
+_2026-09-15_
+
+Reverts the ET half of the previous commit. Measuring its default feed: 6 of 76
+items current, 70 stale evergreen filler with old pubDates. Seeding it would buy
+a handful of live headlines plus a standing pile of junk rows per sync. HT India
+and Mint Money stay — both verified fresh-windowed.
+
+Lesson taken: diagnose first, seed second.
+
 ## feat(feed): seed ET top, HT India, Mint Money
 
 _2026-09-15_
