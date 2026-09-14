@@ -6,7 +6,11 @@ Source: https://download.geonames.org/export/dump/IN.zip
 Alternate names: https://download.geonames.org/export/dump/alternatenames/IN.zip
 Extracted: 2026-09-14
 
-Bundled subset (`places.tsv.gz`) — tab-separated, no header, one place per row:
+Bundled subset (`places.dat`) — gzipped tab-separated text, no header, one place
+per row. The extension is `.dat` rather than `.gz` deliberately: aapt decompresses
+any asset ending in `.gz` at package time and strips the extension, so `*.tsv.gz`
+would ship as an uncompressed `*.tsv`, breaking the path the reader opens and
+costing ~0.6 MB of APK. Gzip it back when reading.
 
   1 geonameid      5 longitude      9  admin2 code    (district)
   2 name           6 feature class  10 admin3 code    (sub-district)
