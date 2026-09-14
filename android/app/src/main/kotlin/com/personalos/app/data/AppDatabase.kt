@@ -6,15 +6,19 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class],
+    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class],
     views = [ItemTagCurrent::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
 
     abstract fun itemTagDao(): ItemTagDao
+
+    abstract fun placeDao(): PlaceDao
+
+    abstract fun mentionDao(): MentionDao
 
     companion object {
         @Volatile

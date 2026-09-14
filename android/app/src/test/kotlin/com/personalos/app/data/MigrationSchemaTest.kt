@@ -68,7 +68,7 @@ class MigrationSchemaTest {
 
     @Test
     fun `the exported schema describes exactly what we expect`() {
-        assertEquals(setOf("events", "taggers", "item_tags"), tables.keys)
+        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions"), tables.keys)
         assertEquals(setOf("item_tags_current"), views.keys)
     }
 

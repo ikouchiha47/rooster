@@ -7,6 +7,27 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(mention): places and parties as stored mentions, schema v6
+
+_2026-09-15_
+
+New `mentions` layer: every item keeps its entity mentions (places, parties)
+beside its tags, in a v5 -> v6 migration that only adds tables. Stored, not yet
+displayed — no UI, tile or tag changes.
+
+- `places` table seeded from the bundled gazetteer on launch (count-gated,
+  batched, never throws into startup); `mentions(item_id, kind, surface,
+  entity_id?, confidence)` is append-only and idempotent, mirroring `item_tags`.
+- MentionKind is free TEXT (`place`, `party`), so future kinds need no migration.
+- Extraction is dictionary matching with longest-match-wins: place surfaces from
+  name + ascii + alternates (Devanagari included, via Unicode lookaround bounds),
+  parties from a bundled 29-party source with stronghold states. Aliases under 3
+  chars are excluded (SP/NC stay inert until entity resolution exists).
+- Wired into both ingest paths after the tag writer, plus a cursor backfill at
+  launch for existing items. Re-runs are safe: IGNORE + a NOT IN walk.
+
+Verified: 124 tests green (12 new: extractor + importer + schema), lint clean.
+
 ## fix(ui): source labels use the catalog name, not the feed id
 
 _2026-09-15_

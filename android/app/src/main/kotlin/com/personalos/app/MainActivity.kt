@@ -88,15 +88,19 @@ class MainActivity : ComponentActivity() {
 
         val container = AppContainer(this)
         val database = AppDatabase.getInstance(this)
-        smsSource = SmsSource(this, database, container.tagWriter)
+        smsSource = SmsSource(this, database, container.tagWriter, container.mentionWriter)
 
         // Periodic background ingest; WorkManager persists this across reboots.
         SyncScheduler.schedule(this)
 
         // Backfill tags for items that predate the active tagger. Incremental and
         // idempotent - one empty query once the cursor reaches the end.
+        // The gazetteer seeds first (the mention backfill's index reads it),
+        // then mentions backfill for whatever has none yet.
         lifecycleScope.launch {
             runCatching { container.retagger.run() }
+            runCatching { container.placesSeeder.seed() }
+            runCatching { container.mentionWriter.backfill() }
         }
 
         smsPermissionGranted = ContextCompat.checkSelfPermission(

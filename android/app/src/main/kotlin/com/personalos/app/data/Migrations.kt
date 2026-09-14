@@ -108,6 +108,46 @@ val MIGRATION_4_5_STATEMENTS: List<String> =
     listOf("ALTER TABLE events ADD COLUMN enriched_at INTEGER")
 
 /**
+ * v5 -> v6: the mentions layer. New tables only, no rebuild: nothing existing
+ * changes, so there is no data to carry over.
+ *
+ * Column order and affinities mirror the entities in `MentionEntities.kt` -
+ * Room validates a migrated database against them on open, and
+ * `MigrationSchemaTest` replays these exact statements, so the two must agree.
+ */
+val MIGRATION_5_6_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS places (
+            id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            ascii TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lon REAL NOT NULL,
+            fclass TEXT NOT NULL,
+            fcode TEXT NOT NULL,
+            admin1 TEXT NOT NULL,
+            population INTEGER NOT NULL,
+            alternates TEXT NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS mentions (
+            item_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            surface TEXT NOT NULL,
+            entity_id TEXT,
+            confidence REAL NOT NULL,
+            mentioned_at INTEGER NOT NULL,
+            PRIMARY KEY(item_id, kind, surface)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_mentions_item_id ON mentions (item_id)",
+        "CREATE INDEX IF NOT EXISTS index_mentions_kind_surface ON mentions (kind, surface)",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -119,6 +159,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         3 to MIGRATION_2_3_STATEMENTS,
         4 to MIGRATION_3_4_STATEMENTS,
         5 to MIGRATION_4_5_STATEMENTS,
+        6 to MIGRATION_5_6_STATEMENTS,
     )
 
 /** The newest version this build can migrate to. */

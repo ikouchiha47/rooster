@@ -25,6 +25,14 @@ data class RetagCandidate(
     val content: String,
 )
 
+/** One row handed to the mention backfiller, in insertion order. */
+data class MentionCandidate(
+    val rowId: Long,
+    val ulid: String,
+    val title: String,
+    val content: String,
+)
+
 /** Candidate for content enrichment: has URL, short/blank content, never attempted. */
 data class EnrichmentCandidate(
     val id: Long,

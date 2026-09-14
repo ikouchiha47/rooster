@@ -192,4 +192,26 @@ object Sql {
         FROM item_tags
         WHERE tagger_id = (SELECT id FROM taggers WHERE active = 1)
         """
+
+    // ----------------------------------------------------------------- places
+    const val PLACES_COUNT = "SELECT COUNT(*) FROM places"
+
+    const val PLACES_ALL = "SELECT * FROM places"
+
+    // --------------------------------------------------------------- mentions
+    const val MENTIONS_FOR_ITEM = "SELECT * FROM mentions WHERE item_id = :itemId"
+
+    /**
+     * Items with no mention rows yet, in insertion order. The `NOT IN` is what
+     * makes a re-run converge: items that gained mentions drop out, and the
+     * `id > :afterId` cursor is what keeps rows that yield *no* mentions from
+     * pinning the walk in place (the same reason `Retagger` cursors on `id`).
+     */
+    const val MENTIONS_MISSING_ITEMS =
+        """
+        SELECT id AS rowId, ulid, title, content FROM events
+        WHERE id > :afterId AND ulid NOT IN (SELECT item_id FROM mentions)
+        ORDER BY id ASC
+        LIMIT :limit
+        """
 }

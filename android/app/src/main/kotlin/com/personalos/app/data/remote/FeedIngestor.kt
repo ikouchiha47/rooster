@@ -12,6 +12,7 @@ import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.Ulid
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
+import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.TagWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,7 @@ class FeedIngestor(
     private val dao: EventDao,
     private val cache: StringCache,
     private val tagWriter: TagWriter,
+    private val mentionWriter: MentionWriter,
     private val feeds: List<FeedSource> = FeedCatalog.SEEDS,
     private val refreshAfterMs: Long = DEFAULT_REFRESH_MS,
 ) {
@@ -173,6 +175,9 @@ class FeedIngestor(
                 )
         }
         if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)
+        if (toTag.isNotEmpty()) {
+            mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
+        }
         return added
     }
 

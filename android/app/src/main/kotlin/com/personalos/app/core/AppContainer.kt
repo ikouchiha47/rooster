@@ -16,6 +16,8 @@ import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.MentionWriter
+import com.personalos.app.data.PlacesSeeder
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.cache.PrefsStringCache
 import com.personalos.app.data.location.AndroidLocationProvider
@@ -88,6 +90,17 @@ class AppContainer(
 
     val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger)
 
+    /** Seeds the gazetteer once; afterwards a single `COUNT(*)` no-op. */
+    val placesSeeder: PlacesSeeder =
+        PlacesSeeder(
+            database.placeDao(),
+            openAsset = { context.applicationContext.assets.open(PLACES_ASSET) },
+        )
+
+    /** Writes place/party mentions for ingested items. Stored, not displayed. */
+    val mentionWriter: MentionWriter =
+        MentionWriter(database.mentionDao(), loadPlaces = { database.placeDao().all() })
+
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
     val retagger: Retagger = Retagger(database.eventDao(), tagWriter, cache, tagger)
 
@@ -98,7 +111,7 @@ class AppContainer(
      */
     val placeRanker: PlaceRanker = RecencyPlaceRanker()
 
-    val feeds: FeedIngestor = FeedIngestor(database.eventDao(), cache, tagWriter)
+    val feeds: FeedIngestor = FeedIngestor(database.eventDao(), cache, tagWriter, mentionWriter)
 
     /**
      * Fills in summaries for items whose feed shipped none - notably Indian
@@ -112,4 +125,8 @@ class AppContainer(
 
     val nowPlaying: NowPlayingProvider = SampleNowPlayingProvider()
     val pinned: PinnedProvider = SamplePinnedProvider()
+
+    private companion object {
+        const val PLACES_ASSET = "places.dat"
+    }
 }

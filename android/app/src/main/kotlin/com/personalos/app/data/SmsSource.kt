@@ -24,6 +24,7 @@ class SmsSource(
     private val context: Context,
     private val database: AppDatabase,
     private val tagWriter: TagWriter,
+    private val mentionWriter: MentionWriter,
 ) : LifecycleObserver {
     private companion object {
         const val TAG = "M1"
@@ -165,6 +166,9 @@ class SmsSource(
                     toTag += events[index].ulid to tagInputs[index]
                 }
                 if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)
+                if (toTag.isNotEmpty()) {
+                    mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
+                }
 
                 lastSeenId = maxId
                 prefs.edit().putLong(KEY_LAST_SEEN_ID, maxId).apply()
