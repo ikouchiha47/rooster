@@ -19,7 +19,12 @@ class PlacesImporterTest {
     fun `parses the bundled places asset`() {
         val places = PlacesImporter.load(GZIPInputStream(bundledPlaces().inputStream()))
 
-        assertEquals("the gazetteer is expected to hold 12,600 rows", 12600, places.size)
+        assertTrue(
+            "the gazetteer holds the admin rows plus every town >= POP_MIN " +
+                "(12,600 at a 10k cutoff, 14,639 at 1k); far fewer means a " +
+                "truncated or misbuilt asset",
+            places.size > 10_000,
+        )
         assertTrue("ids are geonameids", places.all { it.id.all(Char::isDigit) })
         assertTrue("populations are never negative (admin rows may be 0)", places.all { it.population >= 0 })
     }

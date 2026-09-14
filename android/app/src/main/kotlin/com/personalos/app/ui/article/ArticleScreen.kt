@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
@@ -52,6 +53,7 @@ fun ArticleScreen(
     val database = remember { AppDatabase.getInstance(context) }
 
     var item by remember { mutableStateOf<TaggedEvent?>(null) }
+    var mentions by remember { mutableStateOf<List<MentionEntity>>(emptyList()) }
     var resolved by remember { mutableStateOf(false) }
     var pageLoading by remember { mutableStateOf(true) }
     var pageError by remember { mutableStateOf<String?>(null) }
@@ -60,6 +62,12 @@ fun ArticleScreen(
     LaunchedEffect(eventId) {
         item = database.eventDao().eventById(eventId)
         resolved = true
+    }
+
+    // One row, one read: mentions load beside the item, never on scroll.
+    LaunchedEffect(item?.event?.ulid) {
+        val ulid = item?.event?.ulid
+        mentions = if (ulid == null) emptyList() else database.mentionDao().forItem(ulid)
     }
 
     val url = item?.event?.url?.takeIf { it.isNotBlank() }
@@ -90,12 +98,13 @@ fun ArticleScreen(
             accent = CategoryColors.Indigo,
             onBack = onBack,
             subtitle =
-                if (tags.isEmpty()) {
+                if (tags.isEmpty() && mentions.isEmpty()) {
                     null
                 } else {
                     {
                         TagLine(
                             tags = tags,
+                            mentions = mentions,
                             modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                         )
                     }

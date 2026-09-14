@@ -44,6 +44,7 @@ import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.Glyph
@@ -119,10 +120,22 @@ fun WeatherScreen(
             .collectAsStateWithLifecycle(initialValue = null)
 
     var news by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
+    var weatherMentions by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
     val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
     LaunchedEffect(maxId, reload) {
-        news = dao.pageByTag(Tags.WEATHER, null, 0L, WEATHER_NEWS_LIMIT)
+        val page = dao.pageByTag(Tags.WEATHER, null, 0L, WEATHER_NEWS_LIMIT)
+        news = page
+        // Same one-batched-read-per-page shape as News: the timeline renders
+        // first, mentions fill the meta lines without moving row heights.
+        weatherMentions =
+            if (page.isEmpty()) {
+                emptyMap()
+            } else {
+                val rows = database.mentionDao().forItems(page.map { it.event.ulid })
+                val idByUlid = page.associate { it.event.ulid to it.event.id }
+                rows.groupBy { idByUlid[it.itemId] ?: -1L }.filterKeys { it != -1L }
+            }
     }
 
     val listState = rememberLazyListState()
@@ -223,7 +236,9 @@ fun WeatherScreen(
                         )
                     }
                 }
-                items(news, key = { "event:${it.event.id}" }) { item -> WeatherNewsLine(item) }
+                items(news, key = { "event:${it.event.id}" }) { item ->
+                    WeatherNewsLine(item, mentions = weatherMentions[item.event.id].orEmpty())
+                }
 
                 item(key = "footer") {
                     FooterStrip(
@@ -498,7 +513,10 @@ private fun PlaceCell(
 
 /** One weather-tagged item, composed from the shared store rather than fetched. */
 @Composable
-private fun WeatherNewsLine(item: TaggedEvent) {
+private fun WeatherNewsLine(
+    item: TaggedEvent,
+    mentions: List<MentionEntity> = emptyList(),
+) {
     Column(Modifier.fillMaxWidth()) {
         Column(
             Modifier
@@ -517,6 +535,7 @@ private fun WeatherNewsLine(item: TaggedEvent) {
             TagLine(
                 tags = item.tagList.filter { it != Tags.WEATHER },
                 source = item.event.source,
+                mentions = mentions,
             )
         }
         SoftRule()

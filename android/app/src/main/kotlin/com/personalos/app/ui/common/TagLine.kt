@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.personalos.app.core.tag.Tags
+import com.personalos.app.data.MentionEntity
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 
@@ -35,6 +37,15 @@ import com.personalos.app.ui.theme.RadarType
  *   subjects; pass [showMarker] in a mixed feed (Home, Radar) where `news` still
  *   says something, and it renders as a muted chip so it never out-shouts a
  *   subject.
+ *
+ * - **Mentions** (places, parties) - plain micro-caps text in ink2, ordered
+ *   after subjects and before natures. A mention is a who or where the headline
+ *   names; it reads as the same quiet layer as a nature (plain text, never a
+ *   fill and never a bordered box), so the coloured subject stays the one thing
+ *   a reader scans by and the line never turns into a rainbow. This is what
+ *   keeps a tag-less row honest: "From AAP to BJP to Congress..." names three
+ *   parties and no subject, so without mentions its meta line is just the
+ *   source label while every neighbouring row carries chips.
  *
  * Anything unmapped degrades to that same muted chip, so an unknown tag is
  * visible but never crashes and never claims a meaning it does not have.
@@ -75,6 +86,70 @@ private enum class TagStyle { SUBJECT, NATURE, MUTED }
 private const val MAX_VISIBLE_TAGS = 2
 
 /**
+ * Mentions below this never reach the meta line.
+ *
+ * The data layer returns every stored mention; this UI-side cut drops the
+ * alternate-name place guesses (0.7 — the noisy layer, where an alternate
+ * collides with an ordinary word) while canonical places (0.85) and parties
+ * (0.9) show. Caps and filtering live in the UI, never in the query.
+ */
+internal const val MIN_MENTION_CONFIDENCE = 0.8f
+
+/** One slot in the meta line: either a tag or a mention surface. */
+internal sealed interface MetaToken {
+    data class Tag(
+        val tag: String,
+    ) : MetaToken
+
+    data class Mention(
+        val surface: String,
+    ) : MetaToken
+}
+
+/**
+ * Mentions worth showing, most confident first with ties alphabetical, so
+ * parties (0.9) lead canonical places (0.85) and the order is stable.
+ * Case-insensitive dedupe: the store keys on exact surface, so "BJP" and
+ * "bjp" would otherwise sit side by side.
+ */
+internal fun selectMentions(mentions: Collection<MentionEntity>): List<String> =
+    mentions
+        .asSequence()
+        .filter { it.confidence >= MIN_MENTION_CONFIDENCE && it.surface.isNotBlank() }
+        .sortedWith(compareByDescending<MentionEntity> { it.confidence }.thenBy { it.surface.lowercase() })
+        .map { it.surface }
+        .distinctBy { it.lowercase() }
+        .toList()
+
+/**
+ * The line's full token order — subjects, then mentions, then everything else —
+ * with the one-line clamp applied. Mentions compete with tags for the same
+ * [MAX_VISIBLE_TAGS] slots rather than appending past them; anything beyond
+ * folds into the returned hidden count and renders as `+N`. A mention that
+ * names what a tag already says ("finance" the tag, "Finance" the place) is
+ * dropped, so the two slots are never spent saying one thing twice.
+ *
+ * Pure, so the ordering and the clamp are unit-tested without composing.
+ */
+internal fun metaTokens(
+    tags: Collection<String>,
+    mentionSurfaces: Collection<String>,
+    showMarker: Boolean,
+): Pair<List<MetaToken>, Int> {
+    val ordered = orderTags(tags, showMarker)
+    val tagWords = ordered.map { it.lowercase() }.toSet()
+    val subjects = ordered.filter { rankOf(it.lowercase()) == 0 }
+    val rest = ordered.filter { rankOf(it.lowercase()) != 0 }
+    val mentions = mentionSurfaces.filter { it.lowercase() !in tagWords }
+    val all: List<MetaToken> =
+        subjects.map { MetaToken.Tag(it) } +
+            mentions.map { MetaToken.Mention(it) } +
+            rest.map { MetaToken.Tag(it) }
+    val visible = all.take(MAX_VISIBLE_TAGS)
+    return visible to (all.size - visible.size)
+}
+
+/**
  * A fixed one-line meta: optional [source] label, then [tags] as chips ordered
  * subjects -> natures -> the rest, so the coloured layer always leads.
  *
@@ -88,6 +163,9 @@ private const val MAX_VISIBLE_TAGS = 2
  * @param source raw `events.source`; resolved to a human name by sourceDisplayName
  *   and rendered as the leading label when not null.
  * @param showMarker whether to render the `news` marker as a muted chip.
+ * @param mentions stored mention rows for this item; filtered, ordered and
+ *   clamped here (see [selectMentions] and [metaTokens]) and rendered as plain
+ *   ink2 text between subjects and natures.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -96,10 +174,9 @@ fun TagLine(
     modifier: Modifier = Modifier,
     source: String? = null,
     showMarker: Boolean = false,
+    mentions: Collection<MentionEntity> = emptyList(),
 ) {
-    val ordered = orderTags(tags, showMarker)
-    val visible = ordered.take(MAX_VISIBLE_TAGS)
-    val hidden = ordered.size - visible.size
+    val (visible, hidden) = remember(tags, mentions, showMarker) { metaTokens(tags, selectMentions(mentions), showMarker) }
 
     FlowRow(
         modifier = modifier,
@@ -109,7 +186,12 @@ fun TagLine(
         if (source != null) {
             SourceLabel(source = source, modifier = Modifier.padding(vertical = 1.dp))
         }
-        visible.forEach { tag -> TagChip(tag = tag) }
+        visible.forEach { token ->
+            when (token) {
+                is MetaToken.Tag -> TagChip(tag = token.tag)
+                is MetaToken.Mention -> PlainTag(text = token.surface.uppercase(), color = RadarColors.ink2)
+            }
+        }
         if (hidden > 0) {
             PlainTag(text = "+$hidden", color = RadarColors.ink3)
         }

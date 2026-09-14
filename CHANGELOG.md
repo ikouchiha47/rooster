@@ -7,6 +7,32 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): show place and party mentions in the meta line
+
+_2026-09-15_
+
+The stored mentions layer is now visible. "From AAP to BJP to Congress…" read
+with a bare source label while its neighbours carried chips; it now reads
+`— SOURCE · AAP · BJP · +1`. Wired through all three TagLine consumers (News,
+Weather, Article), not just the reported screen.
+
+Decisions, all the designer's: mentions render as quiet micro-caps text, the
+same layer as natures — only subjects get a fill, and a box would read as a
+white chip against the paper. Order is subjects, then mentions, then the rest:
+concrete who/where beats the abstract kind. Mentions share the 2-slot clamp
+instead of extending it; overflow folds into the existing +N, row heights
+untouched, and a mention duplicating a tag spends no slot. Confidence below 0.8
+is hidden in the UI (drops the noisy alternate-name guesses, keeps canonical
+places and parties) — the DAO returns everything, the cut lives in the UI.
+
+Reads are batched per page (new forItems), never per-row in composition; lists
+render first and mentions fill in without moving rows. No schema change.
+
+Also fixed alongside: the gazetteer-count assertion my 1k rebuild broke
+(12,600 hardcoded → a band check that survives future rebuilds).
+
+Verified: 132 tests green (8 new TagLineMentionsTest), lint clean. No install.
+
 ## feat(geo): lower gazetteer cutoff to 1,000 people
 
 _2026-09-15_

@@ -35,6 +35,7 @@ import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.Event
+import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
 import com.personalos.app.ui.common.DAY_MS
 import com.personalos.app.ui.common.DayMarker
@@ -99,6 +100,7 @@ fun NewsScreen(
     val container = LocalAppContainer.current
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
+    val mentionDao = database.mentionDao()
     val scope = rememberCoroutineScope()
 
     // Pull feeds once on open; cached, so repeat opens are cheap.
@@ -106,6 +108,7 @@ fun NewsScreen(
 
     val listState = rememberLazyListState()
     var items by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
+    var mentionsById by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
     var cursorTs by remember { mutableStateOf<Long?>(null) }
     var cursorId by remember { mutableStateOf(0L) }
     var loading by remember { mutableStateOf(false) }
@@ -118,6 +121,17 @@ fun NewsScreen(
     val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
     val total by dao.observeCountByTag(Tags.NEWS).collectAsStateWithLifecycle(initialValue = 0)
 
+    // One batched mention read per page, keyed back onto row ids. The list
+    // renders from `items` first; mentions fill the meta lines in without
+    // changing any row's height (the TagLine clamp is one fixed line).
+    suspend fun mentionsFor(page: List<TaggedEvent>): Map<Long, List<MentionEntity>> {
+        if (page.isEmpty()) return emptyMap()
+        val rows = mentionDao.forItems(page.map { it.event.ulid })
+        if (rows.isEmpty()) return emptyMap()
+        val idByUlid = page.associate { it.event.ulid to it.event.id }
+        return rows.groupBy { idByUlid[it.itemId] ?: -1L }.filterKeys { it != -1L }
+    }
+
     LaunchedEffect(maxId, reloadToken) {
         cursorTs = null
         cursorId = 0L
@@ -125,6 +139,7 @@ fun NewsScreen(
         loading = true
         val first = dao.pageByTag(Tags.NEWS, null, 0L, PAGE_SIZE)
         items = first
+        mentionsById = mentionsFor(first)
         if (first.isNotEmpty()) {
             cursorTs = first.last().event.timestamp
             cursorId = first.last().event.id
@@ -146,6 +161,7 @@ fun NewsScreen(
                     endReached = true
                 } else {
                     items = items + next
+                    mentionsById = mentionsById + mentionsFor(next)
                     cursorTs = next.last().event.timestamp
                     cursorId = next.last().event.id
                     if (next.size < PAGE_SIZE) endReached = true
@@ -230,7 +246,7 @@ fun NewsScreen(
                                 currentDay = day
                                 add(NewsListRow.Day(day * DAY_MS))
                             }
-                            add(NewsListRow.Item(event, tagsById[event.id].orEmpty()))
+                            add(NewsListRow.Item(event, tagsById[event.id].orEmpty(), mentionsById[event.id].orEmpty()))
                         }
                     }
 
@@ -253,6 +269,7 @@ fun NewsScreen(
                             NewsRow(
                                 event = row.event,
                                 tags = row.tags,
+                                mentions = row.mentions,
                                 onOpen = { onNavigate(Destination.Article(row.event.id)) },
                             )
                     }
@@ -271,6 +288,7 @@ private sealed interface NewsListRow {
     data class Item(
         val event: Event,
         val tags: List<String>,
+        val mentions: List<MentionEntity>,
     ) : NewsListRow
 }
 
@@ -279,6 +297,7 @@ private fun NewsRow(
     event: Event,
     tags: List<String>,
     onOpen: () -> Unit,
+    mentions: List<MentionEntity> = emptyList(),
 ) {
     // Source first, then the tags as chips - so a Mint story read through the
     // News tile still shows it is also `finance`. The `news` marker is implied by
@@ -324,7 +343,7 @@ private fun NewsRow(
                 Spacer(Modifier.height(4.dp))
                 DottedRule()
                 Spacer(Modifier.height(4.dp))
-                TagLine(tags = tags, source = event.source)
+                TagLine(tags = tags, source = event.source, mentions = mentions)
             }
         }
         SoftRule()

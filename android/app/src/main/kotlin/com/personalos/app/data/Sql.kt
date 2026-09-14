@@ -201,6 +201,9 @@ object Sql {
     // --------------------------------------------------------------- mentions
     const val MENTIONS_FOR_ITEM = "SELECT * FROM mentions WHERE item_id = :itemId"
 
+    /** One batched read for a page of rows: callers pass the page's ulids. */
+    const val MENTIONS_FOR_ITEMS = "SELECT * FROM mentions WHERE item_id IN (:itemIds)"
+
     /**
      * Items with no mention rows yet, in insertion order. The `NOT IN` is what
      * makes a re-run converge: items that gained mentions drop out, and the
