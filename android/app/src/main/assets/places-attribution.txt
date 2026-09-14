@@ -1,0 +1,33 @@
+Place data: GeoNames — https://www.geonames.org
+Licensed under Creative Commons Attribution 4.0 (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Source: https://download.geonames.org/export/dump/IN.zip
+Alternate names: https://download.geonames.org/export/dump/alternatenames/IN.zip
+Extracted: 2026-09-14
+
+Bundled subset (`places.tsv.gz`) — tab-separated, no header, one place per row:
+
+  1 geonameid      5 longitude      9  admin2 code    (district)
+  2 name           6 feature class  10 admin3 code    (sub-district)
+  3 ascii name     7 feature code   11 population
+  4 latitude       8 admin1 code    12 alternate names, `|`-separated
+
+Included: country (1), states/UTs (36), districts (763), sub-districts (6,891),
+admin seats (207) and populated places with population >= 10,000 (4,701) —
+12,600 rows, 0.41 MB gzipped.
+
+Transformations applied to the raw data:
+
+  - Administratively-prefixed names are shortened for display and the long form
+    kept as an alternate: GeoNames writes "State of Telangana" and "Union
+    Territory of Puducherry", but news says "Telangana" / "Puducherry". Without
+    this those states are unmatchable, which fails silently as "the article
+    mentioned no place". 23 rows were affected.
+  - Match text against the **ASCII** name (column 3), not the display name:
+    2,130 of the 12,600 names carry diacritics (`Telangāna`, `Sāran`).
+  - Alternate names are limited to 13 languages (en, hi, bn, ta, te, mr, gu, kn,
+    ml, pa, or, as, ur) and capped at 10 per place.
+
+Attribution requirement: CC BY 4.0 requires credit. An in-app About/Licences
+screen linking to geonames.org satisfies it; this file must ship with the asset.
