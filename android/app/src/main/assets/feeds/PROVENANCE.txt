@@ -1,0 +1,23 @@
+Source : awesome-rss-feeds — https://github.com/plenaryapp/awesome-rss-feeds
+File   : countries/with_category/India.opml
+Fetched: 2026-09-14
+Licence: CC0-1.0 (public-domain dedication) — no attribution required, recorded
+         for provenance. Note the repo's own raw links point at an upstream fork
+         (raw.githubusercontent.com/spians/awesome-RSS-feeds/...).
+
+Contents: 36 India-focused feeds. `awesome-rss-feeds-india.opml` is unmodified.
+
+Why it is bundled as a file rather than typed into Kotlin: a feed list is data,
+and adding a feed must not be a code change — see docs/CODE-DESIGN-GUIDELINES.md
+§2. The importer parses this file; nothing hard-codes these 36.
+
+Not every URL here is good, and bundling is not an endorsement:
+
+  - Moneycontrol (`moneycontrol.com/rss/latestnews.xml`) is the same Akamai-403
+    URL already confirmed blocked in docs/research/india-feed-catalog.md.
+  - ThePrint (`theprint.in/feed/`) is the Cloudflare-walled one; it returns 200
+    but as HTML, not a feed.
+
+Keeping them is deliberate: the catalogue should match the upstream list, and the
+Sources screen reports per-feed health, so a dead feed shows as dead rather than
+being silently deleted. Re-tests belong in the catalogue, not in this file.

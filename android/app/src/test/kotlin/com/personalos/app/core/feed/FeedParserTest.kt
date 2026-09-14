@@ -121,4 +121,51 @@ class FeedParserTest {
 
         assertEquals(10, FeedParser.parse(xml, limit = 10).size)
     }
+
+    @Test
+    fun `a bare ampersand does not kill the whole document`() {
+        // An unescaped `&` is not a character reference, so a strict parser rejects
+        // the entire feed. The symptom is "this feed returned no items", not an error
+        // - which is why the bundled India OPML parsed as 36-but-zero until this.
+        val xml =
+            """
+            <?xml version="1.0"?>
+            <rss version="2.0"><channel>
+              <item><title>News & Views</title></item>
+            </channel></rss>
+            """.trimIndent()
+
+        val items = FeedParser.parse(xml)
+        assertEquals(1, items.size)
+        assertEquals("News & Views", items[0].title)
+    }
+
+    @Test
+    fun `real character references are not double escaped`() {
+        val xml =
+            """
+            <?xml version="1.0"?>
+            <rss version="2.0"><channel>
+              <item><title>A &amp; B &#8211; C</title></item>
+            </channel></rss>
+            """.trimIndent()
+
+        assertEquals("A & B \u2013 C", FeedParser.parse(xml)[0].title)
+    }
+
+    @Test
+    fun `literal ampersands inside CDATA are left alone`() {
+        // Inside CDATA, `&` is literal text. Substituting there fixes nothing and
+        // pushes a visible "&amp;" into the rendered summary; three of the seven
+        // live feeds carry an `&` inside CDATA and parse correctly today.
+        val xml =
+            """
+            <?xml version="1.0"?>
+            <rss version="2.0"><channel>
+              <item><title>t</title><description><![CDATA[Tea & coffee]]></description></item>
+            </channel></rss>
+            """.trimIndent()
+
+        assertEquals("Tea & coffee", FeedParser.parse(xml)[0].summary)
+    }
 }

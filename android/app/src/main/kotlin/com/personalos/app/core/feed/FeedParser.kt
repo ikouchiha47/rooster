@@ -27,6 +27,12 @@ object FeedParser {
     private val wsRe = Regex("\\s+")
     private val entityRe = Regex("&([a-zA-Z][a-zA-Z0-9]{1,31});")
 
+    /** A `&` that does not begin a character reference — invalid in XML. */
+    private val bareAmpersand = Regex("&(?!(?:[a-zA-Z][a-zA-Z0-9]{1,31}|#[0-9]+|#x[0-9a-fA-F]+);)")
+
+    /** CDATA sections, whose contents are literal and must not be rewritten. */
+    private val cdataSection = Regex("<!\\[CDATA\\[.*?\\]\\]>", RegexOption.DOT_MATCHES_ALL)
+
     /** XML built-ins the parser handles itself. */
     private val XML_BUILTINS = setOf("amp", "lt", "gt", "quot", "apos")
 
@@ -75,17 +81,50 @@ object FeedParser {
     }
 
     /**
-     * Replaces undeclared HTML entities with their characters. Unknown ones
-     * become a space rather than failing the whole feed.
+     * Makes sloppy third-party XML parseable, **outside CDATA only**.
+     *
+     * Two problems, both common in the wild:
+     *
+     *  1. **Undeclared HTML entities** (`&nbsp;`, `&mdash;`) are not valid XML and
+     *     make a strict parser throw. Known ones are substituted; unknown ones
+     *     become a space rather than failing the whole feed.
+     *  2. **Bare ampersands** (`News & Top Breaking headlines`) are equally invalid
+     *     and fail the entire document. The bundled India OPML has two in its
+     *     attributes, so that whole file parsed as zero feeds until this existed.
+     *
+     * CDATA is skipped deliberately. Inside it, `&` and `&nbsp;` are *literal* -
+     * rewriting them would not fix anything and would push a visible `&amp;` into
+     * the rendered text. Three of the seven live feeds carry an `&` inside CDATA
+     * and parse correctly today; substituting there would corrupt them.
      */
-    fun sanitizeEntities(xml: String): String =
-        entityRe.replace(xml) { match ->
-            val name = match.groupValues[1]
-            when {
-                name in XML_BUILTINS -> match.value
-                else -> HTML_ENTITIES[name] ?: " "
-            }
+    fun sanitizeEntities(xml: String): String {
+        if (xml.isEmpty()) return xml
+
+        val out = StringBuilder(xml.length + 64)
+        var cursor = 0
+        for (section in cdataSection.findAll(xml)) {
+            out.append(substitute(xml.substring(cursor, section.range.first)))
+            out.append(section.value)
+            cursor = section.range.last + 1
         }
+        out.append(substitute(xml.substring(cursor)))
+        return out.toString()
+    }
+
+    /** Entity substitution + bare-`&` escaping for a chunk of ordinary markup. */
+    private fun substitute(chunk: String): String {
+        if (chunk.isEmpty()) return chunk
+        val resolved =
+            entityRe.replace(chunk) { match ->
+                val name = match.groupValues[1]
+                when {
+                    name in XML_BUILTINS -> match.value
+                    else -> HTML_ENTITIES[name] ?: " "
+                }
+            }
+        // The lookahead keeps real references (`&amp;`, `&#8211;`) intact.
+        return bareAmpersand.replace(resolved, "&amp;")
+    }
 
     private fun readEntry(node: Node): FeedItem {
         var title: String? = null
