@@ -1,18 +1,13 @@
 # ---------------------------------------------------------------------------
 # Secrets — NEVER commit these.
 #
-# `.env` and `.env.prod` hold real API keys (TAVILY_API_KEY, EXA_API_KEY,
-# RAPID_API_KEY). Both the plain and the per-environment forms are ignored;
-# `.env.example` documents the shape with no values.
-#
-# Note the difference from `sms-probe/.gitignore`, which ignores `.env.*` but
-# un-ignores `.env`. That pattern is right when `.env` is a safe default and the
-# per-environment files are the secrets. Here `.env` itself is a secret file, so
-# it is ignored too.
+# Convention: `.env` is the *template* (keys present, values empty) and is
+# tracked. The real keys live in `.env.prod` and `.env.dev`, which are ignored.
+# So the per-environment files are the secrets and the plain file is the safe
+# default — the same rule `sms-probe/.gitignore` applies.
 # ---------------------------------------------------------------------------
-.env
 .env.*
-!.env.example
+!.env
 
 # ---------------------------------------------------------------------------
 # Android / Gradle
