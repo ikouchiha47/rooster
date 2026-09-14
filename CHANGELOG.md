@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(geo): lower gazetteer cutoff to 1,000 people
+
+_2026-09-15_
+
+POP_MIN 10,000 kept 4,701 towns and dropped 541,433 rows, which felt like
+throwing away too much — but counting the dump showed the bulk is sub-1k
+villages. At 1,000 the gazetteer keeps ~6,740 towns: 14,639 places for 0.47 MB,
+only ~60 KB more than before.
+
+Rebuilt places.dat from the same GeoNames inputs with the same script; the
+importer reads whatever the asset contains, so no code changes. Importer tests
+still parse the real asset green.
+
 ## feat(mention): places and parties as stored mentions, schema v6
 
 _2026-09-15_

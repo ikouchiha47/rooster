@@ -59,8 +59,9 @@ OUTPUT = os.environ.get(
 # mountains) is noise for "which place is this article about".
 ADMIN_CODES = {"A/ADM1", "A/ADM2", "A/ADM3", "P/PPLC", "P/PPLA", "P/PPLA2", "P/PPLA3"}
 
-# Towns below this population are dropped: they add rows without adding matches.
-POP_MIN = 10_000
+# Towns below this population are dropped. 10k kept 4,701 towns; 1k keeps ~6,740
+# and costs only ~2k extra rows, because the bulk of the dump is sub-1k villages.
+POP_MIN = 1_000
 
 # Alternate-name languages to keep. Excludes GeoNames pseudo-languages (`link`,
 # `wkdt`) which map to Wikipedia URLs and Wikidata ids, not readable names.
