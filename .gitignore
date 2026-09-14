@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# Secrets — NEVER commit these.
+#
+# `.env` and `.env.prod` hold real API keys (TAVILY_API_KEY, EXA_API_KEY,
+# RAPID_API_KEY). Both the plain and the per-environment forms are ignored;
+# `.env.example` documents the shape with no values.
+#
+# Note the difference from `sms-probe/.gitignore`, which ignores `.env.*` but
+# un-ignores `.env`. That pattern is right when `.env` is a safe default and the
+# per-environment files are the secrets. Here `.env` itself is a secret file, so
+# it is ignored too.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Android / Gradle
+# ---------------------------------------------------------------------------
+android/.gradle/
+android/.idea/
+android/local.properties
+android/*.iml
+.cxx/
+**/build/
+*.apk
+*.aab
+
+# Release signing — never commit; these live as CI secrets.
+*.jks
+*.keystore
+
+# ---------------------------------------------------------------------------
+# Room schemas are deliberately NOT ignored.
+#
+# `android/app/schemas/**` is the migration baseline: `exportSchema = true` writes
+# it, and `MigrationSchemaTest` compares the migrated database against it. Losing
+# it would leave migrations unverifiable.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Cloned dependency sources
+#
+# The clonedeps skill checks out library source here so it can be read locally.
+# It is a cache, not part of the project.
+# ---------------------------------------------------------------------------
+vendor/
+
+# ---------------------------------------------------------------------------
+# macOS / scratch
+# ---------------------------------------------------------------------------
+.DS_Store
+*.log
+logs/

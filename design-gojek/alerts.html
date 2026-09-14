@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Alerts</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="pagebar">
+    <div class="pagebar__row">
+      <span class="pagebar__title">Alerts</span>
+      <span class="pagebar__meta">5 rules · 3 watchers</span>
+      <a class="pagebar__act" href="activity.html">Fired</a>
+    </div>
+    <div class="seg">
+      <span class="seg__item seg__item--on">Rules</span>
+      <span class="seg__item">Watchers</span>
+      <span class="seg__item">Fired</span>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="sechead">
+      <span class="sechead__title">Rules</span>
+      <span class="sechead__meta">4 active · 1 paused</span>
+    </div>
+
+    <div class="rules">
+
+      <div class="rule">
+        <span class="rule__id">R-01</span>
+        <div class="rule__main">
+          <div class="rule__title">Bank large transaction</div>
+          <div class="rule__cond">Sample Bank SMS · amount &gt; ₹10,000</div>
+          <div class="rule__meta">Last fired 09:42 · 3 times this week</div>
+        </div>
+        <button class="tgl tgl--on" type="button" aria-label="Rule R-01 on"><span class="tgl__knob"></span></button>
+      </div>
+
+      <div class="rule">
+        <span class="rule__id">R-02</span>
+        <div class="rule__main">
+          <div class="rule__title">Tokyo fare below target</div>
+          <div class="rule__cond">Sample Air BLR→HND · fare &lt; ₹35,000</div>
+          <div class="rule__meta">Last fired 08:58 · once today</div>
+        </div>
+        <button class="tgl tgl--on" type="button" aria-label="Rule R-02 on"><span class="tgl__knob"></span></button>
+      </div>
+
+      <div class="rule">
+        <span class="rule__id">R-03</span>
+        <div class="rule__main">
+          <div class="rule__title">India infrastructure, high impact</div>
+          <div class="rule__cond">News wires · region IN · impact ≥ high</div>
+          <div class="rule__meta">Last fired 09:31 · twice today</div>
+        </div>
+        <button class="tgl tgl--on" type="button" aria-label="Rule R-03 on"><span class="tgl__knob"></span></button>
+      </div>
+
+      <div class="rule">
+        <span class="rule__id">R-04</span>
+        <div class="rule__main">
+          <div class="rule__title">AWS ap-south-1 incident</div>
+          <div class="rule__cond">AWS Health · region ap-south-1 · any severity</div>
+          <div class="rule__meta">Last fired 08:44 · once today</div>
+        </div>
+        <button class="tgl tgl--on" type="button" aria-label="Rule R-04 on"><span class="tgl__knob"></span></button>
+      </div>
+
+      <div class="rule rule--paused">
+        <span class="rule__id">R-05</span>
+        <div class="rule__main">
+          <div class="rule__title">Quant hiring</div>
+          <div class="rule__cond">LinkedIn · company Citadel or Jane Street</div>
+          <div class="rule__meta">Last fired 2 days ago · paused 6 Sep</div>
+        </div>
+        <button class="tgl" type="button" aria-label="Rule R-05 off"><span class="tgl__knob"></span></button>
+      </div>
+
+    </div>
+
+    <div class="sechead">
+      <span class="sechead__title">Price watchers</span>
+      <span class="sechead__meta">30-day range</span>
+    </div>
+
+    <div class="watchers">
+
+      <div class="watcher">
+        <div class="watcher__head">
+          <span class="watcher__route">BLR → HND</span>
+          <span class="watcher__src">Sample Air</span>
+          <span class="watcher__badge watcher__badge--hit">Below target</span>
+        </div>
+        <div class="watcher__vals">
+          <span class="watcher__now watcher__now--good">₹34,200</span>
+          <span class="watcher__target">target ₹35,000 · −12.1% 30d</span>
+        </div>
+        <svg class="watcher__chart" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true">
+          <path class="spark__area" d="M4 6.82 L52.7 11.27 L101.3 15.41 L150 13.18 L198.7 22.09 L247.3 27.5 L296 30.36 L296 33 L4 33 Z"/>
+          <path class="spark__line spark__line--good" d="M4 6.82 L52.7 11.27 L101.3 15.41 L150 13.18 L198.7 22.09 L247.3 27.5 L296 30.36"/>
+          <line class="spark__thresh" x1="4" y1="27.8" x2="296" y2="27.8"/>
+          <line class="spark__axis" x1="4" y1="33" x2="296" y2="33"/>
+        </svg>
+        <div class="watcher__row">
+          <span>14–22 Oct · round trip</span>
+          <span>lowest 30d ₹34,200</span>
+        </div>
+      </div>
+
+      <div class="watcher">
+        <div class="watcher__head">
+          <span class="watcher__route">Kolkata → Delhi</span>
+          <span class="watcher__src">Train 12345 · 3A</span>
+          <span class="watcher__badge">Above target</span>
+        </div>
+        <div class="watcher__vals">
+          <span class="watcher__now watcher__now--bad">₹1,940</span>
+          <span class="watcher__target">target ₹1,800 · +7.8% 30d</span>
+        </div>
+        <svg class="watcher__chart" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true">
+          <path class="spark__area" d="M4 28.85 L52.7 24.54 L101.3 19.15 L150 21.31 L198.7 11.62 L247.3 8.38 L296 5.15 L296 33 L4 33 Z"/>
+          <path class="spark__line spark__line--bad" d="M4 28.85 L52.7 24.54 L101.3 19.15 L150 21.31 L198.7 11.62 L247.3 8.38 L296 5.15"/>
+          <line class="spark__thresh" x1="4" y1="20.23" x2="296" y2="20.23"/>
+          <line class="spark__axis" x1="4" y1="33" x2="296" y2="33"/>
+        </svg>
+        <div class="watcher__row">
+          <span>18 Oct · 1 passenger</span>
+          <span>lowest 30d ₹1,720</span>
+        </div>
+      </div>
+
+      <div class="watcher">
+        <div class="watcher__head">
+          <span class="watcher__route">Sample Semiconductor</span>
+          <span class="watcher__src">NSE · SAMPLE</span>
+          <span class="watcher__badge watcher__badge--hit">Above target</span>
+        </div>
+        <div class="watcher__vals">
+          <span class="watcher__now watcher__now--good">₹1,512</span>
+          <span class="watcher__target">target &gt; ₹1,450 · +6.4% 30d</span>
+        </div>
+        <svg class="watcher__chart" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true">
+          <path class="spark__area" d="M4 29 L52.7 26 L101.3 23 L150 24 L198.7 17 L247.3 13 L296 8.6 L296 33 L4 33 Z"/>
+          <path class="spark__line spark__line--good" d="M4 29 L52.7 26 L101.3 23 L150 24 L198.7 17 L247.3 13 L296 8.6"/>
+          <line class="spark__thresh" x1="4" y1="21" x2="296" y2="21"/>
+          <line class="spark__axis" x1="4" y1="33" x2="296" y2="33"/>
+        </svg>
+        <div class="watcher__row">
+          <span>Close 12 Sep · ₹1,512</span>
+          <span>high 30d ₹1,530</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="sechead">
+      <span class="sechead__title">Builder</span>
+      <span class="sechead__meta">dense row</span>
+    </div>
+
+    <section class="builder">
+      <div class="builder__label">New rule</div>
+
+      <div class="builder__row">
+        <span class="field__k">When</span>
+        <select class="field field--sel" aria-label="Source">
+          <option>Bank SMS · amount</option>
+          <option>Price watcher · fare</option>
+          <option>News · impact</option>
+          <option>Social · keyword</option>
+        </select>
+      </div>
+
+      <div class="builder__ops">
+        <span class="op op--on">is above</span>
+        <span class="op">is below</span>
+        <span class="op">matches</span>
+      </div>
+
+      <div class="builder__row">
+        <span class="field__k">Value</span>
+        <input class="field field--val" type="text" value="₹10,000" aria-label="Value">
+      </div>
+
+      <div class="builder__row">
+        <span class="field__k">Then</span>
+        <select class="field field--sel" aria-label="Action">
+          <option>Notify · push</option>
+          <option>Notify · quiet</option>
+          <option>Add to Activity only</option>
+        </select>
+      </div>
+
+      <div class="builder__foot">
+        <button class="btn btn--dark" type="button">Add rule</button>
+        <button class="btn" type="button">Test against today</button>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="tabbar" aria-label="Primary">
+    <a class="tab" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.6 8.4 9 3l6.4 5.4V15a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/><path d="M7 16v-4.4h4V16"/></svg></span>
+      <span class="tab__label">Home</span>
+    </a>
+    <a class="tab" href="activity.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M1.6 9h3.6l1.6-4.4L9.6 13.4 11.2 9h3.6"/></svg></span>
+      <span class="tab__label">Activity</span>
+    </a>
+    <a class="tab tab--on" href="alerts.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.4a4 4 0 0 0-4 4v3L3.4 12.4h11.2L13 9.4v-3a4 4 0 0 0-4-4z"/><path d="M7.4 12.4a1.6 1.6 0 0 0 3.2 0"/></svg></span>
+      <span class="tab__label">Alerts</span>
+    </a>
+    <a class="tab" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="6.4" r="3"/><path d="M3.4 15.6a5.6 5.6 0 0 1 11.2 0"/></svg></span>
+      <span class="tab__label">Me</span>
+    </a>
+  </nav>
+
+</div>
+</body>
+</html>

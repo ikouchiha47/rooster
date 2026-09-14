@@ -1,0 +1,20 @@
+.env.*
+!.env
+
+*.DS_Store
+
+# Android
+android/.gradle/
+android/local.properties
+android/*/build/
+android/build/
+android/.idea/
+android/*.iml
+
+# System generated
+vendor/
+logs/
+
+# Release signing (never commit - stored as GitHub Actions secrets instead)
+*.jks
+*.keystore

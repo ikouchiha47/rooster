@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — New rule (form)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appmark">PR</div>
+      <div class="appbar__t">
+        <h1 class="appbar__title">New rule</h1>
+        <div class="appbar__sub">Form · field &amp; operator</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="Save">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4"/><path d="M8 20v-6h8v6"/></svg>
+        </button>
+        <button class="iconbtn" aria-label="More options">
+          <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="seg">
+      <button class="seg__i is-on">Form</button>
+      <button class="seg__i">Recipe</button>
+      <button class="seg__i">Sentence</button>
+    </div>
+  </div>
+
+  <div class="namefield">
+    <span class="namefield__l">Name</span>
+    <span class="namefield__v">Large debit watch</span>
+  </div>
+
+  <div class="sec" style="--accent:var(--teal)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Sources</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">1 of 3</span>
+  </div>
+  <div class="srcs">
+    <button class="srcchip is-on" style="--sc:var(--teal)">SMS · Bank</button>
+    <button class="srcchip" style="--sc:var(--indigo)">RSS · News</button>
+    <button class="srcchip srcchip--dark" style="--sc:var(--mustard)">Fare watcher</button>
+    <button class="srcchip" style="--sc:var(--peri)">Social</button>
+    <button class="srcchip" style="--sc:var(--cyan)">Weather</button>
+    <button class="srcchip" style="--sc:var(--plum)">AWS status</button>
+  </div>
+
+  <div class="sec" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Match when</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">2 of 3</span>
+  </div>
+
+  <div class="builder">
+    <div class="cond">
+      <button class="cond__sel">
+        <span class="cond__l">Field</span>
+        <span class="cond__v">source <span class="caret">▼</span></span>
+      </button>
+      <button class="cond__op">
+        <span class="cond__l">Op</span>
+        <span class="cond__v">=</span>
+      </button>
+      <button class="cond__val">
+        <span class="cond__l">Value</span>
+        <span class="cond__v">SMS:BANK <span class="caret">▼</span></span>
+      </button>
+      <button class="cond__x" aria-label="Remove condition">×</button>
+    </div>
+
+    <div class="connrow">
+      <button class="conn"><span class="conn__dot"></span>AND <span class="caret">▼</span></button>
+      <span class="connrow__l">all must hold</span>
+    </div>
+
+    <div class="cond">
+      <button class="cond__sel">
+        <span class="cond__l">Field</span>
+        <span class="cond__v">amount <span class="caret">▼</span></span>
+      </button>
+      <button class="cond__op">
+        <span class="cond__l">Op</span>
+        <span class="cond__v">&gt;</span>
+      </button>
+      <button class="cond__val">
+        <span class="cond__l">Value</span>
+        <span class="cond__v">₹10,000 <span class="caret">▼</span></span>
+      </button>
+      <button class="cond__x" aria-label="Remove condition">×</button>
+    </div>
+
+    <div class="connrow">
+      <button class="conn"><span class="conn__dot"></span>AND <span class="caret">▼</span></button>
+      <span class="connrow__l">all must hold</span>
+    </div>
+
+    <div class="cond">
+      <button class="cond__sel">
+        <span class="cond__l">Field</span>
+        <span class="cond__v">entity <span class="caret">▼</span></span>
+      </button>
+      <button class="cond__op">
+        <span class="cond__l">Op</span>
+        <span class="cond__v">~</span>
+      </button>
+      <button class="cond__val">
+        <span class="cond__l">Value</span>
+        <span class="cond__v">Sample Electronics <span class="caret">▼</span></span>
+      </button>
+      <button class="cond__x" aria-label="Remove condition">×</button>
+    </div>
+  </div>
+  <button class="addcond">Add condition</button>
+
+  <section class="dryrun">
+    <header class="dryrun__h">
+      <span class="dryrun__t">Dry run</span>
+      <span class="dryrun__live"><i></i>live</span>
+      <span class="dryrun__sp"></span>
+      <span class="dryrun__n">6</span>
+    </header>
+    <div class="dryrun__stat">
+      <span class="dryrun__u"><b>6 events</b> would match</span>
+      <span class="dryrun__win">last 7 days</span>
+    </div>
+    <ul class="hits">
+      <li class="hit">
+        <div class="hit__t">09:42<div class="hit__t--day">TODAY</div></div>
+        <div class="hit__b">
+          <div class="hit__title">Sample Bank debit ₹12,480 — Sample Electronics</div>
+          <div class="hit__m"><span>amount <b>₹12,480</b></span><span>Indiranagar</span></div>
+        </div>
+      </li>
+      <li class="hit">
+        <div class="hit__t">08:05<div class="hit__t--day">TODAY</div></div>
+        <div class="hit__b">
+          <div class="hit__title">UPI transfer ₹18,000 to A. Rao</div>
+          <div class="hit__m"><span>amount <b>₹18,000</b></span><span>entity <b>A. Rao</b></span></div>
+        </div>
+      </li>
+      <li class="hit">
+        <div class="hit__t">19:20<div class="hit__t--day">WED 11</div></div>
+        <div class="hit__b">
+          <div class="hit__title">Card swipe ₹10,450 — Sample Petrol</div>
+          <div class="hit__m"><span>amount <b>₹10,450</b></span></div>
+        </div>
+      </li>
+      <li class="hit">
+        <div class="hit__t">13:12<div class="hit__t--day">TUE 10</div></div>
+        <div class="hit__b">
+          <div class="hit__title">Sample Bank debit ₹24,900 — tuition fee</div>
+          <div class="hit__m"><span>amount <b>₹24,900</b></span></div>
+        </div>
+      </li>
+      <li class="hit">
+        <div class="hit__t">21:44<div class="hit__t--day">MON 09</div></div>
+        <div class="hit__b">
+          <div class="hit__title">Sample Bank debit ₹11,200 — Sample Airlines</div>
+          <div class="hit__m"><span>amount <b>₹11,200</b></span></div>
+        </div>
+      </li>
+      <li class="hit hit--more">
+        <div class="hit__t">…<div class="hit__t--day">+1</div></div>
+        <div class="hit__b">1 more event below the sample cut</div>
+      </li>
+    </ul>
+    <div class="dryrun__f">
+      <span>Would have fired <b>4 alerts</b></span>
+      <span>2 grouped by merchant</span>
+    </div>
+    <div class="dryrun__try">
+      <span>If threshold were <b>&gt; ₹50,000</b></span>
+      <span>0 events — broaden the condition</span>
+    </div>
+  </section>
+
+  <div class="sec" style="--accent:var(--indigo)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Deliver</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">3 of 3</span>
+  </div>
+  <div class="deliver">
+    <div class="drow">
+      <span class="drow__t">Push notification</span>
+      <span class="sw is-on" role="switch" aria-checked="true" aria-label="Push on"></span>
+    </div>
+    <div class="drow">
+      <span class="drow__t">Add to timeline</span>
+      <span class="sw is-on" role="switch" aria-checked="true" aria-label="Timeline on"></span>
+    </div>
+    <div class="drow">
+      <span class="drow__t">Daily digest 08:00</span>
+      <span class="sw" role="switch" aria-checked="false" aria-label="Digest off"></span>
+    </div>
+    <div class="drow drow--sub">
+      <span class="drow__t">Maximum frequency</span>
+      <span class="drow__v">Once per day <span class="caret">▼</span></span>
+    </div>
+    <div class="drow drow--sub">
+      <span class="drow__t">Quiet hours</span>
+      <span class="drow__v">23:00–07:00 <span class="caret">▼</span></span>
+    </div>
+  </div>
+
+  <div class="note">
+    Rules run on normalized events, so one condition set spans SMS, RSS, fares and social posts. Sample data only.
+  </div>
+
+  <div class="wrapup">
+    <button class="btn btn--solid btn--block">Save rule</button>
+    <button class="btn btn--ghost">Test again</button>
+  </div>
+
+  <footer class="foot">Draft · not saved · 6 matches in last 7 days</footer>
+
+  <nav class="bottomnav">
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem is-current" href="list.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><circle cx="19.5" cy="18" r="2"/></svg>
+      <span class="navitem__l">Rules</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M12 4a5 5 0 0 0-5 5v4l-2 3h14l-2-3V9a5 5 0 0 0-5-5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+      <span class="navitem__l">Alerts</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+
+<script>
+  document.querySelectorAll('.sw').forEach(function (s) {
+    s.addEventListener('click', function () {
+      s.classList.toggle('is-on');
+      s.setAttribute('aria-checked', s.classList.contains('is-on') ? 'true' : 'false');
+    });
+  });
+  document.querySelectorAll('.conn').forEach(function (c) {
+    c.addEventListener('click', function () {
+      c.classList.toggle('is-or');
+      c.childNodes[1].nodeValue = c.classList.contains('is-or') ? 'OR ' : 'AND ';
+      var row = c.closest('.connrow');
+      if (row) row.querySelector('.connrow__l').textContent =
+        c.classList.contains('is-or') ? 'any may hold' : 'all must hold';
+    });
+  });
+  document.querySelectorAll('.srcchip').forEach(function (c) {
+    c.addEventListener('click', function () { c.classList.toggle('is-on'); });
+  });
+</script>
+</body>
+</html>

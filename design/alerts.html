@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Alerts</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appbar__t">
+        <h1 class="appbar__title">Alerts</h1>
+        <div class="appbar__sub">Rules · watchers</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="New rule">
+          <svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="iconbtn" aria-label="More options">
+          <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+        </button>
+      </div>
+    </header>
+  </div>
+
+  <div class="counts">
+    <div class="stat stat--ok"><div class="stat__n">04</div><div class="stat__l">Active</div></div>
+    <div class="stat"><div class="stat__n">01</div><div class="stat__l">Paused</div></div>
+    <div class="stat stat--hot"><div class="stat__n">09</div><div class="stat__l">Fired 24h</div></div>
+    <div class="stat"><div class="stat__n">03</div><div class="stat__l">Watchers</div></div>
+  </div>
+
+  <div class="sync">
+    <span><span class="sync__dot"></span>Evaluating every 60s</span>
+    <span>Quiet hours 23:00–07:00</span>
+  </div>
+
+  <div class="sec" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Configured rules</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">5 of 5</span>
+  </div>
+
+  <!-- R-01 -->
+  <div class="rule" style="--cat:var(--teal)">
+    <div class="rule__id">R-01</div>
+    <div>
+      <div class="rule__cond">Bank large transaction — <code>source = SMS:BANK</code> and <code>amount &gt; ₹10,000</code></div>
+      <div class="rule__sub">SOURCE <b>Sample Bank</b> · ACTION push + timeline · LAST FIRED <b>today 09:42</b></div>
+    </div>
+    <div class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-01 on"></div>
+  </div>
+
+  <!-- R-02 -->
+  <div class="rule" style="--cat:var(--mustard)">
+    <div class="rule__id">R-02</div>
+    <div>
+      <div class="rule__cond">Tokyo fare — <code>route = BLR→HND</code> and <code>fare &lt; ₹35,000</code></div>
+      <div class="rule__sub">SOURCE <b>Fare watcher</b> · ACTION push, once per day · LAST FIRED <b>today 08:58</b></div>
+    </div>
+    <div class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-02 on"></div>
+  </div>
+
+  <!-- R-03 -->
+  <div class="rule" style="--cat:var(--indigo)">
+    <div class="rule__id">R-03</div>
+    <div>
+      <div class="rule__cond">India infrastructure — <code>topic = infra:IN</code> and <code>impact &gt;= high</code></div>
+      <div class="rule__sub">SOURCE <b>14 RSS feeds</b> · ACTION digest 08:00 + push · LAST FIRED <b>today 09:31</b></div>
+    </div>
+    <div class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-03 on"></div>
+  </div>
+
+  <!-- R-04 -->
+  <div class="rule" style="--cat:var(--plum)">
+    <div class="rule__id">R-04</div>
+    <div>
+      <div class="rule__cond">AWS incident — <code>service = AWS</code> and <code>region = ap-south-1</code></div>
+      <div class="rule__sub">SOURCE <b>AWS status feed</b> · ACTION push immediately · LAST FIRED <b>today 08:44</b></div>
+    </div>
+    <div class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-04 on"></div>
+  </div>
+
+  <!-- R-05 (off) -->
+  <div class="rule is-off" style="--cat:var(--peri)">
+    <div class="rule__id">R-05</div>
+    <div>
+      <div class="rule__cond">Quant hiring — <code>company IN (Citadel, Jane Street)</code> and <code>role ~ quant</code></div>
+      <div class="rule__sub">SOURCE <b>LinkedIn, careers pages</b> · ACTION weekly digest · LAST FIRED <b>3 days ago</b></div>
+    </div>
+    <div class="sw" role="switch" aria-checked="false" aria-label="Rule R-05 off"></div>
+  </div>
+
+  <div class="sec sec--ink" style="--accent:var(--mustard)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Price &amp; availability watchers</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">30-day sparklines</span>
+  </div>
+
+  <!-- W-01 fare drop -->
+  <div class="watch" style="--cat:var(--teal)">
+    <div class="watch__head">
+      <span class="watch__name">BLR → HND · Sample Air, 1 stop</span>
+      <span class="watch__val is-good">₹34,200</span>
+    </div>
+    <svg class="spark" viewBox="0 0 300 80" preserveAspectRatio="none" role="img" aria-label="Fare trend falling below threshold">
+      <line x1="0" y1="20" x2="300" y2="20" stroke="#D93B2B" stroke-width="1.5" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>
+      <polyline fill="none" stroke="#1F8A70" stroke-width="2" vector-effect="non-scaling-stroke"
+        points="0,14 30,20 60,26 90,22 120,34 150,30 180,44 210,40 240,52 270,60 300,64"/>
+      <line x1="300" y1="58" x2="300" y2="70" stroke="#1F8A70" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="watch__foot">
+      <span>TARGET <b>₹35,000</b> · NOW <b class="up">below</b></span>
+      <span>LOW <b>₹34,200</b> · HIGH <b>₹41,800</b></span>
+    </div>
+  </div>
+
+  <!-- W-02 train fare -->
+  <div class="watch" style="--cat:var(--verm)">
+    <div class="watch__head">
+      <span class="watch__name">Kolkata → Delhi · Train 12345, 3A</span>
+      <span class="watch__val is-bad">₹1,940</span>
+    </div>
+    <svg class="spark" viewBox="0 0 300 80" preserveAspectRatio="none" role="img" aria-label="Fare trend rising above threshold">
+      <line x1="0" y1="44" x2="300" y2="44" stroke="#D93B2B" stroke-width="1.5" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>
+      <polyline fill="none" stroke="#D93B2B" stroke-width="2" vector-effect="non-scaling-stroke"
+        points="0,66 30,60 60,62 90,52 120,56 150,46 180,50 210,40 240,44 270,36 300,32"/>
+      <line x1="300" y1="26" x2="300" y2="38" stroke="#D93B2B" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="watch__foot">
+      <span>TARGET <b>₹1,800</b> · NOW <b class="down">above</b></span>
+      <span>LOW <b>₹1,780</b> · HIGH <b>₹2,110</b></span>
+    </div>
+  </div>
+
+  <!-- W-03 stock -->
+  <div class="watch" style="--cat:var(--teal)">
+    <div class="watch__head">
+      <span class="watch__name">Sample Semiconductor · NSE</span>
+      <span class="watch__val is-good">₹1,512</span>
+    </div>
+    <svg class="spark" viewBox="0 0 300 80" preserveAspectRatio="none" role="img" aria-label="Stock trend rising above threshold">
+      <line x1="0" y1="52" x2="300" y2="52" stroke="#D93B2B" stroke-width="1.5" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>
+      <polyline fill="none" stroke="#1F8A70" stroke-width="2" vector-effect="non-scaling-stroke"
+        points="0,70 30,66 60,68 90,58 120,62 150,54 180,48 210,50 240,42 270,38 300,34"/>
+      <line x1="300" y1="28" x2="300" y2="40" stroke="#1F8A70" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="watch__foot">
+      <span>TARGET <b>&gt; ₹1,450</b> · NOW <b class="up">above</b></span>
+      <span>OPEN <b>₹1,468</b> · 52W <b>₹1,190–₹1,604</b></span>
+    </div>
+  </div>
+
+  <div class="sec sec--ink" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">New rule</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">builder</span>
+  </div>
+
+  <div class="pad-lg">
+    <div class="builder">
+      <div class="builder__row">
+        <div class="field">
+          <div class="field__l">If source</div>
+          <div class="field__v">SMS · Bank <span class="caret">▼</span></div>
+        </div>
+        <div class="field">
+          <div class="field__l">Amount</div>
+          <div class="field__v">&gt; ₹10,000 <span class="caret">▼</span></div>
+        </div>
+      </div>
+      <div class="builder__row">
+        <div class="field">
+          <div class="field__l">Match on</div>
+          <div class="field__v">Text + entities <span class="caret">▼</span></div>
+        </div>
+        <div class="field">
+          <div class="field__l">Deliver</div>
+          <div class="field__v">Push · now <span class="caret">▼</span></div>
+        </div>
+      </div>
+      <div class="builder__row">
+        <div class="field">
+          <div class="field__l">Rule name</div>
+          <div class="field__v">Large debit watch</div>
+        </div>
+        <div class="rule__op" style="border-right:0">→</div>
+        <div class="field" style="flex:0 0 108px">
+          <div class="field__l">State</div>
+          <div class="field__v">On <span class="caret">▼</span></div>
+        </div>
+        <button class="btn btn--solid" style="border-radius:0;border-top:0;border-bottom:0;border-right:0">Save</button>
+      </div>
+    </div>
+    <div class="note mt2">
+      Rules run against normalized events, so the same condition works across SMS, RSS, prices and social posts. Sample values only.
+    </div>
+  </div>
+
+  <div class="sec" style="--accent:var(--teal)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Recently fired</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">last 24h · 9</span>
+  </div>
+
+  <div class="list-row" style="--cat:var(--teal)">
+    <div>
+      <div class="list-row__t">R-01 · Sample Bank ₹12,480 debit</div>
+      <div class="list-row__m">09:42 · push + timeline · Sample Electronics, Indiranagar</div>
+    </div>
+    <span class="chip chip--mute">Pushed</span>
+  </div>
+  <div class="list-row" style="--cat:var(--indigo)">
+    <div>
+      <div class="list-row__t">R-03 · Kolkata Metro clears safety trial</div>
+      <div class="list-row__m">09:31 · digest 08:00 · relevance 94</div>
+    </div>
+    <span class="chip chip--mute">Digest</span>
+  </div>
+  <div class="list-row" style="--cat:var(--mustard)">
+    <div>
+      <div class="list-row__t">R-02 · HND fare fell to ₹34,200</div>
+      <div class="list-row__m">08:58 · push · below ₹35,000 target</div>
+    </div>
+    <span class="chip chip--mute">Pushed</span>
+  </div>
+  <div class="list-row" style="--cat:var(--plum)">
+    <div>
+      <div class="list-row__t">R-04 · AWS ap-south-1 error rates</div>
+      <div class="list-row__m">08:44 · push · still ongoing</div>
+    </div>
+    <span class="chip chip--alert">Open</span>
+  </div>
+  <div class="list-row" style="--cat:var(--peri)">
+    <div>
+      <div class="list-row__t">Match · X thread on Postgres queues</div>
+      <div class="list-row__m">08:30 · timeline only · no rule fired</div>
+    </div>
+    <span class="chip chip--ghost">Timeline</span>
+  </div>
+
+  <footer class="foot">Last refresh 09:44 · sample data</footer>
+
+    <nav class="bottomnav">
+    <a class="navitem" href="home.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem" href="services.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg>
+      <span class="navitem__l">Services</span>
+    </a>
+    <a class="navitem" href="messages.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg>
+      <span class="navitem__l">Messages</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Wallet">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg>
+      <span class="navitem__l">Wallet</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Me">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+
+<script>
+  document.querySelectorAll('.sw').forEach(function (s) {
+    s.addEventListener('click', function () {
+      s.classList.toggle('is-on');
+      s.setAttribute('aria-checked', s.classList.contains('is-on') ? 'true' : 'false');
+      var rule = s.closest('.rule');
+      if (rule) rule.classList.toggle('is-off');
+    });
+  });
+</script>
+</body>
+</html>

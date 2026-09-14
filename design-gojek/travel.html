@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Travel</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="pagebar">
+    <div class="pagebar__row">
+      <span class="pagebar__title">Travel</span>
+      <span class="pagebar__meta">2 routes watched</span>
+      <a class="pagebar__act" href="home.html">Home</a>
+    </div>
+    <div class="seg">
+      <span class="seg__item seg__item--on">Flights</span>
+      <span class="seg__item">Trains</span>
+      <span class="seg__item">Rides</span>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <section class="modhead">
+      <span class="modhead__spine"></span>
+      <span class="modhead__glyph">
+        <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M15.5 2.5 2.5 8.2l4.6 1.9 1.9 4.6z"/><path d="M7.1 10.1 15.5 2.5"/></svg>
+      </span>
+      <span class="modhead__body">
+        <span class="modhead__title">BLR → HND · Sample Air</span>
+        <span class="modhead__sub">Round trip · 14–22 Oct · 1 passenger</span>
+      </span>
+    </section>
+
+    <div class="facts">
+      <div class="fact">
+        <div class="fact__k">Now</div>
+        <div class="fact__v fact__v--good">₹34,200</div>
+      </div>
+      <div class="fact">
+        <div class="fact__k">Target</div>
+        <div class="fact__v">₹35,000</div>
+      </div>
+      <div class="fact">
+        <div class="fact__k">30-day change</div>
+        <div class="fact__v fact__v--good">−12.1%</div>
+      </div>
+      <div class="fact">
+        <div class="fact__k">30-day low</div>
+        <div class="fact__v">₹34,200</div>
+      </div>
+    </div>
+
+    <section class="chartcard">
+      <div class="chartcard__head">
+        <span class="chartcard__title">Low fare · 30 days</span>
+        <span class="chartcard__meta">dashed = ₹35,000</span>
+      </div>
+      <svg class="chartcard__svg" viewBox="0 0 320 72" preserveAspectRatio="none" aria-hidden="true">
+        <path class="spark__area" d="M6 14.18 L57.33 23.73 L108.67 32.59 L160 27.82 L211.33 46.91 L262.67 58.5 L314 64.64 L314 70 L6 70 Z"/>
+        <path class="spark__line spark__line--good" d="M6 14.18 L57.33 23.73 L108.67 32.59 L160 27.82 L211.33 46.91 L262.67 58.5 L314 64.64"/>
+        <line class="spark__thresh" x1="6" y1="59.18" x2="314" y2="59.18"/>
+        <line class="spark__axis" x1="6" y1="70" x2="314" y2="70"/>
+      </svg>
+    </section>
+
+    <div class="sechead">
+      <span class="sechead__title">Cheapest fares</span>
+      <span class="sechead__meta">checked 08:58</span>
+    </div>
+
+    <div class="list">
+      <div class="row">
+        <span class="row__k">Sample Air · 1 stop</span>
+        <span class="row__v row__v--good">₹34,200</span>
+      </div>
+      <div class="row">
+        <span class="row__k">Sample Air · nonstop</span>
+        <span class="row__v">₹41,900</span>
+      </div>
+      <div class="row">
+        <span class="row__k">Other Air · 1 stop</span>
+        <span class="row__v">₹36,400</span>
+      </div>
+      <div class="row">
+        <span class="row__k">Other Air · 2 stops</span>
+        <span class="row__v">₹33,700</span>
+      </div>
+    </div>
+
+    <div class="sechead">
+      <span class="sechead__title">Fare history</span>
+      <span class="sechead__meta">7 readings</span>
+    </div>
+
+    <div class="bars">
+      <div class="bar">
+        <span class="bar__label">10 Sep</span>
+        <span class="bar__track"><span class="bar__fill bar__fill--p5 bar__fill--tgt"></span></span>
+        <span class="bar__val">₹34,200</span>
+      </div>
+      <div class="bar">
+        <span class="bar__label">17 Sep</span>
+        <span class="bar__track"><span class="bar__fill bar__fill--p4"></span></span>
+        <span class="bar__val">₹36,800</span>
+      </div>
+      <div class="bar">
+        <span class="bar__label">24 Sep</span>
+        <span class="bar__track"><span class="bar__fill bar__fill--p3"></span></span>
+        <span class="bar__val">₹38,400</span>
+      </div>
+      <div class="bar">
+        <span class="bar__label">01 Oct</span>
+        <span class="bar__track"><span class="bar__fill bar__fill--p2"></span></span>
+        <span class="bar__val">₹39,900</span>
+      </div>
+      <div class="bar">
+        <span class="bar__label">08 Oct</span>
+        <span class="bar__track"><span class="bar__fill bar__fill--p1"></span></span>
+        <span class="bar__val">₹41,600</span>
+      </div>
+    </div>
+
+    <div class="sechead">
+      <span class="sechead__title">Watching</span>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <span class="rule__id">R-02</span>
+        <div class="rule__main">
+          <div class="rule__title">Fare below ₹35,000</div>
+          <div class="rule__cond">Sample Air BLR→HND · notify push</div>
+          <div class="rule__meta">Last fired 08:58 · result ₹34,200</div>
+        </div>
+        <button class="tgl tgl--on" type="button" aria-label="Rule R-02 on"><span class="tgl__knob"></span></button>
+      </div>
+    </div>
+
+    <button class="btn btn--dark btn--block" type="button">Add route watcher</button>
+
+  </main>
+
+  <nav class="tabbar" aria-label="Primary">
+    <a class="tab tab--on" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.6 8.4 9 3l6.4 5.4V15a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/><path d="M7 16v-4.4h4V16"/></svg></span>
+      <span class="tab__label">Home</span>
+    </a>
+    <a class="tab" href="activity.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M1.6 9h3.6l1.6-4.4L9.6 13.4 11.2 9h3.6"/></svg></span>
+      <span class="tab__label">Activity</span>
+    </a>
+    <a class="tab" href="alerts.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.4a4 4 0 0 0-4 4v3L3.4 12.4h11.2L13 9.4v-3a4 4 0 0 0-4-4z"/><path d="M7.4 12.4a1.6 1.6 0 0 0 3.2 0"/></svg></span>
+      <span class="tab__label">Alerts</span>
+    </a>
+    <a class="tab" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="6.4" r="3"/><path d="M3.4 15.6a5.6 5.6 0 0 1 11.2 0"/></svg></span>
+      <span class="tab__label">Me</span>
+    </a>
+  </nav>
+
+</div>
+</body>
+</html>

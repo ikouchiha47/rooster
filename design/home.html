@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Home</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appmark">PR</div>
+      <div class="appbar__t">
+        <h1 class="appbar__title">Personal Radar</h1>
+        <div class="appbar__sub">Hub · 128 new</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="Scan code">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8"/><path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8"/><path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16"/><path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="searchrow">
+      <div class="searchfield">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg>
+        <span>Search sources, rules, places</span>
+      </div>
+    </div>
+
+    <div class="quickrow">
+      <a class="quick" href="blank.html?s=Scan">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8"/><path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8"/><path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16"/><path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+        <span class="quick__l">Scan</span>
+      </a>
+      <a class="quick" href="alerts.html">
+        <svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span class="quick__l">New rule</span>
+      </a>
+      <a class="quick" href="interests.html">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="6" cy="18" r="1.6"/><path d="M5 11a8 8 0 0 1 8 8"/><path d="M5 5a14 14 0 0 1 14 14"/></svg>
+        <span class="quick__l">Add feed</span>
+      </a>
+      <a class="quick" href="blank.html?s=Snooze">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><polyline points="12 7.5 12 12 15 14"/></svg>
+        <span class="quick__l">Snooze</span>
+      </a>
+      <a class="quick" href="blank.html?s=Sync">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><polyline points="20.5 3.5 20.5 8.5 15.5 8.5"/></svg>
+        <span class="quick__l">Sync</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="widgets">
+    <div class="wcard">
+      <div class="wcard__h">
+        <span class="wcard__t">At a glance</span>
+        <span class="wcard__n">rolling 24h</span>
+      </div>
+      <div class="g2">
+        <div class="pad" style="border-bottom:1px solid var(--rule-soft)">
+          <div class="upper dim">Money out today</div>
+          <div class="row" style="align-items:baseline"><span class="mono tnum" style="font-size:var(--fs-h3);font-weight:700">₹12,480</span><span class="dim" style="font-size:var(--fs-micro)">1 debit</span></div>
+        </div>
+        <div class="pad" style="border-bottom:1px solid var(--rule-soft)">
+          <div class="upper dim">Fare watch</div>
+          <div class="row" style="align-items:baseline"><span class="mono tnum down" style="font-size:var(--fs-h3);font-weight:700">−12.1%</span><span class="dim" style="font-size:var(--fs-micro)">BLR→HND</span></div>
+        </div>
+        <div class="pad">
+          <div class="upper dim">Alerts fired</div>
+          <div class="row" style="align-items:baseline"><span class="mono tnum" style="font-size:var(--fs-h3);font-weight:700;color:var(--verm)">09</span><span class="dim" style="font-size:var(--fs-micro)">last 24h</span></div>
+        </div>
+        <div class="pad">
+          <div class="upper dim">Sources OK</div>
+          <div class="row" style="align-items:baseline"><span class="mono tnum" style="font-size:var(--fs-h3);font-weight:700;color:var(--teal)">06</span><span class="dim" style="font-size:var(--fs-micro)">of 07</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="widgetrow">
+      <div class="wcard">
+        <div class="wcard__h">
+          <span class="wcard__t">Now playing</span>
+        </div>
+        <div class="onair" style="border-left:0;grid-template-columns:auto 1fr;row-gap:2px">
+          <div class="onair__eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div>
+            <div class="onair__t">NHK World</div>
+            <div class="onair__m">Tokyo · 128k</div>
+          </div>
+        </div>
+        <button class="btn btn--verm btn--sm btn--block" style="border-radius:0;border-left:0;border-right:0;border-bottom:0">Stop</button>
+      </div>
+
+      <div class="wcard">
+        <div class="wcard__h">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M7 16h9a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 16Z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>
+          <span class="wcard__t">Weather</span>
+        </div>
+        <div class="wx">
+          <div class="row" style="align-items:baseline;gap:6px">
+            <span class="wx__temp">31°</span>
+            <span class="chip chip--chart">Rain 16:00</span>
+          </div>
+          <div class="wx__l">Kolkata · 22 mm · 78% · wind 18 km/h</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Services</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">15 of 24</span>
+  </div>
+
+  <div class="tilegrid">
+    <a class="tile" href="feed.html" style="--c:var(--verm)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 12 18 6"/><path d="M12 4a8 8 0 0 1 8 8"/><path d="M12 8a4 4 0 0 1 4 4"/></svg></span>
+      <span class="tile__l">Radar</span>
+    </a>
+    <a class="tile" href="alerts.html" style="--c:var(--rust)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M12 4a5 5 0 0 0-5 5v3l-1.5 2.5h13L17 12V9a5 5 0 0 0-5-5Z"/><path d="M10 18a2 2 0 0 0 4 0"/></svg></span>
+      <span class="tile__l">Alerts</span>
+    </a>
+    <a class="tile" href="blank.html?s=Money" style="--c:var(--teal)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9v6M17.5 9v6"/></svg></span>
+      <span class="tile__l">Money</span>
+    </a>
+    <a class="tile" href="blank.html?s=News" style="--c:var(--indigo)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="1"/><path d="M7.5 9h9M7.5 12h9M7.5 15h5"/></svg></span>
+      <span class="tile__l">News</span>
+    </a>
+    <a class="tile tile--ink" href="blank.html?s=Travel" style="--c:var(--mustard)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M2.5 12 21 4l-8 17-3-8-7.5-1Z"/><path d="M10 13l4-4"/></svg></span>
+      <span class="tile__l">Travel</span>
+    </a>
+    <a class="tile" href="blank.html?s=Social" style="--c:var(--peri)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 9h8M8 12h5"/></svg></span>
+      <span class="tile__l">Social</span>
+    </a>
+    <a class="tile" href="blank.html?s=Jobs" style="--c:var(--plum)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="11" rx="1"/><path d="M9 8V6h6v2"/><path d="M3 13h18"/></svg></span>
+      <span class="tile__l">Jobs</span>
+    </a>
+    <a class="tile" href="blank.html?s=Radio" style="--c:var(--cyan)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.8"/><path d="M8.6 8.6a5 5 0 0 0 0 6.8"/><path d="M15.4 8.6a5 5 0 0 1 0 6.8"/><path d="M6 6a9 9 0 0 0 0 12"/><path d="M18 6a9 9 0 0 1 0 12"/></svg></span>
+      <span class="tile__l">Radio</span>
+    </a>
+    <a class="tile tile--ink" href="interests.html" style="--c:var(--chart)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M4 4h7l9 9-7 7-9-9V4Z"/><circle cx="8" cy="8" r="1.3"/></svg></span>
+      <span class="tile__l">Topics</span>
+    </a>
+    <a class="tile" href="blank.html?s=RSS" style="--c:var(--indigo)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M5 11a8 8 0 0 1 8 8"/><path d="M5 5a14 14 0 0 1 14 14"/></svg></span>
+      <span class="tile__l">RSS</span>
+    </a>
+    <a class="tile" href="blank.html?s=Watchers" style="--c:var(--teal)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.4"/></svg></span>
+      <span class="tile__l">Watchers</span>
+    </a>
+    <a class="tile" href="blank.html?s=Weather" style="--c:var(--cyan)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M7 16h9a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 16Z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg></span>
+      <span class="tile__l">Weather</span>
+    </a>
+    <a class="tile" href="blank.html?s=Notes" style="--c:var(--ink)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></span>
+      <span class="tile__l">Notes</span>
+    </a>
+    <a class="tile" href="blank.html?s=Settings" style="--c:var(--ink-2)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><line x1="4" y1="7" x2="11" y2="7"/><line x1="15" y1="7" x2="20" y2="7"/><circle cx="13" cy="7" r="2"/><line x1="4" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="20" y2="12"/><circle cx="8" cy="12" r="2"/><line x1="4" y1="17" x2="13" y2="17"/><line x1="17" y1="17" x2="20" y2="17"/><circle cx="15" cy="17" r="2"/></svg></span>
+      <span class="tile__l">Settings</span>
+    </a>
+    <a class="tile tile--outline" href="services.html">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      <span class="tile__l">More</span>
+    </a>
+  </div>
+
+  <div class="sec sec--ink" style="--accent:var(--mustard)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Pinned &amp; recent</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">3 items</span>
+  </div>
+
+  <div class="minicards">
+    <div class="minicard minicard--wide" style="--cat:var(--teal)">
+      <div class="minicard__l">Fired · R-01 · 09:42</div>
+      <div class="minicard__t">Sample Bank: ₹12,480 debited from a/c ••4021</div>
+      <div class="minicard__m">Sample Electronics, Indiranagar · push sent</div>
+    </div>
+    <div class="minicard" style="--cat:var(--mustard)">
+      <div class="minicard__l">Fare drop · BLR→HND</div>
+      <div class="minicard__t">₹38,900 → ₹34,200</div>
+      <div class="minicard__m">−12.1% · below target</div>
+    </div>
+    <div class="minicard" style="--cat:var(--indigo)">
+      <div class="minicard__l">News match · infra</div>
+      <div class="minicard__t">Kolkata Metro clears safety trial</div>
+      <div class="minicard__m">Relevance 94 · 09:31</div>
+    </div>
+  </div>
+
+  <footer class="foot">Last refresh 09:44 · sample data</footer>
+
+  <nav class="bottomnav">
+    <a class="navitem is-current" href="home.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem" href="services.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg>
+      <span class="navitem__l">Services</span>
+    </a>
+    <a class="navitem" href="messages.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg>
+      <span class="navitem__l">Messages</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Wallet">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg>
+      <span class="navitem__l">Wallet</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Me">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+</body>
+</html>

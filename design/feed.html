@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appmark">PR</div>
+      <div class="appbar__t">
+        <h1 class="appbar__title">Personal Radar</h1>
+        <div class="appbar__sub">Sat 12 Sep · sources live</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="Search">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg>
+        </button>
+        <button class="iconbtn" aria-label="Sync now">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><polyline points="20.5 3.5 20.5 8.5 15.5 8.5"/></svg>
+        </button>
+      </div>
+    </header>
+  </div>
+
+  <div class="counts">
+    <div class="stat"><div class="stat__n">128</div><div class="stat__l">Events 24h</div></div>
+    <div class="stat stat--hot"><div class="stat__n">09</div><div class="stat__l">Alerts</div></div>
+    <div class="stat"><div class="stat__n">14</div><div class="stat__l">Sources</div></div>
+    <div class="stat stat--ok"><div class="stat__n">06</div><div class="stat__l">Feeds OK</div></div>
+  </div>
+
+  <div class="sync">
+    <span><span class="sync__dot"></span>Last sync 09:44:12</span>
+    <span><span class="sync__dot sync__dot--warn"></span>1 degraded · AWS</span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab is-active" role="tab">All<span class="tab__n">128</span></button>
+    <button class="tab" role="tab">Money<span class="tab__n">11</span></button>
+    <button class="tab" role="tab">News<span class="tab__n">64</span></button>
+    <button class="tab" role="tab">Social<span class="tab__n">29</span></button>
+    <button class="tab" role="tab">Travel<span class="tab__n">07</span></button>
+    <button class="tab" role="tab">Tech<span class="tab__n">17</span></button>
+  </div>
+
+  <div class="filter-rail">
+    <span class="rail-label">Sort</span>
+    <span class="chip chip--ghost">Newest</span>
+    <span class="rail-label">Region</span>
+    <span class="chip chip--ghost">IN · Kolkata</span>
+    <span class="rail-label">Dedupe</span>
+    <span class="chip chip--mute">On</span>
+  </div>
+
+  <div class="sec" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">At a glance</span>
+    <span class="sec__n">rolling 24h</span>
+  </div>
+
+  <div class="g2">
+    <div class="pad" style="border-bottom:1px solid var(--rule-soft)">
+      <div class="upper dim">Money out</div>
+      <div class="row" style="align-items:baseline"><span class="mono tnum" style="font-size:var(--fs-h3);font-weight:700">₹12,480</span><span class="dim" style="font-size:var(--fs-micro)">1 debit</span></div>
+    </div>
+    <div class="pad" style="border-bottom:1px solid var(--rule-soft)">
+      <div class="upper dim">Travel watch</div>
+      <div class="row" style="align-items:baseline"><span class="mono tnum down" style="font-size:var(--fs-h3);font-weight:700">−12.1%</span><span class="dim" style="font-size:var(--fs-micro)">BLR→HND</span></div>
+    </div>
+    <div class="pad">
+      <div class="upper dim">News matched</div>
+      <div class="row" style="align-items:baseline"><span class="mono tnum" style="font-size:var(--fs-h3);font-weight:700">64</span><span class="dim" style="font-size:var(--fs-micro)">across 14 topics</span></div>
+    </div>
+    <div class="pad">
+      <div class="upper dim">Open incidents</div>
+      <div class="row" style="align-items:baseline"><span class="mono tnum" style="font-size:var(--fs-h3);font-weight:700;color:var(--verm)">2</span><span class="dim" style="font-size:var(--fs-micro)">AWS · Metro</span></div>
+    </div>
+  </div>
+
+  <div class="sec sec--ink" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Timeline</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">all sources · 12 of 128</span>
+  </div>
+
+  <div class="daymark"><span>Today</span><span class="daymark__sp"></span><span>Sat 12 Sep</span></div>
+
+  <!-- 1 · SMS bank -->
+  <article class="event event--fresh" style="--cat:var(--teal)">
+    <div class="event__gut"><div class="event__time">09:42</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">SMS · Bank</span><span class="chip chip--money">Money</span><span class="chip chip--alert">R-01</span></div>
+      <h3 class="event__title">Sample Bank: ₹12,480 debited from a/c ••4021</h3>
+      <p class="event__content">Card ••4021 at Sample Electronics, Indiranagar. Ref 8842019. Balance not stated in message.</p>
+      <div class="event__meta">
+        <span>LOC <b>Bengaluru</b></span>
+        <span>AMT <b>₹12,480</b></span>
+        <span>ENT <span class="ent"><b>Sample Bank</b></span> <span class="ent">Sample Electronics</span></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 2 · Kolkata metro news -->
+  <article class="event event--fresh" style="--cat:var(--indigo)">
+    <div class="event__gut"><div class="event__time">09:31</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">RSS · Metro Desk</span><span class="chip chip--news">News</span><span class="chip chip--chart">Infra·IN</span></div>
+      <h3 class="event__title">Kolkata Metro: East–West line clears final safety trial</h3>
+      <p class="event__content">CRS inspection passed for the Howrah Maidan–Esplanade stretch. Commercial runs to be notified in the next bulletin.</p>
+      <div class="event__meta">
+        <span>LOC <b>Kolkata</b></span>
+        <span>RELEVANCE <b>94</b></span>
+        <span>ENT <span class="ent"><b>Kolkata Metro</b></span> <span class="ent">CRS</span></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 3 · LinkedIn -->
+  <article class="event" style="--cat:var(--peri)">
+    <div class="event__gut"><div class="event__time">09:18</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">LinkedIn</span><span class="chip chip--social">Social</span></div>
+      <h3 class="event__title">Job match — Senior Platform Engineer, 92% fit</h3>
+      <p class="event__content">Sample Corp (Tokyo, remote-friendly), posted 4h ago. Matches topic “Japanese software jobs”.</p>
+      <div class="event__meta">
+        <span>CO <b>Sample Corp</b></span>
+        <span>LOC <b>Tokyo</b></span>
+        <span>FIT <b>92%</b></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 4 · GitHub -->
+  <article class="event" style="--cat:var(--plum)">
+    <div class="event__gut"><div class="event__time">09:05</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">GitHub</span><span class="chip chip--tech">Tech</span></div>
+      <h3 class="event__title">kubernetes/kubernetes — PR #128441 touches kubelet eviction</h3>
+      <p class="event__content">A maintainer you follow reorders memory-eviction signals. 3 files changed, +128 / −41.</p>
+      <div class="event__meta">
+        <span>REPO <b>kubernetes</b></span>
+        <span>DIFF <b>+128 −41</b></span>
+        <span>ENT <span class="ent"><b>kubelet</b></span></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 5 · flight fare watcher -->
+  <article class="event event--fresh" style="--cat:var(--mustard)">
+    <div class="event__gut"><div class="event__time">08:58</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">Watcher · Fare</span><span class="chip chip--travel">Travel</span><span class="chip chip--alert">R-02</span></div>
+      <h3 class="event__title">HND fare dropped ₹38,900 → ₹34,200</h3>
+      <p class="event__content">Sample Air, 1 stop, 14 Oct–21 Oct. Now below your ₹35,000 threshold.</p>
+      <div class="event__meta">
+        <span>ROUTE <b>BLR → HND</b></span>
+        <span>TARGET <b>₹35,000</b></span>
+        <span>Δ <b class="down">−12.1%</b></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 6 · AWS incident -->
+  <article class="event event--fresh" style="--cat:var(--plum)">
+    <div class="event__gut"><div class="event__time">08:44</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">AWS Status</span><span class="chip chip--tech">Tech</span><span class="chip chip--alert">R-04</span></div>
+      <h3 class="event__title">ap-south-1 (Mumbai): elevated API error rates</h3>
+      <p class="event__content">Elevated 5xx on the EC2 control plane since 08:31 IST. Mitigation in progress, no ETA posted.</p>
+      <div class="event__meta">
+        <span>REGION <b>ap-south-1</b></span>
+        <span>IMPACT <b>Medium</b></span>
+        <span>STATUS <b>Ongoing</b></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 7 · X post -->
+  <article class="event" style="--cat:var(--peri)">
+    <div class="event__gut"><div class="event__time">08:30</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">X · @sample_dev</span><span class="chip chip--social">Social</span></div>
+      <h3 class="event__title">Thread: queue patterns for Postgres you probably don't need</h3>
+      <p class="event__content">Nine posts comparing LISTEN/NOTIFY with an outbox table. Two of your interest topics matched.</p>
+      <div class="event__meta">
+        <span>TOPIC <b>Postgres</b></span>
+        <span>LIKES <b>1.2k</b></span>
+        <span>ENT <span class="ent"><b>Postgres</b></span></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 8 · IRCTC -->
+  <article class="event" style="--cat:var(--mustard)">
+    <div class="event__gut"><div class="event__time">08:12</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">SMS · IRCTC</span><span class="chip chip--travel">Travel</span></div>
+      <h3 class="event__title">Coach changed B4 → B7 for PNR ••4471</h3>
+      <p class="event__content">Train 12345, Kolkata → Delhi, departs 13 Sep 16:20. Seat 42, side lower. PDF ticket unchanged.</p>
+      <div class="event__meta">
+        <span>PNR <b>••4471</b></span>
+        <span>DEP <b>13 SEP 16:20</b></span>
+        <span>SEAT <b>42</b></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 9 · radio -->
+  <article class="event" style="--cat:var(--cyan)">
+    <div class="event__gut"><div class="event__time">07:55</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">Radio</span><span class="chip chip--radio">Radio</span></div>
+      <h3 class="event__title">NHK World — Asia News (Tokyo, JP)</h3>
+      <p class="event__content">Live. Current segment covers regional trade and chip export policy.</p>
+      <div class="event__meta">
+        <span>BAND <b>88.5 FM</b></span>
+        <span>BITRATE <b>128k</b></span>
+        <span>LOC <b>Tokyo</b></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 10 · Nikkei -->
+  <article class="event" style="--cat:var(--indigo)">
+    <div class="event__gut"><div class="event__time">07:40</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">RSS · Nikkei Asia</span><span class="chip chip--news">News</span></div>
+      <h3 class="event__title">Chip-tool export curbs tighten for two more categories</h3>
+      <p class="event__content">Report cites suppliers in Japan and the Netherlands. No direct India impact stated yet.</p>
+      <div class="event__meta">
+        <span>TOPIC <b>Chips</b></span>
+        <span>REGION <b>Asia</b></span>
+        <span>RELEVANCE <b>71</b></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 11 · OTP -->
+  <article class="event" style="--cat:var(--teal)">
+    <div class="event__gut"><div class="event__time">07:22</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">SMS · Bank</span><span class="chip chip--money">Money</span><span class="chip chip--ghost">OTP</span></div>
+      <h3 class="event__title">OTP 482913 for a transaction ending ••4021</h3>
+      <p class="event__content">Valid 3 minutes. Do not share. Auto-deleted from the timeline when the request expires.</p>
+      <div class="event__meta">
+        <span>TYPE <b>OTP</b></span>
+        <span>VALID <b>3 min</b></span>
+        <span>AUTO-DELETE <b>On</b></span>
+      </div>
+    </div>
+  </article>
+
+  <!-- 12 · weather -->
+  <article class="event" style="--cat:var(--chart)">
+    <div class="event__gut"><div class="event__time">06:50</div><div class="event__date">12 SEP</div></div>
+    <div class="event__body">
+      <div class="event__top"><span class="src">Weather</span><span class="chip chip--chart">Weather</span></div>
+      <h3 class="event__title">Kolkata: 31°C, heavy rain from 16:00</h3>
+      <p class="event__content">78% chance, about 22 mm expected. No metro or transit advisories issued so far.</p>
+      <div class="event__meta">
+        <span>LOC <b>Kolkata</b></span>
+        <span>RAIN <b>22 mm</b></span>
+        <span>WIND <b>18 km/h</b></span>
+      </div>
+    </div>
+  </article>
+
+  <div class="daymark"><span>Yesterday</span><span class="daymark__sp"></span><span>Fri 11 Sep</span></div>
+  <div class="list-row" style="--cat:var(--indigo)">
+    <div>
+      <div class="list-row__t">Older events collapsed — 116 more, deduped</div>
+      <div class="list-row__m">Filter with the tabs above. Background sync runs every 90 seconds.</div>
+    </div>
+    <button class="btn btn--sm">Load</button>
+  </div>
+
+  <footer class="foot">Last refresh 09:44 · sample data</footer>
+
+    <nav class="bottomnav">
+    <a class="navitem" href="home.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem" href="services.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg>
+      <span class="navitem__l">Services</span>
+    </a>
+    <a class="navitem" href="messages.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg>
+      <span class="navitem__l">Messages</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Wallet">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg>
+      <span class="navitem__l">Wallet</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Me">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('is-active'); });
+      t.classList.add('is-active');
+    });
+  });
+</script>
+</body>
+</html>

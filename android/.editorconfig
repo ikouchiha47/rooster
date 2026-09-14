@@ -1,0 +1,7 @@
+root = true
+
+[*.{kt,kts}]
+# Compose screens are PascalCase by convention; ktlint's function-naming rule
+# does not know about @Composable, so exclude annotated functions.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+max_line_length = off

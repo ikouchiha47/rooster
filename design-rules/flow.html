@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — New rule (sentence)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appmark">PR</div>
+      <div class="appbar__t">
+        <h1 class="appbar__title">New rule</h1>
+        <div class="appbar__sub">Sentence · reads like English</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="Save">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4"/><path d="M8 20v-6h8v6"/></svg>
+        </button>
+        <button class="iconbtn" aria-label="More options">
+          <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="seg">
+      <button class="seg__i">Form</button>
+      <button class="seg__i">Recipe</button>
+      <button class="seg__i is-on">Sentence</button>
+    </div>
+  </div>
+
+  <div class="namefield">
+    <span class="namefield__l">Name</span>
+    <span class="namefield__v">Large debit watch</span>
+  </div>
+
+  <div class="sec" style="--accent:var(--indigo)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Reads as</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">plain English</span>
+  </div>
+  <p class="sent">
+    When an event from <em class="t-when">SMS · Bank</em> arrives where
+    <em class="t-where">amount</em> is more than <em class="t-where">₹10,000</em>
+    and <em class="t-where">entity</em> matches <em class="t-where">Sample Electronics</em>,
+    <em class="t-then">push me</em> and add it to the <em class="t-then">timeline</em>.
+  </p>
+
+  <div class="sec" style="--accent:var(--teal)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Build it</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">tap any block</span>
+  </div>
+
+  <div class="flow">
+    <div class="blk" style="--c:var(--indigo)">
+      <div class="blk__k">When</div>
+      <div class="blk__v">a new event arrives from <span class="tok">SMS · Bank</span></div>
+    </div>
+
+    <div class="join"><span class="join__l">and</span><span class="join__line"></span></div>
+
+    <div class="blk" style="--c:var(--teal)">
+      <div class="blk__k">Where</div>
+      <div class="blk__v"><span class="tok">amount</span> is more than <span class="tok">₹10,000</span></div>
+    </div>
+
+    <div class="join"><span class="join__l">and</span><span class="join__line"></span></div>
+
+    <div class="blk" style="--c:var(--teal)">
+      <div class="blk__k">Where</div>
+      <div class="blk__v"><span class="tok">entity</span> matches <span class="tok">Sample Electronics</span></div>
+    </div>
+
+    <div class="join"><span class="join__l">then</span><span class="join__line"></span></div>
+
+    <div class="blk" style="--c:var(--verm)">
+      <div class="blk__k">Then</div>
+      <div class="blk__v">send a push and add to the <span class="tok">timeline</span>, at most once per day</div>
+    </div>
+  </div>
+
+  <div class="query__k">Equivalent query · same rule in every builder</div>
+  <pre class="query"><span class="c">source</span>   = <span class="a">"SMS:BANK"</span>
+  <span class="c">AND</span>    <span class="c">amount</span> &gt; <span class="a">10000</span>
+  <span class="c">AND</span>    <span class="c">entity</span> ~ <span class="a">"Sample Electronics"</span>
+<span class="f">THEN</span>   push_now, timeline</pre>
+
+  <section class="dryrun">
+    <header class="dryrun__h">
+      <span class="dryrun__t">Dry run</span>
+      <span class="dryrun__live"><i></i>live</span>
+      <span class="dryrun__sp"></span>
+      <span class="dryrun__n">6</span>
+    </header>
+    <div class="dryrun__stat">
+      <span class="dryrun__u"><b>6 events</b> would match</span>
+      <span class="dryrun__win">last 7 days</span>
+    </div>
+    <ul class="hits">
+      <li class="hit">
+        <div class="hit__t">09:42<div class="hit__t--day">TODAY</div></div>
+        <div class="hit__b">
+          <div class="hit__title">Sample Bank debit ₹12,480 — Sample Electronics</div>
+          <div class="hit__m"><span>amount <b>₹12,480</b></span><span>Indiranagar</span></div>
+        </div>
+      </li>
+      <li class="hit">
+        <div class="hit__t">08:05<div class="hit__t--day">TODAY</div></div>
+        <div class="hit__b">
+          <div class="hit__title">UPI transfer ₹18,000 to A. Rao</div>
+          <div class="hit__m"><span>amount <b>₹18,000</b></span></div>
+        </div>
+      </li>
+      <li class="hit">
+        <div class="hit__t">19:20<div class="hit__t--day">WED 11</div></div>
+        <div class="hit__b">
+          <div class="hit__title">Card swipe ₹10,450 — Sample Petrol</div>
+          <div class="hit__m"><span>amount <b>₹10,450</b></span></div>
+        </div>
+      </li>
+      <li class="hit hit--more">
+        <div class="hit__t">…<div class="hit__t--day">+3</div></div>
+        <div class="hit__b">3 more events below the sample cut</div>
+      </li>
+    </ul>
+    <div class="dryrun__f">
+      <span>Would have fired <b>4 alerts</b></span>
+      <span>2 grouped by merchant</span>
+    </div>
+  </section>
+
+  <div class="note">
+    The query is shown so power users can read exactly what the plain-English blocks compile to. Sample data only.
+  </div>
+
+  <div class="wrapup">
+    <button class="btn btn--solid btn--block">Save rule</button>
+    <button class="btn btn--ghost">Test again</button>
+  </div>
+
+  <footer class="foot">Draft · compiled from 3 blocks · 6 matches</footer>
+
+  <nav class="bottomnav">
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem is-current" href="list.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><circle cx="19.5" cy="18" r="2"/></svg>
+      <span class="navitem__l">Rules</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M12 4a5 5 0 0 0-5 5v4l-2 3h14l-2-3V9a5 5 0 0 0-5-5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+      <span class="navitem__l">Alerts</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+
+<script>
+  document.querySelectorAll('.blk').forEach(function (b) {
+    b.addEventListener('click', function () { b.classList.toggle('is-off'); });
+  });
+</script>
+</body>
+</html>

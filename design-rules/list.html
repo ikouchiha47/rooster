@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Rules</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appmark">PR</div>
+      <div class="appbar__t">
+        <h1 class="appbar__title">Rules</h1>
+        <div class="appbar__sub">5 configured · one schema</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="New rule">
+          <svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="iconbtn" aria-label="More options">
+          <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="seg">
+      <button class="seg__i is-on">All</button>
+      <button class="seg__i">Active</button>
+      <button class="seg__i">Paused</button>
+    </div>
+  </div>
+
+  <div class="counts">
+    <div class="stat"><div class="stat__n">05</div><div class="stat__l">Rules</div></div>
+    <div class="stat stat--ok"><div class="stat__n">04</div><div class="stat__l">Active</div></div>
+    <div class="stat"><div class="stat__n">01</div><div class="stat__l">Paused</div></div>
+    <div class="stat stat--hot"><div class="stat__n">20</div><div class="stat__l">Fired 7d</div></div>
+  </div>
+
+  <div class="sync">
+    <span><span class="sync__dot"></span>Evaluating every 60s</span>
+    <span>Next digest 08:00</span>
+  </div>
+
+  <div class="sec" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Configured rules</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">5 of 5</span>
+  </div>
+
+  <div class="rulelist">
+
+    <!-- R-01 -->
+    <article class="rule" style="--cat:var(--teal)">
+      <span class="rule__spine"></span>
+      <div class="rule__main">
+        <div class="rule__head">
+          <span class="rule__name">Large bank transaction</span>
+          <span class="rule__id">R-01</span>
+        </div>
+        <div class="rule__cond"><span class="tok">source</span> = <span class="tok">SMS:BANK</span> and <span class="tok">amount</span> &gt; <span class="tok">₹10,000</span></div>
+        <div class="rule__meta">
+          <span>SOURCE <b>Sample Bank SMS</b></span>
+          <span>ACTION <b>push + timeline</b></span>
+          <span>LAST FIRED <b>today 09:42</b></span>
+          <span>FIRED 7D <b class="hot">4</b></span>
+        </div>
+        <div class="rule__acts">
+          <button class="btn btn--sm btn--ghost">Test</button>
+          <button class="btn btn--sm btn--ghost">Copy</button>
+          <button class="btn btn--sm btn--ghost">Disable</button>
+        </div>
+      </div>
+      <div class="rule__side">
+        <span class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-01 on"></span>
+      </div>
+    </article>
+
+    <!-- R-02 -->
+    <article class="rule" style="--cat:var(--mustard)">
+      <span class="rule__spine"></span>
+      <div class="rule__main">
+        <div class="rule__head">
+          <span class="rule__name">Tokyo fare drop</span>
+          <span class="rule__id">R-02</span>
+        </div>
+        <div class="rule__cond"><span class="tok">route</span> = <span class="tok">BLR→HND</span> and <span class="tok">fare</span> &lt; <span class="tok">₹35,000</span></div>
+        <div class="rule__meta">
+          <span>SOURCE <b>Fare watcher</b></span>
+          <span>ACTION <b>push, once/day</b></span>
+          <span>LAST FIRED <b>today 08:58</b></span>
+          <span>FIRED 7D <b class="hot">3</b></span>
+        </div>
+        <div class="rule__acts">
+          <button class="btn btn--sm btn--ghost">Test</button>
+          <button class="btn btn--sm btn--ghost">Copy</button>
+          <button class="btn btn--sm btn--ghost">Disable</button>
+        </div>
+      </div>
+      <div class="rule__side">
+        <span class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-02 on"></span>
+      </div>
+    </article>
+
+    <!-- R-03 -->
+    <article class="rule" style="--cat:var(--indigo)">
+      <span class="rule__spine"></span>
+      <div class="rule__main">
+        <div class="rule__head">
+          <span class="rule__name">India infrastructure</span>
+          <span class="rule__id">R-03</span>
+        </div>
+        <div class="rule__cond"><span class="tok">topic</span> = <span class="tok">infra:IN</span> and <span class="tok">impact</span> &gt;= <span class="tok">high</span></div>
+        <div class="rule__meta">
+          <span>SOURCE <b>14 RSS feeds</b></span>
+          <span>ACTION <b>digest 08:00 + push</b></span>
+          <span>LAST FIRED <b>today 09:31</b></span>
+          <span>FIRED 7D <b class="hot">12</b></span>
+        </div>
+        <div class="rule__acts">
+          <button class="btn btn--sm btn--ghost">Test</button>
+          <button class="btn btn--sm btn--ghost">Copy</button>
+          <button class="btn btn--sm btn--ghost">Disable</button>
+        </div>
+      </div>
+      <div class="rule__side">
+        <span class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-03 on"></span>
+      </div>
+    </article>
+
+    <!-- R-04 -->
+    <article class="rule" style="--cat:var(--plum)">
+      <span class="rule__spine"></span>
+      <div class="rule__main">
+        <div class="rule__head">
+          <span class="rule__name">AWS incident</span>
+          <span class="rule__id">R-04</span>
+        </div>
+        <div class="rule__cond"><span class="tok">service</span> = <span class="tok">AWS</span> and <span class="tok">region</span> = <span class="tok">ap-south-1</span></div>
+        <div class="rule__meta">
+          <span>SOURCE <b>AWS status feed</b></span>
+          <span>ACTION <b>push immediately</b></span>
+          <span>LAST FIRED <b>today 08:44</b></span>
+          <span>FIRED 7D <b class="hot">1</b></span>
+        </div>
+        <div class="rule__acts">
+          <button class="btn btn--sm btn--ghost">Test</button>
+          <button class="btn btn--sm btn--ghost">Copy</button>
+          <button class="btn btn--sm btn--ghost">Disable</button>
+        </div>
+      </div>
+      <div class="rule__side">
+        <span class="sw is-on" role="switch" aria-checked="true" aria-label="Rule R-04 on"></span>
+      </div>
+    </article>
+
+    <!-- R-05 paused -->
+    <article class="rule is-off" style="--cat:var(--peri)">
+      <span class="rule__spine"></span>
+      <div class="rule__main">
+        <div class="rule__head">
+          <span class="rule__name">Quant hiring</span>
+          <span class="rule__id">R-05</span>
+        </div>
+        <div class="rule__cond"><span class="tok">company</span> IN (<span class="tok">Citadel</span>, <span class="tok">Jane Street</span>) and <span class="tok">role</span> ~ <span class="tok">quant</span></div>
+        <div class="rule__meta">
+          <span>SOURCE <b>LinkedIn, careers pages</b></span>
+          <span>ACTION <b>weekly digest</b></span>
+          <span>LAST FIRED <b>3 days ago</b></span>
+          <span>FIRED 7D <b>0</b></span>
+          <span class="hot">PAUSED</span>
+        </div>
+        <div class="rule__acts">
+          <button class="btn btn--sm btn--ghost">Test</button>
+          <button class="btn btn--sm btn--ghost">Copy</button>
+          <button class="btn btn--sm btn--solid">Enable</button>
+        </div>
+      </div>
+      <div class="rule__side">
+        <span class="sw" role="switch" aria-checked="false" aria-label="Rule R-05 off"></span>
+      </div>
+    </article>
+
+  </div>
+
+  <div class="lbl">
+    <span>Tap a rule to edit · long press to reorder</span>
+    <span class="lbl__sp"></span>
+    <span>sample data</span>
+  </div>
+
+  <div class="wrapup">
+    <button class="btn btn--solid btn--block">New rule</button>
+    <button class="btn btn--ghost">Import</button>
+  </div>
+
+  <footer class="foot">Last refresh 09:44 · 20 alerts fired in 7 days</footer>
+
+  <nav class="bottomnav">
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem is-current" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><circle cx="19.5" cy="18" r="2"/></svg>
+      <span class="navitem__l">Rules</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M12 4a5 5 0 0 0-5 5v4l-2 3h14l-2-3V9a5 5 0 0 0-5-5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+      <span class="navitem__l">Alerts</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+
+<script>
+  document.querySelectorAll('.sw').forEach(function (s) {
+    s.addEventListener('click', function () {
+      s.classList.toggle('is-on');
+      s.setAttribute('aria-checked', s.classList.contains('is-on') ? 'true' : 'false');
+      var r = s.closest('.rule');
+      if (r) r.classList.toggle('is-off');
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Services</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appbar__t">
+        <h1 class="appbar__title">Services</h1>
+        <div class="appbar__sub">24 modules · 5 groups</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="Scan code">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8"/><path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8"/><path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16"/><path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="searchrow">
+      <div class="searchfield">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg>
+        <span>Search all services</span>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab is-active" role="tab">All<span class="tab__n">24</span></button>
+      <button class="tab" role="tab">Radar<span class="tab__n">06</span></button>
+      <button class="tab" role="tab">News<span class="tab__n">07</span></button>
+      <button class="tab" role="tab">Money<span class="tab__n">05</span></button>
+      <button class="tab" role="tab">Media<span class="tab__n">04</span></button>
+      <button class="tab" role="tab">App<span class="tab__n">04</span></button>
+    </div>
+  </div>
+
+  <div class="sec" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Radar &amp; monitoring</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">4 modules</span>
+  </div>
+
+  <div class="tilegrid">
+    <a class="tile" href="feed.html" style="--c:var(--verm)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 12 18 6"/><path d="M12 4a8 8 0 0 1 8 8"/><path d="M12 8a4 4 0 0 1 4 4"/></svg></span>
+      <span class="tile__l">Radar</span>
+    </a>
+    <a class="tile" href="alerts.html" style="--c:var(--rust)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M12 4a5 5 0 0 0-5 5v3l-1.5 2.5h13L17 12V9a5 5 0 0 0-5-5Z"/><path d="M10 18a2 2 0 0 0 4 0"/></svg></span>
+      <span class="tile__l">Alerts</span>
+    </a>
+    <a class="tile" href="blank.html?s=Watchers" style="--c:var(--teal)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.4"/></svg></span>
+      <span class="tile__l">Watchers</span>
+    </a>
+    <a class="tile" href="messages.html" style="--c:var(--verm)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg></span>
+      <span class="tile__l">Messages</span>
+    </a>
+  </div>
+
+  <div class="sec" style="--accent:var(--indigo)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">News &amp; topics</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">4 modules</span>
+  </div>
+
+  <div class="tilegrid">
+    <a class="tile" href="blank.html?s=News" style="--c:var(--indigo)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="1"/><path d="M7.5 9h9M7.5 12h9M7.5 15h5"/></svg></span>
+      <span class="tile__l">News</span>
+    </a>
+    <a class="tile tile--ink" href="interests.html" style="--c:var(--chart)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M4 4h7l9 9-7 7-9-9V4Z"/><circle cx="8" cy="8" r="1.3"/></svg></span>
+      <span class="tile__l">Topics</span>
+    </a>
+    <a class="tile" href="blank.html?s=RSS" style="--c:var(--indigo)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M5 11a8 8 0 0 1 8 8"/><path d="M5 5a14 14 0 0 1 14 14"/></svg></span>
+      <span class="tile__l">RSS</span>
+    </a>
+    <a class="tile" href="blank.html?s=Social" style="--c:var(--peri)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/><path d="M8 9h8M8 12h5"/></svg></span>
+      <span class="tile__l">Social</span>
+    </a>
+  </div>
+
+  <div class="sec" style="--accent:var(--teal)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Money &amp; travel</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">4 modules</span>
+  </div>
+
+  <div class="tilegrid">
+    <a class="tile" href="blank.html?s=Money" style="--c:var(--teal)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9v6M17.5 9v6"/></svg></span>
+      <span class="tile__l">Money</span>
+    </a>
+    <a class="tile tile--ink" href="blank.html?s=Travel" style="--c:var(--mustard)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M2.5 12 21 4l-8 17-3-8-7.5-1Z"/><path d="M10 13l4-4"/></svg></span>
+      <span class="tile__l">Travel</span>
+    </a>
+    <a class="tile" href="blank.html?s=Cards" style="--c:var(--plum)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><path d="M7 14h3"/></svg></span>
+      <span class="tile__l">Cards</span>
+    </a>
+    <a class="tile" href="blank.html?s=Wallet" style="--c:var(--cyan)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M4 8h13a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V8Z"/><path d="M4 8V7a1 1 0 0 1 1-1h9"/><circle cx="16" cy="13.5" r="1.2"/></svg></span>
+      <span class="tile__l">Wallet</span>
+    </a>
+  </div>
+
+  <div class="sec" style="--accent:var(--cyan)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">Media &amp; daily</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">4 modules</span>
+  </div>
+
+  <div class="tilegrid">
+    <a class="tile" href="blank.html?s=Radio" style="--c:var(--cyan)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.8"/><path d="M8.6 8.6a5 5 0 0 0 0 6.8"/><path d="M15.4 8.6a5 5 0 0 1 0 6.8"/><path d="M6 6a9 9 0 0 0 0 12"/><path d="M18 6a9 9 0 0 1 0 12"/></svg></span>
+      <span class="tile__l">Radio</span>
+    </a>
+    <a class="tile" href="blank.html?s=Weather" style="--c:var(--chart)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M7 16h9a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 16Z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg></span>
+      <span class="tile__l">Weather</span>
+    </a>
+    <a class="tile" href="blank.html?s=Notes" style="--c:var(--ink)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></span>
+      <span class="tile__l">Notes</span>
+    </a>
+    <a class="tile" href="blank.html?s=Places" style="--c:var(--rust)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M12 21s6-5.5 6-10.5A6 6 0 0 0 6 10.5C6 15.5 12 21 12 21Z"/><circle cx="12" cy="10.5" r="2.2"/></svg></span>
+      <span class="tile__l">Places</span>
+    </a>
+  </div>
+
+  <div class="sec" style="--accent:var(--ink)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">App</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">4 modules</span>
+  </div>
+
+  <div class="tilegrid">
+    <a class="tile" href="blank.html?s=Settings" style="--c:var(--ink-2)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><line x1="4" y1="7" x2="11" y2="7"/><line x1="15" y1="7" x2="20" y2="7"/><circle cx="13" cy="7" r="2"/><line x1="4" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="20" y2="12"/><circle cx="8" cy="12" r="2"/><line x1="4" y1="17" x2="13" y2="17"/><line x1="17" y1="17" x2="20" y2="17"/><circle cx="15" cy="17" r="2"/></svg></span>
+      <span class="tile__l">Settings</span>
+    </a>
+    <a class="tile" href="blank.html?s=Sources" style="--c:var(--ink)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/><path d="M8 7h4M8 17h4"/></svg></span>
+      <span class="tile__l">Sources</span>
+    </a>
+    <a class="tile" href="blank.html?s=Account" style="--c:var(--plum)">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg></span>
+      <span class="tile__l">Account</span>
+    </a>
+    <a class="tile tile--outline" href="home.html">
+      <span class="tile__sq"><svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg></span>
+      <span class="tile__l">Home</span>
+    </a>
+  </div>
+
+  <footer class="foot">Last refresh 09:44 · sample data</footer>
+
+  <nav class="bottomnav">
+    <a class="navitem" href="home.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem is-current" href="services.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg>
+      <span class="navitem__l">Services</span>
+    </a>
+    <a class="navitem" href="messages.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg>
+      <span class="navitem__l">Messages</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Wallet">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg>
+      <span class="navitem__l">Wallet</span>
+    </a>
+    <a class="navitem" href="blank.html?s=Me">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+
+<script>
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('is-active'); });
+      t.classList.add('is-active');
+    });
+  });
+</script>
+</body>
+</html>

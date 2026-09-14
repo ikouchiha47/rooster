@@ -1,0 +1,1 @@
+Personal-use-only Android app (Kotlin). READ_SMS / content://sms probe. Never distributed via app store.

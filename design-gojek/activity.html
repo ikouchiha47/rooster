@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Activity</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="pagebar">
+    <div class="pagebar__row">
+      <span class="pagebar__title">Activity</span>
+      <span class="pagebar__meta">12 events · today</span>
+      <a class="pagebar__act" href="alerts.html">Rules</a>
+    </div>
+    <div class="seg">
+      <span class="seg__item seg__item--on">All</span>
+      <span class="seg__item">Money</span>
+      <span class="seg__item">News</span>
+      <span class="seg__item">Travel</span>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <div class="dayrow">
+      <span class="dayrow__label">Today · Sat 13 Sep</span>
+      <span class="dayrow__rule"></span>
+      <span class="dayrow__count">12</span>
+    </div>
+
+    <ol class="timeline">
+
+      <li class="ev">
+        <span class="ev__time">09:42</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--money"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--money">Bank SMS</span><span class="ev__src">Sample Bank</span></span>
+          <span class="ev__title">Debit ₹12,480 — Sample Bank</span>
+          <span class="ev__text">UPI debit from a/c ···4417 to Sample Corp. Balance ₹48,210.</span>
+          <span class="ev__meta">Kolkata · entity Sample Corp · rule R-01 fired</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">09:31</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--news"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--news">News</span><span class="ev__src">Metro Rail</span></span>
+          <span class="ev__title">Kolkata Metro East–West safety trial</span>
+          <span class="ev__text">Commissioner reviews signalling on the East–West corridor; full services after clearance.</span>
+          <span class="ev__meta">Region IN-WB · topic India infrastructure · impact high</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">09:18</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--jobs"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--jobs">Jobs</span><span class="ev__src">LinkedIn</span></span>
+          <span class="ev__title">Job match Tokyo · 92%</span>
+          <span class="ev__text">Distributed systems role, Tokyo. Match 92% against your profile.</span>
+          <span class="ev__meta">Topic Japanese software jobs · no rule</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">09:05</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--dev"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--dev">Code</span><span class="ev__src">GitHub</span></span>
+          <span class="ev__title">Kubernetes PR · kubelet eviction</span>
+          <span class="ev__text">Pull request #1294 adjusts kubelet eviction thresholds under memory pressure.</span>
+          <span class="ev__meta">Topic distributed systems · repo kubernetes/kubernetes</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">08:58</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--travel"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--travel">Price</span><span class="ev__src">Sample Air</span></span>
+          <span class="ev__title">HND fare ₹38,900 → ₹34,200</span>
+          <span class="ev__text">Round trip BLR→HND, 14–22 Oct. Lowest seen in 30 days.</span>
+          <span class="ev__meta">Rule R-02 fired · target ₹35,000</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">08:44</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--incident"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--incident">Incident</span><span class="ev__src">AWS Health</span></span>
+          <span class="ev__title">ap-south-1 elevated errors</span>
+          <span class="ev__text">Elevated 5xx from ap-south-1; sample status page reports degraded service.</span>
+          <span class="ev__meta">Region ap-south-1 · rule R-04 fired</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">08:30</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--social"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--social">Social</span><span class="ev__src">X</span></span>
+          <span class="ev__title">Thread on Postgres queue patterns</span>
+          <span class="ev__text">@sample_dev compares SKIP LOCKED with advisory locks for job queues.</span>
+          <span class="ev__meta">Topic distributed systems · 41 replies</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">08:12</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--travel"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--travel">Rail</span><span class="ev__src">IRCTC</span></span>
+          <span class="ev__title">Coach change B4 → B7</span>
+          <span class="ev__text">Train 12345 Kolkata→Delhi, 3A. Coach moved, same berth and seat.</span>
+          <span class="ev__meta">Booking ···2288 · no rule</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">07:55</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--radio"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--radio">Radio</span><span class="ev__src">Radio Garden</span></span>
+          <span class="ev__title">NHK World · Asia News live</span>
+          <span class="ev__text">Listening session opened in Tokyo. Now playing for 22 min.</span>
+          <span class="ev__meta">Station NHK World Asia News · no rule</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">07:40</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--news"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--news">News</span><span class="ev__src">Nikkei Asia</span></span>
+          <span class="ev__title">Chip export curbs tightened</span>
+          <span class="ev__text">Report on stricter licensing for advanced chip tooling bound for the region.</span>
+          <span class="ev__meta">Region JP · topic AI video generation · impact medium</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">07:22</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--money"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--money">Bank SMS</span><span class="ev__src">Sample Bank</span></span>
+          <span class="ev__title">OTP for ₹2,300 payment</span>
+          <span class="ev__text">One-time code 4482 for a payment at Sample Store. Valid 10 minutes.</span>
+          <span class="ev__meta">Kolkata · informational · no rule</span>
+        </span>
+      </li>
+
+      <li class="ev">
+        <span class="ev__time">06:50</span>
+        <span class="ev__rail"><span class="ev__dot ev__dot--weather"></span></span>
+        <span class="ev__body">
+          <span class="ev__top"><span class="tag tag--weather">Weather</span><span class="ev__src">Forecast</span></span>
+          <span class="ev__title">Kolkata 31°C · heavy rain from 16:00</span>
+          <span class="ev__text">Heavy rain expected in the evening. High 33°C, low 26°C, humidity 88%.</span>
+          <span class="ev__meta">Region IN-WB · Kolkata local · no rule</span>
+        </span>
+      </li>
+
+    </ol>
+
+  </main>
+
+  <nav class="tabbar" aria-label="Primary">
+    <a class="tab" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.6 8.4 9 3l6.4 5.4V15a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/><path d="M7 16v-4.4h4V16"/></svg></span>
+      <span class="tab__label">Home</span>
+    </a>
+    <a class="tab tab--on" href="activity.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M1.6 9h3.6l1.6-4.4L9.6 13.4 11.2 9h3.6"/></svg></span>
+      <span class="tab__label">Activity</span>
+    </a>
+    <a class="tab" href="alerts.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.4a4 4 0 0 0-4 4v3L3.4 12.4h11.2L13 9.4v-3a4 4 0 0 0-4-4z"/><path d="M7.4 12.4a1.6 1.6 0 0 0 3.2 0"/></svg></span>
+      <span class="tab__label">Alerts</span>
+    </a>
+    <a class="tab" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="6.4" r="3"/><path d="M3.4 15.6a5.6 5.6 0 0 1 11.2 0"/></svg></span>
+      <span class="tab__label">Me</span>
+    </a>
+  </nav>
+
+</div>
+</body>
+</html>

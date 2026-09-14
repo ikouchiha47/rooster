@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Home</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="loc">
+      <span class="loc__pin">
+        <svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 16s5.4-5 5.4-8.6A5.4 5.4 0 0 0 3.6 7.4C3.6 11 9 16 9 16z"/><circle cx="9" cy="7.3" r="1.9"/></svg>
+      </span>
+      <span class="loc__city">Kolkata</span>
+      <span class="loc__hint">Salt Lake · 09:44</span>
+      <span class="loc__right">
+        <span class="loc__stat">11/12 sources</span>
+      </span>
+    </div>
+    <div class="searchbar">
+      <span class="searchbar__icon">
+        <svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><circle cx="8" cy="8" r="4.8"/><path d="M11.6 11.6 15.4 15.4"/></svg>
+      </span>
+      <input class="searchbar__input" type="text" placeholder="Search events, sources, rules" aria-label="Search">
+      <button class="searchbar__scan" type="button" aria-label="Scan">
+        <svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 6.4V4.2A1.2 1.2 0 0 1 4.2 3h2.2M11.6 3h2.2A1.2 1.2 0 0 1 15 4.2v2.2M15 11.6v2.2a1.2 1.2 0 0 1-1.2 1.2h-2.2M6.4 15H4.2A1.2 1.2 0 0 1 3 13.8v-2.2"/><path d="M6 9h6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <section class="strip" aria-label="Today at a glance">
+      <div class="strip__item">
+        <span class="strip__k">Out today</span>
+        <span class="strip__v strip__v--up">₹12,480</span>
+      </div>
+      <div class="strip__item">
+        <span class="strip__k">Sources OK</span>
+        <span class="strip__v strip__v--ok">11 / 12</span>
+      </div>
+      <div class="strip__item">
+        <span class="strip__k">Alerts fired</span>
+        <span class="strip__v">9</span>
+      </div>
+    </section>
+
+    <div class="sechead">
+      <span class="sechead__title">Services</span>
+      <span class="sechead__meta">10 domains · 1 stream</span>
+    </div>
+
+    <nav class="stack" aria-label="Services">
+
+      <a class="svc svc--radar" href="activity.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7"/><circle cx="9" cy="9" r="3.2"/><circle cx="9" cy="9" r="1" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Radar</span>
+          <span class="svc__sub">Unified event stream · all sources</span>
+        </span>
+        <span class="svc__metric">12 new</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--money" href="activity.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 3.5h8M5 6.8h8M11.8 3.5c0 3.4-2.4 5.3-5.6 5.3L11 15"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Money</span>
+          <span class="svc__sub">Sample Bank · 1 debit, no OTP pending</span>
+        </span>
+        <span class="svc__metric">₹12,480 out today</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--travel" href="travel.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M15.5 2.5 2.5 8.2l4.6 1.9 1.9 4.6z"/><path d="M7.1 10.1 15.5 2.5"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Travel</span>
+          <span class="svc__sub">Sample Air · 2 routes watched</span>
+        </span>
+        <span class="svc__metric">BLR→HND −12.1%</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--news" href="activity.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><rect x="3.2" y="2.6" width="11.6" height="12.8" rx="1"/><path d="M5.8 6h6.4M5.8 8.8h6.4M5.8 11.6h4"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">News</span>
+          <span class="svc__sub">RSS + wires · region IN</span>
+        </span>
+        <span class="svc__metric">64 matched</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--alerts" href="alerts.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.4a4 4 0 0 0-4 4v3L3.4 12.4h11.2L13 9.4v-3a4 4 0 0 0-4-4z"/><path d="M7.4 12.4a1.6 1.6 0 0 0 3.2 0"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Alerts</span>
+          <span class="svc__sub">5 rules · 4 active, 1 paused</span>
+        </span>
+        <span class="svc__metric">9 fired</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--radio" href="activity.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="1.2" fill="currentColor" stroke="none"/><path d="M5.6 5.6a4.8 4.8 0 0 0 0 6.8M12.4 5.6a4.8 4.8 0 0 1 0 6.8M3.2 3.2a8.2 8.2 0 0 0 0 11.6M14.8 3.2a8.2 8.2 0 0 1 0 11.6"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Radio</span>
+          <span class="svc__sub">Now playing · Tokyo 12:14</span>
+        </span>
+        <span class="svc__metric">NHK World · live</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--social" href="activity.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="4.2" r="2.2"/><circle cx="4" cy="13.4" r="2.2"/><circle cx="14" cy="13.4" r="2.2"/><path d="M7.6 6.1 5.4 11.4M10.4 6.1l2.2 5.3"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Social</span>
+          <span class="svc__sub">X + LinkedIn · chronological</span>
+        </span>
+        <span class="svc__metric">18 new</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--jobs" href="activity.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><rect x="2.6" y="5.8" width="12.8" height="9.2" rx="1"/><path d="M6.6 5.8V4.2a1 1 0 0 1 1-1h2.8a1 1 0 0 1 1 1v1.6M2.6 9.6h12.8"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Jobs</span>
+          <span class="svc__sub">Tokyo · distributed systems</span>
+        </span>
+        <span class="svc__metric">3 matches</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--topics" href="alerts.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.6 2.6h5.6l7.2 7.2-5.6 5.6-7.2-7.2z"/><circle cx="6" cy="6" r="1" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Topics</span>
+          <span class="svc__sub">8 topics · 3 regions</span>
+        </span>
+        <span class="svc__metric">8 tracked</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+      <a class="svc svc--weather" href="activity.html">
+        <span class="svc__spine"></span>
+        <span class="svc__glyph">
+          <svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M5.2 11.4a3.1 3.1 0 0 1 .3-6.1 3.9 3.9 0 0 1 7.4.9 2.6 2.6 0 0 1-.4 5.2z"/><path d="M6.2 14.2v.6M9 14.2v.6M11.8 14.2v.6"/></svg>
+        </span>
+        <span class="svc__body">
+          <span class="svc__title">Weather</span>
+          <span class="svc__sub">Kolkata · updated 06:50</span>
+        </span>
+        <span class="svc__metric">31°C · rain 16:00</span>
+        <span class="svc__chev"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 3.5 12 9l-5.5 5.5"/></svg></span>
+      </a>
+
+    </nav>
+
+    <div class="sechead">
+      <span class="sechead__title">More</span>
+    </div>
+
+    <div class="tilegrid">
+      <a class="tile" href="alerts.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M1.6 9S4.6 4.2 9 4.2 16.4 9 16.4 9 13.4 13.8 9 13.8 1.6 9 1.6 9z"/><circle cx="9" cy="9" r="2.1"/></svg></span>
+        <span class="tile__label">Watchers</span>
+        <span class="tile__val">3 active</span>
+      </a>
+      <a class="tile" href="activity.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><circle cx="4.4" cy="13.6" r="1.6" fill="currentColor" stroke="none"/><path d="M3 8.4a6.6 6.6 0 0 1 6.6 6.6M3 3.6A11.4 11.4 0 0 1 14.4 15"/></svg></span>
+        <span class="tile__label">RSS</span>
+        <span class="tile__val">24 feeds</span>
+      </a>
+      <a class="tile" href="activity.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><rect x="3" y="2.8" width="12" height="12.4" rx="1"/><path d="M5.8 6h6.4M5.8 9h6.4M5.8 12h3.6"/></svg></span>
+        <span class="tile__label">Notes</span>
+        <span class="tile__val">7 saved</span>
+      </a>
+      <a class="tile" href="alerts.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="2.4"/><path d="M9 2v2.2M9 13.8V16M2 9h2.2M13.8 9H16M4 4l1.6 1.6M12.4 12.4 14 14M14 4l-1.6 1.6M5.6 12.4 4 14"/></svg></span>
+        <span class="tile__label">Settings</span>
+        <span class="tile__val">12 prefs</span>
+      </a>
+      <a class="tile" href="activity.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.2 2.4 5.6 9 9l6.6-3.4z"/><path d="M3.2 9.4 9 12.6l5.8-3.2"/></svg></span>
+        <span class="tile__label">Sources</span>
+        <span class="tile__val">12 linked</span>
+      </a>
+      <a class="tile" href="activity.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.2 3.8h13.6v2.8H2.2zM3.6 6.6v8.2h10.8V6.6"/><path d="M7 9.6h4"/></svg></span>
+        <span class="tile__label">Archive</span>
+        <span class="tile__val">2,140</span>
+      </a>
+      <a class="tile" href="activity.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M15 9a6 6 0 0 1-10.2 4.2M3 9a6 6 0 0 1 10.2-4.2"/><path d="M13.2 2.6v2.6h-2.6M4.8 15.4v-2.6h2.6"/></svg></span>
+        <span class="tile__label">Sync</span>
+        <span class="tile__val">09:44</span>
+      </a>
+      <a class="tile tile--more" href="alerts.html">
+        <span class="tile__ico"><svg class="ic ic--sm" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9h12M9 3v12"/></svg></span>
+        <span class="tile__label">+ More</span>
+      </a>
+    </div>
+
+    <div class="sechead">
+      <span class="sechead__title">Recent</span>
+      <a class="sechead__link" href="activity.html">All</a>
+    </div>
+
+    <div class="recent">
+      <a class="mini mini--alert" href="alerts.html">
+        <span class="mini__time">09:42</span>
+        <span class="mini__dot"></span>
+        <span class="mini__body">
+          <span class="mini__title">R-01 fired · Sample Bank debit ₹12,480</span>
+          <span class="mini__meta"><span class="mini__tag">Bank SMS</span> · large transaction</span>
+        </span>
+      </a>
+      <a class="mini mini--price" href="travel.html">
+        <span class="mini__time">08:58</span>
+        <span class="mini__dot"></span>
+        <span class="mini__body">
+          <span class="mini__title">HND fare ₹38,900 → ₹34,200</span>
+          <span class="mini__meta"><span class="mini__tag">Sample Air</span> · below ₹35,000 target</span>
+        </span>
+      </a>
+      <a class="mini mini--news" href="activity.html">
+        <span class="mini__time">09:31</span>
+        <span class="mini__dot"></span>
+        <span class="mini__body">
+          <span class="mini__title">Kolkata Metro East–West safety trial</span>
+          <span class="mini__meta"><span class="mini__tag">India infrastructure</span> · impact high</span>
+        </span>
+      </a>
+    </div>
+
+  </main>
+
+  <nav class="tabbar" aria-label="Primary">
+    <a class="tab tab--on" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.6 8.4 9 3l6.4 5.4V15a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/><path d="M7 16v-4.4h4V16"/></svg></span>
+      <span class="tab__label">Home</span>
+    </a>
+    <a class="tab" href="activity.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M1.6 9h3.6l1.6-4.4L9.6 13.4 11.2 9h3.6"/></svg></span>
+      <span class="tab__label">Activity</span>
+    </a>
+    <a class="tab" href="alerts.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.4a4 4 0 0 0-4 4v3L3.4 12.4h11.2L13 9.4v-3a4 4 0 0 0-4-4z"/><path d="M7.4 12.4a1.6 1.6 0 0 0 3.2 0"/></svg></span>
+      <span class="tab__label">Alerts</span>
+    </a>
+    <a class="tab" href="home.html">
+      <span class="tab__ico"><svg class="ic" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="6.4" r="3"/><path d="M3.4 15.6a5.6 5.6 0 0 1 11.2 0"/></svg></span>
+      <span class="tab__label">Me</span>
+    </a>
+  </nav>
+
+</div>
+</body>
+</html>

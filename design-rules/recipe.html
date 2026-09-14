@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — New recipe</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="device">
+
+  <div class="topchrome">
+    <div class="sysbar">
+      <span class="sysbar__time">09:44</span>
+      <span class="sysbar__icons">
+        <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+        <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+        <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+      </span>
+    </div>
+
+    <header class="appbar">
+      <div class="appmark">PR</div>
+      <div class="appbar__t">
+        <h1 class="appbar__title">New recipe</h1>
+        <div class="appbar__sub">If this · then that</div>
+      </div>
+      <div class="appbar__actions">
+        <button class="iconbtn" aria-label="Save">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4"/><path d="M8 20v-6h8v6"/></svg>
+        </button>
+        <button class="iconbtn" aria-label="More options">
+          <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="seg">
+      <button class="seg__i">Form</button>
+      <button class="seg__i is-on">Recipe</button>
+      <button class="seg__i">Sentence</button>
+    </div>
+  </div>
+
+  <div class="namefield">
+    <span class="namefield__l">Name</span>
+    <span class="namefield__v">Tokyo fare drop</span>
+  </div>
+
+  <div class="sec" style="--accent:var(--verm)">
+    <span class="sec__bar"></span>
+    <span class="sec__t">The recipe</span>
+    <span class="sec__sp"></span>
+    <span class="sec__n">one trigger · one action</span>
+  </div>
+
+  <div class="recipe">
+    <div class="recipe__step recipe__step--if">
+      <div class="recipe__k">If</div>
+      <div class="recipe__body">
+        <div class="recipe__big">A fare drops below a price</div>
+        <div class="recipe__fields">
+          <button class="recipe__field"><span class="k">Route</span>BLR → HND</button>
+          <button class="recipe__field"><span class="k">Below</span>₹30,000</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="recipe__arrow">
+      <span class="recipe__line"></span>
+      <span class="recipe__word">then</span>
+      <span class="recipe__line"></span>
+    </div>
+
+    <div class="recipe__step recipe__step--then">
+      <div class="recipe__k">Then</div>
+      <div class="recipe__body">
+        <div class="recipe__big">Send me a push</div>
+        <div class="recipe__opts">
+          <button class="recipe__opt is-on">Push</button>
+          <button class="recipe__opt">Timeline</button>
+          <button class="recipe__opt">Daily digest</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="recipe__actions">
+    <button class="btn btn--solid btn--block">Save recipe</button>
+    <button class="btn btn--ghost">Test</button>
+  </div>
+
+  <section class="dryrun dryrun--empty">
+    <header class="dryrun__h">
+      <span class="dryrun__t">Dry run</span>
+      <span class="dryrun__sp"></span>
+      <span class="dryrun__n">0</span>
+    </header>
+    <div class="dryrun__stat dryrun__stat--empty">
+      <span class="dryrun__u"><b>0 events</b> would match</span>
+      <span class="dryrun__win">last 7 days</span>
+    </div>
+    <p class="dryrun__msg">
+      No events matched in the last 7 days — broaden the condition.
+      The lowest BLR → HND fare seen was <b>₹34,200</b> on Wed 11.
+    </p>
+    <div class="dryrun__hints">
+      <button class="hintchip">Raise to ₹35,000</button>
+      <button class="hintchip">Any Tokyo airport</button>
+      <button class="hintchip">Include 1-stop</button>
+    </div>
+    <div class="dryrun__f">
+      <span>Would have fired <b>0 alerts</b></span>
+      <span>Never fired</span>
+    </div>
+  </section>
+
+  <div class="hint">
+    <span class="hint__spine"></span>
+    <div>
+      <div class="hint__t">Need more than one condition?</div>
+      <div class="hint__b">Recipes hold a single trigger. Add a second condition to get a full rule — source, amount, entity and more.</div>
+    </div>
+    <button class="hint__go">Add a condition</button>
+  </div>
+
+  <div class="note">
+    A recipe is a rule with one condition. It keeps the common case to two taps, then grows into the full builder when you need it.
+  </div>
+
+  <footer class="foot">Recipe · draft · no matching events</footer>
+
+  <nav class="bottomnav">
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg>
+      <span class="navitem__l">Home</span>
+    </a>
+    <a class="navitem is-current" href="list.html">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/><circle cx="19.5" cy="18" r="2"/></svg>
+      <span class="navitem__l">Rules</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><path d="M12 4a5 5 0 0 0-5 5v4l-2 3h14l-2-3V9a5 5 0 0 0-5-5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+      <span class="navitem__l">Alerts</span>
+    </a>
+    <a class="navitem" href="#">
+      <span class="navitem__ind"></span>
+      <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg>
+      <span class="navitem__l">Me</span>
+    </a>
+  </nav>
+
+</div>
+
+<script>
+  document.querySelectorAll('.recipe__opt').forEach(function (o) {
+    o.addEventListener('click', function () { o.classList.toggle('is-on'); });
+  });
+</script>
+</body>
+</html>
