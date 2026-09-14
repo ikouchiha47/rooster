@@ -282,12 +282,8 @@ private fun NewsRow(
 ) {
     // Source first, then the tags as chips - so a Mint story read through the
     // News tile still shows it is also `finance`. The `news` marker is implied by
-    // the tile and suppressed; see TagLine.
-    val source =
-        event.source
-            .removePrefix("rss:")
-            .replace('-', ' ')
-
+    // the tile and suppressed; see TagLine. The label is the source's own name;
+    // see sourceDisplayName.
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier =
@@ -328,7 +324,7 @@ private fun NewsRow(
                 Spacer(Modifier.height(4.dp))
                 DottedRule()
                 Spacer(Modifier.height(4.dp))
-                TagLine(tags = tags, source = source)
+                TagLine(tags = tags, source = event.source)
             }
         }
         SoftRule()

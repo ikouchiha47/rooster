@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personalos.app.core.Chars
+import com.personalos.app.core.feed.FeedCatalog
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import kotlin.math.pow
@@ -122,13 +123,28 @@ fun CategorySpine(
 
 // ---------------------------------------------------------------- labels
 
+/**
+ * Human name for an `events.source` value such as `rss:thehindu-top`.
+ *
+ * The feed catalog already carries a real `name` for every source. The tiles used
+ * to ignore it and de-slug the id instead, which is why the News list read
+ * "THEHINDU TOP" - a feed id leaking into the UI, and a different-looking label in
+ * each of the three places that derived it. One name per source, derived once.
+ *
+ * Anything the catalog does not know - an SMS sender, or a feed since removed from
+ * the seeds - falls back to a de-slugged id, so a label is never blank.
+ */
+fun sourceDisplayName(source: String): String =
+    FeedCatalog.bySource(source)?.name
+        ?: source.removePrefix(FeedCatalog.SOURCE_PREFIX).replace('-', ' ')
+
 @Composable
 fun SourceLabel(
     source: String,
     modifier: Modifier = Modifier,
 ) {
     Text(
-        text = "— ${source.uppercase()}",
+        text = "— ${sourceDisplayName(source).uppercase()}",
         style = RadarType.micro,
         color = RadarColors.ink2,
         maxLines = 1,

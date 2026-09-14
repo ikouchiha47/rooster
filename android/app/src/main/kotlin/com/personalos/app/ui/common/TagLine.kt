@@ -85,7 +85,8 @@ private const val MAX_VISIBLE_TAGS = 2
  * chip-less row measures exactly the same as one carrying chips. Tags past
  * [MAX_VISIBLE_TAGS] are summarised as a muted `+N`, never silently dropped.
  *
- * @param source raw source name; rendered as the leading label when not null.
+ * @param source raw `events.source`; resolved to a human name by sourceDisplayName
+ *   and rendered as the leading label when not null.
  * @param showMarker whether to render the `news` marker as a muted chip.
  */
 @OptIn(ExperimentalLayoutApi::class)

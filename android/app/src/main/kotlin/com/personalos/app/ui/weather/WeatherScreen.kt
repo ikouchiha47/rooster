@@ -516,10 +516,7 @@ private fun WeatherNewsLine(item: TaggedEvent) {
             // `weather` is implied by this tile, so it is dropped from the chips.
             TagLine(
                 tags = item.tagList.filter { it != Tags.WEATHER },
-                source =
-                    item.event.source
-                        .removePrefix("rss:")
-                        .replace('-', ' '),
+                source = item.event.source,
             )
         }
         SoftRule()

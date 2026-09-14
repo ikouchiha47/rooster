@@ -7,6 +7,21 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(ui): source labels use the catalog name, not the feed id
+
+_2026-09-15_
+
+The News list read "THEHINDU TOP" because three call sites (News, Weather,
+Article) each derived the label from the feed id with their own copy of
+`removePrefix("rss:").replace('-', ' ')`, ignoring the `name` FeedSource already
+carries. One name per source, derived once: `sourceDisplayName()` in
+CommonComponents resolves `rss:<id>` through FeedCatalog and falls back to a
+de-slugged id for anything unknown, so a label is never blank.
+
+SMS rows store the bare source "sms"; that label is byte-for-byte unchanged.
+
+4 regression tests; 112 tests green. Compile + lint only, no device install.
+
 ## chore: keep commit subjects short, notes in CHANGELOG.md
 
 _2026-09-14_

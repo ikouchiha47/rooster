@@ -27,6 +27,7 @@ import com.personalos.app.data.TaggedEvent
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
 import com.personalos.app.ui.common.TagLine
+import com.personalos.app.ui.common.sourceDisplayName
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 
@@ -84,9 +85,7 @@ fun ArticleScreen(
                 item
                     ?.event
                     ?.source
-                    ?.removePrefix("rss:")
-                    ?.replace('-', ' ')
-                    ?.uppercase()
+                    ?.let { sourceDisplayName(it).uppercase() }
                     .orEmpty(),
             accent = CategoryColors.Indigo,
             onBack = onBack,
