@@ -2,7 +2,9 @@ package com.personalos.app.data
 
 import android.util.Log
 import com.personalos.app.core.mention.BundledPartySource
+import com.personalos.app.core.mention.ListPartySource
 import com.personalos.app.core.mention.MentionExtractor
+import com.personalos.app.core.mention.PartyEntry
 import com.personalos.app.core.mention.PartyLexicon
 import com.personalos.app.core.mention.PartySource
 import com.personalos.app.core.mention.PlaceIndex
@@ -16,17 +18,21 @@ import com.personalos.app.core.mention.PlaceIndex
  *
  * The place index is loaded once from [loadPlaces] and cached — the data layer
  * loads, the injected [PlaceIndex] matches, and this class never queries
- * places itself beyond that single load.
+ * places itself beyond that single load. Parties load the same way from the
+ * `parties` table, falling back to [bundledParties] when the table is empty
+ * (fresh install racing the seeder) so matching never goes dark.
  */
 class MentionWriter(
     private val dao: MentionDao,
     private val loadPlaces: suspend () -> List<PlaceEntity>,
-    partySource: PartySource = BundledPartySource,
+    private val loadParties: suspend () -> List<PartyEntry>,
+    private val bundledParties: PartySource = BundledPartySource,
 ) {
-    private val partyLexicon = PartyLexicon(partySource)
-
     @Volatile
     private var placeIndex: PlaceIndex? = null
+
+    @Volatile
+    private var partyLexicon: PartyLexicon? = null
 
     /** Writes one item's mentions. Returns the rows written. */
     suspend fun write(
@@ -90,15 +96,26 @@ class MentionWriter(
     }
 
     private suspend fun extractorOrNull(): MentionExtractor? {
-        placeIndex?.let { return MentionExtractor(it, partyLexicon) }
-        val places =
-            runCatching { loadPlaces() }
-                .onFailure { Log.w(TAG, "places load failed", it) }
-                .getOrNull()
-                ?: return null
-        val index = PlaceIndex(places)
-        placeIndex = index
-        return MentionExtractor(index, partyLexicon)
+        val index =
+            placeIndex ?: run {
+                val places =
+                    runCatching { loadPlaces() }
+                        .onFailure { Log.w(TAG, "places load failed", it) }
+                        .getOrNull()
+                        ?: return null
+                PlaceIndex(places).also { placeIndex = it }
+            }
+        val lexicon =
+            partyLexicon ?: run {
+                val parties =
+                    runCatching { loadParties() }
+                        .onFailure { Log.w(TAG, "parties load failed, using bundled", it) }
+                        .getOrNull()
+                        .orEmpty()
+                        .ifEmpty { bundledParties.parties() }
+                PartyLexicon(ListPartySource("parties", parties)).also { partyLexicon = it }
+            }
+        return MentionExtractor(index, lexicon)
     }
 
     private companion object {

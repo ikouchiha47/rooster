@@ -217,4 +217,14 @@ object Sql {
         ORDER BY id ASC
         LIMIT :limit
         """
+
+    // ----------------------------------------------------------------- parties
+    const val PARTIES_COUNT = "SELECT COUNT(*) FROM parties"
+
+    const val PARTIES_ALL = "SELECT * FROM parties"
+
+    const val PARTY_SOURCES_ALL = "SELECT * FROM party_sources"
+
+    const val PARTY_SOURCES_UPDATE_SYNC =
+        "UPDATE party_sources SET last_sync_at = :syncedAt WHERE country = :country"
 }

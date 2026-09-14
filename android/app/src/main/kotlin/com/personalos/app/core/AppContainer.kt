@@ -17,6 +17,7 @@ import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionWriter
+import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.cache.PrefsStringCache
@@ -97,9 +98,38 @@ class AppContainer(
             openAsset = { context.applicationContext.assets.open(PLACES_ASSET) },
         )
 
+    /** Seeds the party registry once; afterwards a single `COUNT(*)` no-op. */
+    val partySeeder: PartySeeder =
+        PartySeeder(
+            database.partyDao(),
+            database.partySourceDao(),
+        )
+
+    /** Refreshes the party registry from the per-country list pages. */
+    val partySync: com.personalos.app.data.remote.parties.PartySyncer =
+        com.personalos.app.data.remote.parties.PartySyncer(
+            database.partyDao(),
+            database.partySourceDao(),
+        )
+
     /** Writes place/party mentions for ingested items. Stored, not displayed. */
     val mentionWriter: MentionWriter =
-        MentionWriter(database.mentionDao(), loadPlaces = { database.placeDao().all() })
+        MentionWriter(
+            database.mentionDao(),
+            loadPlaces = { database.placeDao().all() },
+            loadParties = {
+                database.partyDao().all().map { row ->
+                    com.personalos.app.core.mention.PartyEntry(
+                        slug = row.slug,
+                        country = row.country,
+                        name = row.name,
+                        aliases = row.aliases.split('|'),
+                        stronghold = row.stronghold,
+                        recognition = row.recognition,
+                    )
+                }
+            },
+        )
 
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
     val retagger: Retagger = Retagger(database.eventDao(), tagWriter, cache, tagger)

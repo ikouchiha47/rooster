@@ -86,6 +86,9 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
                                 runCatching { container.feeds.refresh() }
                                 // Then catch up anything the active tagger has not seen.
                                 runCatching { container.retagger.run() }
+                                // And the party registry: same sync path the yearly
+                                // worker runs, so manual and automatic never drift.
+                                runCatching { container.partySync.syncAll() }
                                 syncing = false
                             }
                         }.padding(horizontal = 8.dp, vertical = 4.dp),

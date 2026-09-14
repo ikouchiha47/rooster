@@ -148,6 +148,38 @@ val MIGRATION_5_6_STATEMENTS: List<String> =
     )
 
 /**
+ * v6 -> v7: the party registry (`parties`) and its sync clocks (`party_sources`).
+ *
+ * New tables only, like v5 -> v6: no rebuild, no defaults to trip Room's
+ * schema validation. `last_sync_at` is nullable (never synced), which needs no
+ * default, and `updated_at` is written by every seed and sync.
+ */
+val MIGRATION_6_7_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS parties (
+            slug TEXT NOT NULL,
+            country TEXT NOT NULL,
+            name TEXT NOT NULL,
+            aliases TEXT NOT NULL,
+            stronghold TEXT NOT NULL,
+            recognition TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY(slug)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_parties_country ON parties (country)",
+        """
+        CREATE TABLE IF NOT EXISTS party_sources (
+            country TEXT NOT NULL,
+            url TEXT NOT NULL,
+            last_sync_at INTEGER,
+            PRIMARY KEY(country)
+        )
+        """.trimIndent(),
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -160,6 +192,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         4 to MIGRATION_3_4_STATEMENTS,
         5 to MIGRATION_4_5_STATEMENTS,
         6 to MIGRATION_5_6_STATEMENTS,
+        7 to MIGRATION_6_7_STATEMENTS,
     )
 
 /** The newest version this build can migrate to. */

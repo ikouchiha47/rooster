@@ -7,6 +7,34 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(party): worldwide registry with sync, schema v7
+
+_2026-09-15_
+
+Party registry goes worldwide: 92 parties across India, US, Brazil, Russia,
+China and South Africa, seeded from the representation tier of each country's
+Wikipedia list (CC BY-SA, attribution with the other datasets). PartyEntry
+gains country; recognition records the tier that earned the row.
+
+Schema v7 adds `parties` (slug PK, country/name/aliases/stronghold/
+recognition/updated_at) and `party_sources` (per-country URL + last-sync
+clock). The extractor now reads the table with a bundled fallback, so matching
+never goes dark on a fresh install racing the seeder.
+
+Sync keeps it: per-country jsoup parsers behind one interface, a PartySyncer
+that unions aliases on update, preserves hand strongholds, inserts unknown
+slugs and never advances the clock on an empty parse, a yearly WorkManager job
+plus the Sources-screen manual path running the same code.
+
+Alias calls made along the way, each pinned by a test: bare Congress is gone
+(it means the US legislature), Good never matches, ATM means cash machine,
+Forward and Forward Party stay apart via longest-match.
+
+Verified on device, not just in tests: v7 live, 92 parties / 6 clocks seeded,
+no crash, Home renders. 152 tests green, lint clean.
+
+Also records ADR 0002 (rules slice: universal source spec, gnews-search first).
+
 ## fix(feed): drop ET top seed, its feed is 92% stale filler
 
 _2026-09-15_

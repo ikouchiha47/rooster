@@ -44,10 +44,21 @@ class MentionExtractorTest {
     }
 
     @Test
-    fun `From AAP to BJP to Congress yields three party mentions`() {
+    fun `From AAP to BJP to Congress yields two party mentions`() {
+        // Bare "Congress" no longer matches: worldwide it reads as the US
+        // legislature, so the alias was removed when the registry went
+        // worldwide. "Congress Party" and "INC" still resolve (next test).
         val hits = extractor().extract("From AAP to BJP to Congress").filter { it.kind == MentionKind.PARTY }
 
-        assertEquals(setOf("aap", "bjp", "congress"), hits.map { it.entityId }.toSet())
+        assertEquals(setOf("aap", "bjp"), hits.map { it.entityId }.toSet())
+    }
+
+    @Test
+    fun `Congress Party and INC still resolve to congress`() {
+        val hits =
+            extractor().extract("Congress Party wins Karnataka, says INC").filter { it.kind == MentionKind.PARTY }
+
+        assertEquals(setOf("congress"), hits.map { it.entityId }.toSet())
     }
 
     @Test

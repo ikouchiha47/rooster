@@ -96,10 +96,12 @@ class MainActivity : ComponentActivity() {
         // Backfill tags for items that predate the active tagger. Incremental and
         // idempotent - one empty query once the cursor reaches the end.
         // The gazetteer seeds first (the mention backfill's index reads it),
-        // then mentions backfill for whatever has none yet.
+        // then the party registry (the lexicon reads it), then mentions
+        // backfill for whatever has none yet.
         lifecycleScope.launch {
             runCatching { container.retagger.run() }
             runCatching { container.placesSeeder.seed() }
+            runCatching { container.partySeeder.seed() }
             runCatching { container.mentionWriter.backfill() }
         }
 

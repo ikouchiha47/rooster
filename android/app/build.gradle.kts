@@ -36,6 +36,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        // Data-layer classes log via android.util.Log; without this every unit
+        // test touching a writer, seeder or syncer dies with "not mocked".
+        // Returning defaults keeps those classes testable on the JVM.
+        unitTests.isReturnDefaultValues = true
+    }
+
     sourceSets {
         getByName("main") {
             kotlin.directories += "src/main/kotlin"
