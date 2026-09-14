@@ -44,3 +44,31 @@ All three must pass. If you cannot verify a claim, say so rather than asserting 
 - Real element bounds: `adb -s 0006934AH000333 shell uiautomator dump /sdcard/ui.xml`
 - The DB is WAL-mode: pull `personalos.db` **and** `-wal`, or recent rows are missing.
 - Logs are cheap and settle arguments: `adb logcat -d -s <Tag>`.
+
+## Commits are short; the note goes in CHANGELOG.md
+
+Subjects stay to one line. The reasoning, the trade-off and the verification go
+after an HTML-comment marker, and a hook moves them into `CHANGELOG.md`:
+
+```
+feat(tag): games vocabulary as data
+
+<!-- changelog -->
+Adds a `games` tag, and moves the vocabulary out of the tagger into a TermSource.
+Sources are merged and alternatives are unioned per tag, so a user-supplied
+vocabulary extends the bundled one rather than replacing it.
+
+Verified on device: v7 active, festival 28, games 21.
+```
+
+The hook strips everything from the marker on, so the commit holds the subject
+only, and prepends the note to `CHANGELOG.md` in the same commit. A message with
+no marker is left alone.
+
+Enable it once per clone — the hook lives in the repo, but git does not read it
+until you point it there:
+
+```bash
+git config core.hooksPath .githooks
+```
+

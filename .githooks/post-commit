@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#
+# post-commit — fold the note stashed by commit-msg into CHANGELOG.md.
+#
+# Why the note makes a two-hook round trip instead of being written in commit-msg:
+#
+#   git writes the commit tree *before* prepare-commit-msg and commit-msg run, so
+#   a `git add` in either of those is too late — the file lands in the *next*
+#   commit instead. Verified, not assumed. `pre-commit` is the only hook allowed to
+#   change what a commit contains, but the message does not exist yet when it runs.
+#
+# So commit-msg stashes the note, and this hook writes CHANGELOG.md, stages it and
+# amends the just-created commit. The amend is guarded by an environment variable:
+# `--no-verify` does not suppress post-commit, so without the guard the amend would
+# re-trigger this hook forever.
+#
+set -euo pipefail
+
+# Re-entry from our own amend.
+[ -z "${CHANGELOG_FOLD:-}" ] || exit 0
+
+git_dir="$(git rev-parse --absolute-git-dir)"
+note_file="$git_dir/CHANGELOG_NOTE"
+[ -f "$note_file" ] || exit 0
+
+subject="$(head -1 "$note_file")"
+note="$(tail -n +3 "$note_file")"
+rm -f "$note_file"
+
+[ -n "$subject" ] || exit 0
+
+repo_root="$(git rev-parse --show-toplevel)"
+changelog="$repo_root/CHANGELOG.md"
+anchor='<!-- entries -->'
+
+# Create the changelog, and its insertion point, if either is missing. Better to
+# heal than to drop a note on the floor.
+if [ ! -f "$changelog" ]; then
+    printf '# Changelog\n\nLong-form notes for each commit; commit subjects stay short.\n\n%s\n' "$anchor" > "$changelog"
+fi
+if ! grep -qxF "$anchor" "$changelog"; then
+    printf '\n%s\n' "$anchor" >> "$changelog"
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+{
+    printf '## %s\n\n' "$subject"
+    printf '_%s_\n\n' "$(date +%Y-%m-%d)"
+    printf '%s\n\n' "$note"
+} > "$work/entry"
+
+# Insert directly under the anchor, so entries read newest-first.
+awk -v m="$anchor" -v entry="$work/entry" '
+    { print }
+    $0 == m && !done { while ((getline line < entry) > 0) print line; done = 1 }
+' "$changelog" > "$work/changelog.new"
+mv "$work/changelog.new" "$changelog"
+
+git add -- "$changelog"
+CHANGELOG_FOLD=1 git commit --amend --no-edit --no-verify --quiet
+
+echo "post-commit: note folded into CHANGELOG.md" >&2

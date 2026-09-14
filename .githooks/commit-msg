@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# commit-msg — keep the commit subject short; the long-form note goes to
+# CHANGELOG.md.
+#
+# Write the commit like this:
+#
+#     feat(tag): games vocabulary as data
+#
+#     <!-- changelog -->
+#     Adds a `games` tag, and moves the vocabulary out of the tagger into a
+#     TermSource. Sources are merged and alternatives are unioned per tag, so a
+#     user-supplied vocabulary extends the bundled one rather than replacing it.
+#
+# Everything after the `<!-- changelog -->` marker is moved into CHANGELOG.md and
+# committed alongside the change; the commit itself keeps only the subject line.
+# A message with no marker is left completely alone, so a one-line commit stays
+# one line.
+#
+# This hook only *stashes* the note. post-commit does the folding, because git
+# writes the commit tree before commit-msg runs — see the note there.
+#
+# Install once per clone:
+#
+#     git config core.hooksPath .githooks
+#
+set -euo pipefail
+
+marker='<!-- changelog -->'
+
+msg_file="${1:-}"
+if [ -z "$msg_file" ]; then
+    echo "commit-msg: expected a message file argument" >&2
+    exit 1
+fi
+
+# Nothing to do unless the marker sits on a line of its own. Git strips comment
+# lines before calling us, so an untouched template exits here too.
+grep -qxF "$marker" "$msg_file" || exit 0
+
+git_dir="$(git rev-parse --absolute-git-dir)"
+note_out="$git_dir/CHANGELOG_NOTE"
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+# Pre-create both halves: if a half ends up empty, awk never opens it, and the
+# trim below must not trip over a missing file.
+: > "$work/subject"
+: > "$work/note"
+
+# Split at the marker: subject before it, note after it.
+awk -v m="$marker" -v subject="$work/subject" -v note="$work/note" '
+    { if (!seen && $0 == m) { seen = 1; next } }
+    seen { print > note; next }
+    { print > subject }
+' "$msg_file"
+
+# Drop trailing blank lines from a half, so stray newlines do not become an
+# empty-looking note.
+trim() {
+    [ -f "$1" ] || return 0
+    awk '{ line[NR] = $0 }
+         END { last = 0
+               for (i = NR; i >= 1; i--) if (line[i] ~ /[^ \t]/) { last = i; break }
+               for (i = 1; i <= last; i++) print line[i] }' "$1"
+}
+trim "$work/subject" > "$work/subject.trim"
+trim "$work/note" > "$work/note.trim"
+
+if [ ! -s "$work/note.trim" ]; then
+    echo "commit-msg: marker present but no note after it — leaving the message alone." >&2
+    rm -f "$note_out"
+    exit 0
+fi
+
+if [ ! -s "$work/subject.trim" ]; then
+    echo "commit-msg: a changelog note needs a subject line before '$marker'." >&2
+    exit 1
+fi
+
+# Stash subject + note for post-commit: first line the subject, blank, then note.
+{
+    cat "$work/subject.trim"
+    printf '\n'
+    cat "$work/note.trim"
+} > "$note_out"
+
+# The commit object keeps only the subject.
+cp "$work/subject.trim" "$msg_file"
