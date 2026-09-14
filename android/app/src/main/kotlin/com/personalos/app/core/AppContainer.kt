@@ -10,9 +10,11 @@ import com.personalos.app.core.provider.NowPlayingProvider
 import com.personalos.app.core.provider.PinnedProvider
 import com.personalos.app.core.provider.WeatherProvider
 import com.personalos.app.core.sync.SyncStatus
+import com.personalos.app.core.tag.BundledTermSource
 import com.personalos.app.core.tag.HeuristicTagger
 import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.Tagger
+import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.cache.PrefsStringCache
@@ -72,10 +74,17 @@ class AppContainer(
     val presentLocation: LocationProvider = AndroidLocationProvider(context, openMeteo)
 
     /**
+     * Term sources are merged here, so a future user- or remotely-sourced vocabulary
+     * is an extra entry in this list rather than a change to the tagger
+     * (docs/CODE-DESIGN-GUIDELINES.md §2).
+     */
+    private val terms = TermStore(listOf(BundledTermSource))
+
+    /**
      * The active tagger - the single swap point for the strategy ladder
      * (heuristic now; embed/model/cascade later). See docs/ARCHITECTURE.md §10.
      */
-    val tagger: Tagger = HeuristicTagger()
+    val tagger: Tagger = HeuristicTagger(terms::lexicon)
 
     val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger)
 

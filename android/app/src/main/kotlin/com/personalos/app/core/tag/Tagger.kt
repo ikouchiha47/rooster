@@ -12,6 +12,7 @@ object Tags {
     const val EXPENSE = "expense"
     const val TRAVEL = "travel"
     const val FESTIVAL = "festival"
+    const val GAMES = "games"
     const val PROMO = "promo"
     const val INCIDENT = "incident"
     const val PAPER = "paper"
@@ -27,6 +28,7 @@ object Tags {
             EXPENSE,
             TRAVEL,
             FESTIVAL,
+            GAMES,
             PROMO,
             INCIDENT,
             PAPER,

@@ -163,8 +163,8 @@ class HeuristicTaggerTest {
     @Test
     fun `id and version describe the implementation`() {
         assertEquals(TaggerKind.HEURISTIC, tagger.kind)
-        assertEquals(6, tagger.version)
-        assertEquals("heuristic-v6", tagger.id)
+        assertEquals(7, tagger.version)
+        assertEquals("heuristic-v7", tagger.id)
     }
 
     // --------------------------------------------------- disasters and festivals
@@ -274,5 +274,57 @@ class HeuristicTaggerTest {
     fun `rss is never treated as advertising`() {
         val result = tags("Monsoon Sale at the mall", declaredTags = setOf(Tags.NEWS))
         assertTrue(result.contains(Tags.WEATHER))
+    }
+
+    // ---------------------------------------------------------------- games
+
+    @Test
+    fun `a cricket result is tagged games`() {
+        val result =
+            tags(
+                "India beat Australia by 5 wickets in the World Cup final",
+                declaredTags = setOf(Tags.NEWS),
+            )
+        assertTrue(result.contains(Tags.GAMES))
+    }
+
+    @Test
+    fun `the curated games vocabulary covers the requested sports`() {
+        for (
+        headline in
+        listOf(
+            "MotoGP race postponed after heavy rain",
+            "Olympics 2028 venue announced",
+            "Kabaddi league final draws a record crowd",
+            "F1 pre-season testing begins in Bahrain",
+            "Wimbledon final goes to five sets",
+            "Premier League title race goes to the last day",
+            "A marathon runner collapses at the finish",
+            "Chess championship ends in a draw",
+        )
+        ) {
+            assertTrue("expected games: $headline", tags(headline, declaredTags = setOf(Tags.NEWS)).contains(Tags.GAMES))
+        }
+    }
+
+    @Test
+    fun `a promotional sms cannot claim the games subject`() {
+        val result =
+            tags(
+                text = "Cricket Bat Sale! Flat 40 percent off all gear",
+                source = SourceKind.SMS,
+                sender = "VM-SPORTY-P",
+            )
+        assertFalse("advert must not claim games", result.contains(Tags.GAMES))
+        assertTrue(result.contains(Tags.PROMO))
+    }
+
+    @Test
+    fun `ordinary prose does not trip the games lexicon`() {
+        // The list deliberately excludes generic words like "match" and "league"
+        // precisely so sentences like this stay clean.
+        assertFalse(
+            tags("The committee will match the funding to demand", declaredTags = setOf(Tags.NEWS)).contains(Tags.GAMES),
+        )
     }
 }
