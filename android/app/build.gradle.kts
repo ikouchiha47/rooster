@@ -16,6 +16,14 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+
+        ndk {
+            // One personal phone, arm64-v8a. The only native library in the tree is
+            // androidx.graphics.path (~10 KB per ABI), so this saves ~27 KB today —
+            // it is here so a future native dependency cannot quietly add four
+            // ABIs and multiply that.
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildFeatures {
