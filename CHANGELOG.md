@@ -7,6 +7,28 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(news): sectioned day paging with counts, schema v9
+
+_2026-09-15_
+
+Opening News no longer pays for all of Today to reach Yesterday. A headers
+query (day + COUNT(1) over the indexed timestamp) loads first; Today opens
+with the usual initial page and every other day starts its own keyset cursor
+on tap — collapsed, never-opened days fetch zero rows. Headers re-query on
+resume, so midnight rollover and sync drift correct themselves. Today's drift
+is the N NEW pill: tap scrolls to Today and opens newest.
+
+Schema v9 adds events.ingested_at (NULL, no default; migration backfills
+publish time, new inserts write wall-clock) and rules.updated_at (rule edits
+finally tracked). Reads use COALESCE. Timestamp audit: every table carries
+Rails names now; places exempt as static.
+
+Sync-bucket separators group Today by ingest run under one shared
+SYNC_GROUP_MINUTES const the scheduler references too — one owner.
+
+Verified: v9 live on device with zero null ingested_at, 222 tests green
+(headers, paging, buckets, migration chain).
+
 ## feat(ui): centered forecast days with condition tints
 
 _2026-09-15_

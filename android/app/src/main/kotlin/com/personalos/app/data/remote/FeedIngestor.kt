@@ -267,6 +267,7 @@ class FeedIngestor(
                     entities = "[]",
                     location = null,
                     url = item.link,
+                    ingestedAt = now,
                 )
             }
 

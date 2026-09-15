@@ -24,8 +24,16 @@ import java.util.concurrent.TimeUnit
  * fetches whole article pages and is neither.
  */
 object SyncScheduler {
+    /**
+     * Sync-bucket width in minutes: Today's News rows group by ingest run under
+     * separators this wide. Single owner — the scheduler default below and the
+     * News bucket helper both reference this, so the buckets never drift from
+     * the schedule that fills them.
+     */
+    const val SYNC_GROUP_MINUTES = 60L
+
     /** WorkManager's floor for periodic work is 15 minutes. */
-    const val DEFAULT_INTERVAL_MINUTES = 60L
+    const val DEFAULT_INTERVAL_MINUTES = SYNC_GROUP_MINUTES
 
     /** Enrichment is far slower per item and not time-critical. */
     const val DEFAULT_ENRICH_INTERVAL_HOURS = 6L

@@ -35,8 +35,9 @@ class RuleRepository(
     suspend fun setEnabled(
         id: String,
         enabled: Boolean,
+        now: Long = System.currentTimeMillis(),
     ) {
-        if (dao.updateEnabled(id, enabled) == 0) {
+        if (dao.updateEnabled(id, enabled, now) == 0) {
             throw IllegalStateException("rule is locked or unknown: $id")
         }
     }
@@ -75,6 +76,7 @@ class RuleRepository(
                 seeded = false,
                 enabled = true,
                 createdAt = now,
+                updatedAt = now,
             )
         dao.insertAll(listOf(row))
         return row

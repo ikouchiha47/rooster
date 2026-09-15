@@ -36,10 +36,11 @@ class RuleSeederTest {
         override suspend fun updateEnabled(
             id: String,
             enabled: Boolean,
+            updatedAt: Long,
         ): Int {
             val index = rows.indexOfFirst { it.id == id && !it.seeded }
             if (index == -1) return 0
-            rows[index] = rows[index].copy(enabled = enabled)
+            rows[index] = rows[index].copy(enabled = enabled, updatedAt = updatedAt)
             return 1
         }
 
@@ -107,6 +108,15 @@ class RuleSeederTest {
                 assertEquals("tags for ${source.id}", source.tags, tags)
                 assertEquals("name for ${source.id}", source.name, row.name)
             }
+        }
+
+    @Test
+    fun `seeds write both stamps`() =
+        runBlocking {
+            val dao = FakeRuleDao()
+            RuleSeeder(dao).seed(now = 7L)
+            assertTrue("created_at written", dao.rows.all { it.createdAt == 7L })
+            assertTrue("updated_at written", dao.rows.all { it.updatedAt == 7L })
         }
 
     @Test

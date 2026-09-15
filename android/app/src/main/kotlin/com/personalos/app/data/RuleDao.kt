@@ -28,11 +28,13 @@ interface RuleDao {
     /**
      * Guarded: `seeded` rows never match, so enabling/disabling a locked seed
      * is a no-op here and an error in [RuleRepository]. Returns rows touched.
+     * Every edit stamps `updated_at`, so the row says when it last changed.
      */
     @Query(Sql.RULES_UPDATE_ENABLED)
     suspend fun updateEnabled(
         id: String,
         enabled: Boolean,
+        updatedAt: Long,
     ): Int
 
     /**

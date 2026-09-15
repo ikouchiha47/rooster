@@ -29,4 +29,9 @@ data class RuleEntity(
     @ColumnInfo(name = "enabled") val enabled: Boolean,
     /** Epoch ms the row was written. */
     @ColumnInfo(name = "created_at") val createdAt: Long,
+    /**
+     * Epoch ms the row was last edited (user enable/disable). Null for rows
+     * written before v9; seeds and new user rules write both stamps.
+     */
+    @ColumnInfo(name = "updated_at") val updatedAt: Long? = null,
 )

@@ -209,6 +209,25 @@ val MIGRATION_7_8_STATEMENTS: List<String> =
     )
 
 /**
+ * v8 -> v9: ingest clocks and rule edit clocks.
+ *
+ * `events.ingested_at` records wall-clock ingest time, so Today's rows can be
+ * bucketed by sync run. `rules.updated_at` records the last user edit. Both
+ * are nullable with **no DEFAULT**, per the Room-validation rule documented
+ * above — an `ADD COLUMN` carrying a default would fail validation on open.
+ *
+ * True ingest time is unknowable for old rows, so the same migration backfills
+ * `ingested_at` from the publish `timestamp`: the honest fallback, and what
+ * keeps the `COALESCE(ingested_at, timestamp)` bucket read exact for them.
+ */
+val MIGRATION_8_9_STATEMENTS: List<String> =
+    listOf(
+        "ALTER TABLE events ADD COLUMN ingested_at INTEGER",
+        "UPDATE events SET ingested_at = timestamp",
+        "ALTER TABLE rules ADD COLUMN updated_at INTEGER",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -223,6 +242,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         6 to MIGRATION_5_6_STATEMENTS,
         7 to MIGRATION_6_7_STATEMENTS,
         8 to MIGRATION_7_8_STATEMENTS,
+        9 to MIGRATION_8_9_STATEMENTS,
     )
 
 /** The newest version this build can migrate to. */

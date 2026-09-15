@@ -8,6 +8,12 @@ data class SourceCount(
     val count: Int,
 )
 
+/** One day bucket of a tag read: the UTC day start plus how many items it holds. */
+data class DayHeader(
+    val dayStart: Long,
+    val count: Int,
+)
+
 /** Room projection: how many items carry each tag. */
 data class TagCount(
     val tag: String,

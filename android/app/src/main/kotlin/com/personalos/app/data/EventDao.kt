@@ -102,6 +102,27 @@ interface EventDao {
     @Query(Sql.EVENTS_COUNT_BY_TAG)
     fun observeCountByTag(tag: String): Flow<Int>
 
+    /**
+     * Day headers for a tag, newest day first. Loads before any page: the list
+     * sections come from here, and each opened day starts its own cursor.
+     */
+    @Query(Sql.EVENTS_DAY_HEADERS_BY_TAG)
+    suspend fun dayHeadersByTag(tag: String): List<DayHeader>
+
+    /**
+     * One keyset page inside a single day window: the [pageByTag] shape plus
+     * the day bounds, so days paginate independently.
+     */
+    @Query(Sql.EVENTS_BY_TAG_DAY_PAGE)
+    suspend fun pageByTagDay(
+        tag: String,
+        dayStart: Long,
+        dayEnd: Long,
+        cursorTs: Long?,
+        cursorId: Long,
+        limit: Int,
+    ): List<TaggedEvent>
+
     /** One item with its full tag set, for the detail screen. */
     @Query(Sql.EVENT_BY_ID)
     suspend fun eventById(id: Long): TaggedEvent?

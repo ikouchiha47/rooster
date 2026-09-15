@@ -39,10 +39,11 @@ class RuleRepositoryTest {
         override suspend fun updateEnabled(
             id: String,
             enabled: Boolean,
+            updatedAt: Long,
         ): Int {
             val index = rows.indexOfFirst { it.id == id && !it.seeded }
             if (index == -1) return 0
-            rows[index] = rows[index].copy(enabled = enabled)
+            rows[index] = rows[index].copy(enabled = enabled, updatedAt = updatedAt)
             return 1
         }
 
@@ -122,6 +123,23 @@ class RuleRepositoryTest {
                 runBlocking { repository.addUserRule("Future", "scrape", """{"url": "https://x"}""") }
             }
             assertEquals("nothing invalid was stored", 3, dao.rows.size)
+        }
+
+    @Test
+    fun `disabling a user rule stamps updated_at`() =
+        runBlocking {
+            val dao = dao()
+            RuleRepository(dao).setEnabled("user-1", false, now = 9L)
+            assertEquals(9L, dao.rows.first { it.id == "user-1" }.updatedAt)
+        }
+
+    @Test
+    fun `adding a user rule writes both stamps`() =
+        runBlocking {
+            val dao = dao()
+            val row = RuleRepository(dao).addUserRule("Express", "rss", RSS_SPEC, now = 2L)
+            assertEquals(2L, row.createdAt)
+            assertEquals(2L, row.updatedAt)
         }
 
     private companion object {

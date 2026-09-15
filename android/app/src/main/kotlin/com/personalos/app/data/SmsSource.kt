@@ -118,6 +118,7 @@ class SmsSource(
                 val events = ArrayList<EventEntity>(c.count.coerceAtLeast(0))
                 val tagInputs = ArrayList<TagInput>(c.count.coerceAtLeast(0))
                 var maxId = since
+                val ingestedAt = System.currentTimeMillis()
 
                 while (c.moveToNext()) {
                     val rowId = c.getLong(idIndex)
@@ -145,6 +146,7 @@ class SmsSource(
                             entities = "[]",
                             location = null,
                             url = null,
+                            ingestedAt = ingestedAt,
                         ),
                     )
                     tagInputs.add(TagInput(text = body, source = SourceKind.SMS, sender = address))

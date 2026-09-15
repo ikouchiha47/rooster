@@ -66,6 +66,7 @@ class RuleSeeder(
                     seeded = true,
                     enabled = true,
                     createdAt = now,
+                    updatedAt = now,
                 )
             }
 
@@ -85,6 +86,7 @@ class RuleSeeder(
                     seeded = true,
                     enabled = true,
                     createdAt = now,
+                    updatedAt = now,
                 )
             }
     }

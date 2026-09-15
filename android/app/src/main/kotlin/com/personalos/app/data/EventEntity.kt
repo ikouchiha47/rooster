@@ -41,6 +41,14 @@ data class EventEntity(
     @ColumnInfo(name = "url") val url: String? = null,
     /** Epoch ms when enrichment was attempted. Null = not tried, 0 = failed, >0 = success timestamp. */
     @ColumnInfo(name = "enriched_at") val enrichedAt: Long? = null,
+    /**
+     * Wall-clock ms when the row was ingested. Null only for pre-v9 rows that
+     * have not been backfilled (the v8 -> v9 migration sets them to
+     * [timestamp]); every new insert writes wall-clock. Publish ordering stays
+     * on [timestamp] — this is only what sync-buckets group Today by, read via
+     * `COALESCE(ingested_at, timestamp)`.
+     */
+    @ColumnInfo(name = "ingested_at") val ingestedAt: Long? = null,
 ) {
     fun toDomain(): Event {
         val entitiesList = Json { ignoreUnknownKeys = true }.decodeFromString<List<String>>(entities)
@@ -58,7 +66,10 @@ data class EventEntity(
     }
 
     companion object {
-        fun fromDomain(event: Event): EventEntity =
+        fun fromDomain(
+            event: Event,
+            now: Long = System.currentTimeMillis(),
+        ): EventEntity =
             EventEntity(
                 id = event.id,
                 ulid = Ulid.next(),
@@ -72,6 +83,7 @@ data class EventEntity(
                 location = event.location,
                 url = event.url,
                 enrichedAt = null,
+                ingestedAt = now,
             )
     }
 }
