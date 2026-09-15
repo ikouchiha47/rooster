@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -19,6 +20,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.personalos.app.ui.article.ArticleScreen
+import com.personalos.app.ui.common.RadarColors
+import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.home.HomeScreen
 import com.personalos.app.ui.me.MeScreen
 import com.personalos.app.ui.messages.MessagesScreen
@@ -232,10 +235,15 @@ fun PlaceholderScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
+        // Same strip rule as every other screen: ground runs up under the
+        // cutout, content holds the inset. The ground here is the light
+        // Material background, so the icons stay dark.
+        StatusBarIconsFor(RadarColors.paper2)
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
             Text(

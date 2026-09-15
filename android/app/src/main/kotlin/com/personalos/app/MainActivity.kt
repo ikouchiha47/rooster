@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -162,13 +162,15 @@ fun PersonalOSApp() {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        // Single insets application: status bar / cutout on top,
-        // navigation-bar-or-gesture area at the bottom, and IME above it.
+        // Insets live at the edges, not the root: each screen's header owns
+        // the status-bar strip (its own colour bleeds up, content inset), so
+        // the root only absorbs the navigation-bar-or-gesture area below the
+        // tab bar, plus the IME above it.
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .systemBarsPadding()
+                    .navigationBarsPadding()
                     .imePadding(),
         ) {
             Box(

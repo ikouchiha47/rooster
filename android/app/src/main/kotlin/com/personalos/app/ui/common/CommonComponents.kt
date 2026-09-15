@@ -1,5 +1,6 @@
 package com.personalos.app.ui.common
 
+import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -24,17 +26,20 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowInsetsControllerCompat
 import com.personalos.app.core.feed.FeedCatalog
 import com.personalos.app.core.rules.GnewsUrl
 import com.personalos.app.core.rules.RuleSources
@@ -244,6 +249,10 @@ fun GlyphActionButton(
 /**
  * Top app bar: optional PR mark, serif title + letter-spaced caps sub,
  * right-hand glyph actions, closed by the heavy 3dp ink rule.
+ *
+ * The band owns the status-bar strip: its paper fill runs up under the cutout
+ * while the title row below keeps the status-bar inset, so text never sits
+ * under the camera. See [StatusBarIconsFor] for the icon side of the same rule.
  */
 @Composable
 fun RadarAppBar(
@@ -252,11 +261,13 @@ fun RadarAppBar(
     mark: Boolean = false,
     actions: (@Composable () -> Unit)? = null,
 ) {
+    StatusBarIconsFor(RadarColors.paper2)
     Column(Modifier.fillMaxWidth().background(RadarColors.paper2)) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(start = 8.dp, top = 6.dp, end = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -476,6 +487,26 @@ fun BackButton(
 }
 
 /**
+ * Status-bar icon contrast for the header background on screen.
+ *
+ * Every screen's header calls this with its own fill (accent band, paper2 bar,
+ * paper row), so the icons flip per screen instead of once globally: dark
+ * icons on light fills, light icons on dark ones. The threshold matches
+ * [headerContentColor], so the icons always agree with the header's own title
+ * treatment. MainActivity's launch setting stays only as the default before
+ * the first header composes.
+ */
+@Composable
+fun StatusBarIconsFor(background: Color) {
+    val view = LocalView.current
+    val darkIcons = computeLuminance(background) > 0.4f
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = darkIcons
+    }
+}
+
+/**
  * The app's one screen header band.
  *
  * Used by a tile's root screen (through [com.personalos.app.ui.tile.TileScaffold])
@@ -483,6 +514,17 @@ fun BackButton(
  * never changes the title's height or its tint. The title band is filled with the
  * service's own accent colour, which is what ties a detail screen back to the
  * tile it came from; text flips to ink on light accents so it stays legible.
+ *
+ * The band owns the status-bar strip: the accent fill runs up under the cutout
+ * while the title row below keeps the status-bar inset, so the strip carries
+ * this screen's own colour and text never sits under the camera.
+ *
+ * The title row is padded 12dp top and bottom. The title is serifH1 at 27sp on
+ * a 29sp line - the largest type in the ramp - and 8dp made the band barely
+ * taller than a 42dp service tile, a row rather than a masthead. 12dp gives a
+ * band with presence while the horizontal 8dp gutter language stays dense; the
+ * 30dp back button stays vertically centred, and everything below the hard
+ * rule (subtitle, search, quick bar) is untouched.
  *
  * An optional [subtitle] (e.g. an article's tag line) renders *below* the band's
  * hard rule, back on paper - its colours are ink-based and would vanish on a dark
@@ -498,35 +540,39 @@ fun RadarHeader(
     modifier: Modifier = Modifier,
 ) {
     val contentColor = headerContentColor(accent)
-    Column(modifier.fillMaxWidth().background(RadarColors.paper2)) {
-        Column(Modifier.fillMaxWidth().background(accent)) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (onBack != null) {
-                    BackButton(onBack = onBack, tint = contentColor)
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(
-                    text = title,
-                    style = RadarType.serifH1,
-                    color = contentColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.weight(1f))
-                if (trailing != null) {
-                    Spacer(Modifier.width(4.dp))
-                    trailing()
-                }
+    StatusBarIconsFor(accent)
+    Column(modifier.fillMaxWidth().background(accent)) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onBack != null) {
+                BackButton(onBack = onBack, tint = contentColor)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                text = title,
+                style = RadarType.serifH1,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.weight(1f))
+            if (trailing != null) {
+                Spacer(Modifier.width(4.dp))
+                trailing()
             }
         }
         HardRule()
-        subtitle?.invoke()
+        if (subtitle != null) {
+            Box(Modifier.fillMaxWidth().background(RadarColors.paper2)) {
+                subtitle()
+            }
+        }
     }
 }
 

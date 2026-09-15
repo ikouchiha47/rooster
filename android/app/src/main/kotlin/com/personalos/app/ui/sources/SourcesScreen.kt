@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,6 +35,7 @@ import com.personalos.app.ui.common.HardRule
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SoftRule
+import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -66,10 +68,15 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .background(RadarColors.paper),
     ) {
+        // This screen's title row is bespoke (no shared header), so it keeps
+        // the same rule inline: the paper ground runs up under the cutout
+        // while the row content holds the status-bar inset.
+        StatusBarIconsFor(RadarColors.paper)
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

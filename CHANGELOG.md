@@ -7,6 +7,29 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(ui): header colour fills the status bar, taller masthead
+
+_2026-09-15_
+
+Every screen started below the status bar: the root column carried
+systemBarsPadding(), so the strip above was the window background - a white
+band over the Weather header. Headers now own that strip: each draws its fill
+full-bleed to the window top and insets only its inner content row by the
+status-bar height, so text never sits under the cutout. The rule lives in the
+shared RadarHeader/RadarAppBar, plus the two bespoke screens (Sources,
+Placeholder); no per-screen inset code elsewhere. The root keeps the
+navigation-bar inset, so the tab bar still clears the gesture bar.
+
+Status-bar icons follow the fill, using the same 0.4 luminance threshold as
+headerContentColor so icons and title always agree: every header in use today
+is dark (Indigo/Teal/Cyan) and takes light icons; Mustard/Chartreuse are
+already covered if one is ever used. Masthead padding 8dp -> 12dp: the title
+is the largest type in the ramp and measured barely taller than a service tile
+at 8dp.
+
+Verified on device: Indigo bleeds to the top with light icons, taller header,
+list rows unchanged. 240 tests green.
+
 ## design: type experiment in the mockups
 
 _2026-09-15_
