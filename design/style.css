@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,700;1,6..72,500;1,6..72,600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400;1,600&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,700&family=Manrope:wght@400;600;700&display=swap");
+
 /* ============================================================
    PERSONAL RADAR — shared stylesheet
    Direction: CJK / Nikkei information-dense editorial.
@@ -33,10 +35,26 @@
   --cyan:     #1B7A8C;  /* cyan                  */
   --rust:     #B4532A;  /* rust                  */
 
-  /* --- type ------------------------------------------------------- */
-  --serif: "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
-           "Noto Serif CJK SC", "Noto Serif JP", "Times New Roman", serif;
-  --sans:  -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+  /* --- type -------------------------------------------------------
+     TYPE EXPERIMENT (throwaway prototype — judge before shipping fonts).
+     Role split, one place:
+       --display   Fraunces     masthead title, seal, section headers
+       --serif     Newsreader   headlines / event + message titles,
+                                stat numerals, widget + card titles
+       --serif-acc Crimson Pro  bylines (.src) + lede/content accents
+                                (.event__content, .msgrow__content, .note)
+       --sans      Manrope      body, labels, metadata, controls
+       --mono      (unchanged system stack) time / figures
+     Each stack ends in a sane system fallback so a missing webfont
+     degrades to mincho/system-serif/system-sans rather than breaking.
+     -------------------------------------------------------------- */
+  --serif: "Newsreader", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Crimson Pro", Georgia, "Yu Mincho", "Songti SC",
+           "Times New Roman", serif;
+  --display: "Fraunces", "Hiragino Mincho ProN", "Yu Mincho",
+           "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --sans:  "Manrope", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
            "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
   --mono:  ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
@@ -143,14 +161,14 @@ body::-webkit-scrollbar { display: none; }
   background: var(--verm);
   color: #fff;
   border-radius: 2px;
-  font-family: var(--serif);
+  font-family: var(--display);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .04em;
 }
 .appbar__t { flex: 1; min-width: 0; }
 .appbar__title {
-  font-family: var(--serif);
+  font-family: var(--display);
   font-size: var(--fs-h3);
   font-weight: 700;
   line-height: 1.05;
@@ -267,6 +285,11 @@ body::-webkit-scrollbar { display: none; }
 
 /* ============================================================
    SECTION HEADER — solid accent bar on ink ground
+   EXPERIMENT: deeper band (paper-4, was paper-3) + dotted
+   treatment — dotted underline on the title (in the section's
+   accent colour) plus a dotted dot-leader rule in the flexible
+   gap, a newspaper table-of-contents nod. Count line left plain
+   so it stays legible at 10px micro size.
    ============================================================ */
 .sec {
   display: flex;
@@ -275,12 +298,21 @@ body::-webkit-scrollbar { display: none; }
   padding: 4px 8px 4px 0;
   border-bottom: 1px solid var(--rule);
   border-top: 1px solid var(--rule);
-  background: var(--paper-3);
+  background: var(--paper-4);
 }
 .sec__bar { width: 4px; align-self: stretch; background: var(--accent, var(--ink)); flex: 0 0 auto; }
-.sec__t { font-family: var(--serif); font-size: var(--fs-h4); font-weight: 700; letter-spacing: .04em; }
-.sec__n { font-size: var(--fs-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
-.sec__sp { flex: 1; }
+.sec__t {
+  font-family: var(--display);
+  font-size: var(--fs-h4);
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent, currentColor);
+}
+.sec__n { font-size: var(--fs-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.sec__sp { flex: 1; border-top: 2px dotted var(--rule-dot); min-width: 12px; }
 .sec--ink { background: var(--ink); color: var(--paper-2); }
 .sec--ink .sec__n { color: var(--paper-4); }
 .sec--ink .sec__bar { background: var(--accent, var(--verm)); }
@@ -306,16 +338,17 @@ body::-webkit-scrollbar { display: none; }
 .event__body { padding: 6px 8px; min-width: 0; }
 .event__top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 3px; }
 .src {
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  font-family: var(--serif-acc);
+  font-style: italic;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  letter-spacing: .02em;
   color: var(--ink-2);
   white-space: nowrap;
 }
 .src::before { content: "—"; color: var(--ink-3); margin-right: 4px; }
 .event__title { font-family: var(--serif); font-size: var(--fs-lead); font-weight: 700; line-height: 1.22; letter-spacing: .005em; overflow-wrap: anywhere; }
-.event__content { margin-top: 2px; font-size: var(--fs-small); line-height: 1.35; color: var(--ink-2); }
+.event__content { margin-top: 2px; font-family: var(--serif-acc); font-size: var(--fs-small); line-height: 1.4; color: var(--ink-2); }
 .event__meta {
   display: flex;
   flex-wrap: wrap;
@@ -578,7 +611,7 @@ body::-webkit-scrollbar { display: none; }
 /* ============================================================
    NOTE
    ============================================================ */
-.note { padding: 6px 8px; border-left: 3px solid var(--mustard); background: var(--paper-3); font-size: var(--fs-small); color: var(--ink-2); }
+.note { padding: 6px 8px; border-left: 3px solid var(--mustard); background: var(--paper-3); font-family: var(--serif-acc); font-size: var(--fs-small); line-height: 1.4; color: var(--ink-2); }
 
 /* ============================================================
    BOTTOM NAVIGATION — the app's real navigation
@@ -684,7 +717,7 @@ body::-webkit-scrollbar { display: none; }
 .msgrow__body { padding: 6px 8px; min-width: 0; }
 .msgrow__top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 2px; }
 .msgrow__title { font-family: var(--serif); font-size: var(--fs-lead); font-weight: 700; line-height: 1.22; }
-.msgrow__content { margin-top: 2px; font-size: var(--fs-small); color: var(--ink-2); }
+.msgrow__content { margin-top: 2px; font-family: var(--serif-acc); font-size: var(--fs-small); line-height: 1.4; color: var(--ink-2); }
 .msgrow__meta {
   display: flex;
   flex-wrap: wrap;

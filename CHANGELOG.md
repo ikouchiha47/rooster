@@ -7,6 +7,21 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## design: type experiment in the mockups
+
+_2026-09-15_
+
+Throwaway prototype, not app code: the mockups try Newsreader (headlines),
+Crimson Pro (byline/lede accents), Fraunces (masthead and section titles) and
+Manrope (body/labels), loaded from Google Fonts via one @import per stylesheet
+and wired through the existing type tokens so the role split lives in one place.
+
+Section headers also get the dotted treatment tried out — a dotted underline in
+the section's own accent plus a dotted dot-leader across the gap — and a
+stronger band (#EFEADB -> #E4DCC7) with the count stepping up from ink-3 to
+ink-2, so the header reads as a band rather than a wash. Existing hues and
+their meanings untouched.
+
 ## docs: worktree rule — commit before removing, never force
 
 _2026-09-15_
