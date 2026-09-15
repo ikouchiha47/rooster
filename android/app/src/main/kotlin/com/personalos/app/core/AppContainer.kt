@@ -19,6 +19,8 @@ import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
+import com.personalos.app.data.RuleRepository
+import com.personalos.app.data.RuleSeeder
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.cache.PrefsStringCache
 import com.personalos.app.data.location.AndroidLocationProvider
@@ -105,6 +107,15 @@ class AppContainer(
             database.partySourceDao(),
         )
 
+    /**
+     * Single owner of the rules fact (ADR 0002): seeds write through it,
+     * Settings will write through it, the ingestor reads through it.
+     */
+    val ruleRepository: RuleRepository = RuleRepository(database.ruleDao())
+
+    /** Seeds the v1 rule set once; afterwards a single `COUNT(*)` no-op. */
+    val ruleSeeder: RuleSeeder = RuleSeeder(database.ruleDao())
+
     /** Refreshes the party registry from the per-country list pages. */
     val partySync: com.personalos.app.data.remote.parties.PartySyncer =
         com.personalos.app.data.remote.parties.PartySyncer(
@@ -132,7 +143,37 @@ class AppContainer(
         )
 
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
-    val retagger: Retagger = Retagger(database.eventDao(), tagWriter, cache, tagger)
+    val retagger: Retagger =
+        Retagger(
+            database.eventDao(),
+            tagWriter,
+            cache,
+            tagger,
+            ruleTags = {
+                runCatching {
+                    database
+                        .ruleDao()
+                        .enabled()
+                        .mapNotNull { row ->
+                            val spec =
+                                runCatching {
+                                    com.personalos.app.core.rules.RuleSpecs
+                                        .parse(row.kind, row.specJson)
+                                }.getOrNull() ?: return@mapNotNull null
+                            // Search rules own their source strings; rss rules are
+                            // inert in v1 (never polled, so no rows need them).
+                            val source =
+                                (spec as? com.personalos.app.core.rules.SearchSpec)
+                                    ?.let {
+                                        com.personalos.app.core.rules.GnewsUrl
+                                            .sourceFor(it.query)
+                                    }
+                                    ?: return@mapNotNull null
+                            source to spec.tags
+                        }.toMap()
+                }.getOrDefault(emptyMap())
+            },
+        )
 
     /**
      * Ranks content by place. Temporary rung: no gazetteer or home places exist
@@ -141,7 +182,14 @@ class AppContainer(
      */
     val placeRanker: PlaceRanker = RecencyPlaceRanker()
 
-    val feeds: FeedIngestor = FeedIngestor(database.eventDao(), cache, tagWriter, mentionWriter)
+    val feeds: FeedIngestor =
+        FeedIngestor(
+            database.eventDao(),
+            cache,
+            tagWriter,
+            mentionWriter,
+            loadRules = { ruleRepository.enabledRules() },
+        )
 
     /**
      * Fills in summaries for items whose feed shipped none - notably Indian

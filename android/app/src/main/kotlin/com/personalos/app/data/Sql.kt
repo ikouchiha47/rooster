@@ -218,6 +218,13 @@ object Sql {
         LIMIT :limit
         """
 
+    /**
+     * One-time cleanup for surfaces the lexicon has since stopworded (towns
+     * that lose to their English doubles: along, men, ...). The fix only ever
+     * removes matches, so deleting the stale rows is complete — no rescan.
+     */
+    const val MENTIONS_DELETE_SURFACES = "DELETE FROM mentions WHERE lower(surface) IN (:surfaces)"
+
     // ----------------------------------------------------------------- parties
     const val PARTIES_COUNT = "SELECT COUNT(*) FROM parties"
 
@@ -227,4 +234,20 @@ object Sql {
 
     const val PARTY_SOURCES_UPDATE_SYNC =
         "UPDATE party_sources SET last_sync_at = :syncedAt WHERE country = :country"
+
+    // ------------------------------------------------------------------- rules
+    // ADR 0002 v1 slice: one table, two kinds, JSON spec. The write guards
+    // (`AND seeded = 0`) are what make bundled seeds add-only even to a caller
+    // that bypasses the repository — the UI hiding buttons is not enforcement.
+    const val RULES_COUNT = "SELECT COUNT(*) FROM rules"
+
+    const val RULES_ALL = "SELECT * FROM rules"
+
+    const val RULES_ENABLED = "SELECT * FROM rules WHERE enabled = 1"
+
+    const val RULES_UPDATE_ENABLED =
+        "UPDATE rules SET enabled = :enabled WHERE id = :id AND seeded = 0"
+
+    const val RULES_DELETE_USER_ONLY =
+        "DELETE FROM rules WHERE id = :id AND seeded = 0"
 }

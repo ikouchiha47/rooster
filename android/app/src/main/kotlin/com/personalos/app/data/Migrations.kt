@@ -180,6 +180,35 @@ val MIGRATION_6_7_STATEMENTS: List<String> =
     )
 
 /**
+ * v7 -> v8: the v1 rules table (ADR 0002).
+ *
+ * New table only, like v5 -> v6 and v6 -> v7: no rebuild, no data to carry.
+ *
+ * Two deliberate omissions from the ADR's DDL, both Room-validation traps of
+ * the kind documented above: no `DEFAULT` clauses (a declared default would
+ * survive in the migrated schema where Room expects none, failing validation
+ * on open), and no `CHECK(kind ...)` (Room does not model CHECK, so a migrated
+ * database would enforce what a fresh install does not). The kind closed set
+ * is enforced at write by `RuleSpecs` instead — same guarantee, identical
+ * schemas either way. Column order and affinities mirror `RuleEntity`.
+ */
+val MIGRATION_7_8_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS rules (
+            id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            spec_json TEXT NOT NULL,
+            seeded INTEGER NOT NULL,
+            enabled INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -193,6 +222,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         5 to MIGRATION_4_5_STATEMENTS,
         6 to MIGRATION_5_6_STATEMENTS,
         7 to MIGRATION_6_7_STATEMENTS,
+        8 to MIGRATION_7_8_STATEMENTS,
     )
 
 /** The newest version this build can migrate to. */

@@ -3,16 +3,24 @@ package com.personalos.app.data.remote
 import android.util.Log
 import com.personalos.app.core.cache.StringCache
 import com.personalos.app.core.feed.FeedCatalog
+import com.personalos.app.core.feed.FeedCategories
+import com.personalos.app.core.feed.FeedItem
 import com.personalos.app.core.feed.FeedParser
 import com.personalos.app.core.feed.FeedSource
 import com.personalos.app.core.feed.FeedStatus
 import com.personalos.app.core.net.Http
+import com.personalos.app.core.rules.GnewsUrl
+import com.personalos.app.core.rules.RuleKind
+import com.personalos.app.core.rules.RuleSpecs
+import com.personalos.app.core.rules.SearchSpec
 import com.personalos.app.core.tag.SourceKind
 import com.personalos.app.core.tag.TagInput
+import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tag.Ulid
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.MentionWriter
+import com.personalos.app.data.RuleEntity
 import com.personalos.app.data.TagWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +50,18 @@ class FeedIngestor(
     private val mentionWriter: MentionWriter,
     private val feeds: List<FeedSource> = FeedCatalog.SEEDS,
     private val refreshAfterMs: Long = DEFAULT_REFRESH_MS,
+    /**
+     * Enabled rules to poll alongside the catalog. Defaults to none, so the
+     * catalog path works standalone; the app wires the rule repository here.
+     * Only `search` rules are polled — `rss` rule rows are inert in v1 (the
+     * catalog still drives those feeds) until the switchover.
+     */
+    private val loadRules: suspend () -> List<RuleEntity> = { emptyList() },
+    /**
+     * The single fetch behind every poll, catalog or rule — same client, same
+     * User-Agent ([Http.getText]). Injectable in tests.
+     */
+    private val fetch: (String) -> String = { url -> Http.getText(url) },
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -85,7 +105,7 @@ class FeedIngestor(
                         ok = true
                         entry?.value
                     } else {
-                        val fetched = runCatching { Http.getText(feed.url) }
+                        val fetched = runCatching { fetch(feed.url) }
                         val body = fetched.getOrNull()
                         if (body != null) {
                             cache.write(key, body, now)
@@ -124,15 +144,112 @@ class FeedIngestor(
             _statuses.value = ordered
             persistStatuses(ordered)
 
+            added += refreshSearchRules(now)
+
             _lastSyncAt.value = System.currentTimeMillis()
             Log.i(TAG, "refresh: +$added items from ${feeds.size} feeds")
             added
         }
 
+    /**
+     * Polls enabled `search` rules as Google News RSS, through the same
+     * fetch/parse/store path as catalog feeds (same cache discipline, stale
+     * fallback included). Deliberately outside [statuses]: rule health is not a
+     * status-screen concern in v1, so no screen changes.
+     *
+     * Returns items added.
+     */
+    private suspend fun refreshSearchRules(now: Long): Int {
+        val rules =
+            runCatching { loadRules() }
+                .onFailure { Log.w(TAG, "rules load failed", it) }
+                .getOrElse { emptyList() }
+                .filter { it.enabled && RuleKind.from(it.kind) == RuleKind.SEARCH }
+
+        var added = 0
+        for (rule in rules) {
+            val spec =
+                runCatching { RuleSpecs.parse(RuleKind.SEARCH, rule.specJson) as SearchSpec }
+                    .onFailure { Log.w(TAG, "bad search spec for rule ${rule.id}", it) }
+                    .getOrNull() ?: continue
+
+            val key = "rule:${rule.id}"
+            val entry = cache.read(key)
+            val raw =
+                if (entry != null && now - entry.at < refreshAfterMs) {
+                    entry.value
+                } else {
+                    val body =
+                        runCatching { fetch(GnewsUrl.build(spec.query)) }
+                            .onFailure { Log.w(TAG, "rule fetch failed: ${rule.name}", it) }
+                            .getOrNull()
+                    if (body != null) {
+                        cache.write(key, body, now)
+                        body
+                    } else {
+                        // Serve the stale copy rather than showing nothing.
+                        entry?.value
+                    }
+                }
+
+            if (raw != null) {
+                val items = runCatching { FeedParser.parse(raw) }.getOrElse { emptyList() }
+                if (items.isNotEmpty()) added += ingestRule(rule, spec, items, now)
+            }
+        }
+        return added
+    }
+
     /** Inserts one feed's items and tags whatever actually landed. */
     private suspend fun ingest(
         feed: FeedSource,
-        items: List<com.personalos.app.core.feed.FeedItem>,
+        items: List<FeedItem>,
+        now: Long,
+    ): Int =
+        storeItems(
+            source = FeedCatalog.SOURCE_PREFIX + feed.id,
+            category = feed.category,
+            sender = feed.name,
+            language = feed.language,
+            declaredTags = feed.tags,
+            items = items,
+            now = now,
+        )
+
+    /**
+     * Inserts one search rule's items through the same store path as feeds:
+     * dedupe by link on the existing `dedupe_key`, the rule's tags declared,
+     * and the same items handed to the tag and mention writers.
+     *
+     * Google News RSS carries its outlet in the item's `<source>` element, but
+     * [FeedParser] does not expose it and is deliberately not forked for v1 —
+     * attribution stays the item's own title/summary, and the RULE name is what
+     * the tagger sees as sender and the label path shows.
+     */
+    private suspend fun ingestRule(
+        rule: RuleEntity,
+        spec: SearchSpec,
+        items: List<FeedItem>,
+        now: Long,
+    ): Int =
+        storeItems(
+            source = GnewsUrl.sourceFor(spec.query),
+            category = if (Tags.INCIDENT in spec.tags) FeedCategories.INCIDENT else FeedCategories.NEWS,
+            sender = rule.name,
+            language = spec.queryLangCode,
+            declaredTags = spec.tags,
+            items = items,
+            now = now,
+        )
+
+    /** The one ingest code path: stores items, tags what landed, writes mentions. */
+    private suspend fun storeItems(
+        source: String,
+        category: String,
+        sender: String,
+        language: String,
+        declaredTags: Set<String>,
+        items: List<FeedItem>,
         now: Long,
     ): Int {
         val records =
@@ -140,10 +257,10 @@ class FeedIngestor(
                 EventEntity(
                     ulid = Ulid.next(),
                     // URL is the natural key; title only as a fallback.
-                    dedupeKey = item.link?.takeIf { it.isNotBlank() } ?: "rss:${feed.id}:${item.title}",
-                    source = "rss:${feed.id}",
+                    dedupeKey = item.link?.takeIf { it.isNotBlank() } ?: "$source:${item.title}",
+                    source = source,
                     type = "feed",
-                    category = feed.category,
+                    category = category,
                     timestamp = item.publishedAt ?: now,
                     title = item.title,
                     content = item.summary.orEmpty(),
@@ -167,11 +284,11 @@ class FeedIngestor(
                 TagInput(
                     text = "${record.title}\n${record.content}",
                     source = SourceKind.RSS,
-                    sender = feed.name,
-                    language = feed.language,
-                    // The source declares its own tags; the tagger must not
+                    sender = sender,
+                    language = language,
+                    // The rule declares its own tags; the tagger must not
                     // infer them from "this came over RSS".
-                    declaredTags = feed.tags,
+                    declaredTags = declaredTags,
                 )
         }
         if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)

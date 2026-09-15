@@ -7,6 +7,24 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): universal source spec with Google News search, schema v8
+
+_2026-09-15_
+
+Rules slice v1 per ADR 0002: a `rules` table (id, name, kind, spec_json,
+seeded, enabled) with two kinds — plain `rss` and Google News `search`.
+Spec is validated JSON; unknown keys rejected so future kinds (scraper, API)
+arrive as data plus an adapter, never a migration.
+
+13 locked seeds: 4 search rules (Bangalore, Kolkata, Karnataka, West Bengal —
+city/state level, country-top deliberately dropped as duplicative) plus 9 rss
+imports mirroring the catalog. RuleRepository is the single owner enforcing
+add-only seeds. FeedIngestor polls enabled search rules through the one
+store/tag/mention path; retag recovers rule tags for non-catalog sources.
+
+Verified on device: 13 locked rows seeded, 155 gnews items ingested, all
+carrying `news` after the retag. 192 tests green.
+
 ## feat(app): chicken icon on black
 
 _2026-09-15_

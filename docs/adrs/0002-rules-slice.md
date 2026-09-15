@@ -1,7 +1,7 @@
 # ADR 0002: Rules Slice (v1) — One Table, Two Kinds, JSON Spec
 
-- **Status:** Proposed
-- **Date:** 2026-09-14
+- **Status:** Accepted
+- **Date:** 2026-09-14 (accepted 2026-09-15)
 - **Deciders:** Owner (single user)
 - **Scope:** Personalos v1 — rules persistence and v1 execution only. Not the full filter+delivery engine (`ARCHITECTURE.md` §2 `rules`: tile scope, condition, delivery, position), not UI layout, not scheduling policy.
 
@@ -17,6 +17,15 @@ v1 needs user-extensible news coverage without building the full rules engine ye
 Future mechanisms (RapidAPI, web-scraper + R2) are explicitly out of v1 per ADR 0001 zero-cost / no-browser policy, but the schema must not block them later.
 
 Existing docs describe a richer `rules` row (tile scope, condition, delivery, position, builtin, enabled). That is the target; this ADR defines the minimal v1 slice that ships now and migrates forward.
+
+Build order is schema-first: survey the actual feed shapes (RSS 2.0, Atom,
+Google News RSS with its `<source>` element, plus the quirks already on record —
+ET's stale dates, Express's empty descriptions, Google redirect URLs) and derive
+one unified item JSON plus the rule spec from that. Rules operate on the unified
+shape; one adapter per feed maps into it. Portability (a future Workers/R2
+reimplementation) is a constraint on the implementation — the evaluation core
+stays pure Kotlin with zero `android.*` imports, documented as the portable
+unit — not the starting point.
 
 ## Decision
 
@@ -67,6 +76,25 @@ CREATE TABLE rules (
 - `seeded = 0` (user rule): fully editable and disablable. Edit, disable (`enabled = 0`), delete.
 - `seeded = 1` (bundled seed): **locked. Add-only.** The UI offers no edit/disable/delete affordance for the row; the only operation is inserting new rows. Seeds provide day-one coverage (national + per-state catalog); corrections ship as new seed versions, never as user edits to seed rows.
 - Enforcement is at the repository layer (single owner per `CODE-DESIGN-GUIDELINES.md` §1), not just hidden buttons: `update/delete/disable` on `seeded = 1` is rejected.
+
+### Day-one seed list (accepted 2026-09-15)
+
+Google News `search` rules (locked) — city/state level, mirroring the weather
+locations model. The country top edition is deliberately **dropped**: it
+duplicates outlet-direct stories under different URLs. Bank/strike and
+monsoon/weather queries are held until search output is proven; more queries
+anytime, same shape.
+
+- `Bangalore`, `Kolkata`, `Karnataka`, `West Bengal` (`hl=en-IN&gl=IN&ceid=IN:en`;
+  each verified ~107–109 items, ~105 fresh before seeding).
+
+Plain-`rss` imports (locked, deactivated for edit) — the existing catalog,
+unchanged in behavior, now rows instead of code:
+
+- `thehindu-top`, `thehindu-kolkata`, `indianexpress`, `mint-markets`,
+  `mint-money`, `hindustantimes-india`, `abp-ananda-district`,
+  `status-cloudflare`, `status-aws`. (ET stays out: its default feed measured
+  6 fresh of 76, rest stale filler.)
 
 ### What this ADR does NOT decide
 
