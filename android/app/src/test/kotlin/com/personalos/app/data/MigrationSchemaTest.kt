@@ -169,6 +169,42 @@ class MigrationSchemaTest {
         }
     }
 
+    @Test
+    fun `v8 to v9 backfills ingested_at from timestamp and adds rules updated_at`() {
+        withMigratedV2Database { db ->
+            // True ingest time is unknowable for old rows: publish time is the
+            // honest fallback, backfilled in the same migration.
+            db
+                .createStatement()
+                .executeQuery("SELECT timestamp, ingested_at FROM events")
+                .use { rs ->
+                    var rows = 0
+                    while (rs.next()) {
+                        rows++
+                        assertEquals(rs.getLong(1), rs.getLong(2))
+                    }
+                    assertEquals(2, rows)
+                }
+            // Nullable: pre-v9 rule rows have no edit to stamp.
+            db
+                .createStatement()
+                .executeQuery("PRAGMA table_info(`rules`)")
+                .use { rs ->
+                    val columns = buildMap { while (rs.next()) put(rs.getString("name"), rs.getInt("notnull")) }
+                    assertTrue("rules.updated_at", columns.containsKey("updated_at"))
+                    assertEquals("rules.updated_at is nullable", 0, columns.getValue("updated_at"))
+                }
+            db
+                .createStatement()
+                .executeQuery("PRAGMA table_info(`events`)")
+                .use { rs ->
+                    val columns = buildMap { while (rs.next()) put(rs.getString("name"), rs.getInt("notnull")) }
+                    assertTrue("events.ingested_at", columns.containsKey("ingested_at"))
+                    assertEquals("events.ingested_at is nullable", 0, columns.getValue("ingested_at"))
+                }
+        }
+    }
+
     // ----------------------------------------------------------------- helpers
 
     private fun withMigratedV2Database(block: (Connection) -> Unit) {

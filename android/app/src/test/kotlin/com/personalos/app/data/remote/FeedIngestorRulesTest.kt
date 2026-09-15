@@ -7,6 +7,7 @@ import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.TagResult
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TaggerKind
+import com.personalos.app.data.DayHeader
 import com.personalos.app.data.EnrichmentCandidate
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
@@ -110,6 +111,17 @@ class FeedIngestorRulesTest {
         ): List<TaggedEvent> = emptyList()
 
         override fun observeCountByTag(tag: String): Flow<Int> = flowOf(0)
+
+        override suspend fun dayHeadersByTag(tag: String): List<DayHeader> = emptyList()
+
+        override suspend fun pageByTagDay(
+            tag: String,
+            dayStart: Long,
+            dayEnd: Long,
+            cursorTs: Long?,
+            cursorId: Long,
+            limit: Int,
+        ): List<TaggedEvent> = emptyList()
 
         override suspend fun eventById(id: Long): TaggedEvent? = null
 

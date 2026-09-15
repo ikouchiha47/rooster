@@ -93,9 +93,54 @@ object Sql {
 
     const val EVENTS_COUNT_BY_TAG =
         """
-        SELECT COUNT(*) FROM events e
+        SELECT COUNT(1) FROM events e
         JOIN item_tags_current t ON t.item_id = e.ulid
         WHERE t.tag = :tag
+        """
+
+    /**
+     * Day headers for a tag, newest day first: one row per UTC day bucket with
+     * its item count. Headers load before any page, so opening a day starts
+     * its own cursor and a never-opened day fetches zero rows.
+     *
+     * The bucket is `timestamp / DAY_MS`, the same bucket
+     * [com.personalos.app.ui.common.groupIntoDays] groups by, so a header's
+     * `dayStart` matches the rows the per-day page returns. Labels
+     * (Today/Yesterday/date) are resolved in the UI from `dayStart`, never
+     * here. Ordering stays publish-timestamp; `ingested_at` is only what the
+     * Today sync-buckets group by. `COUNT(1)` over the timestamp index: only
+     * the count is needed, never the rows.
+     */
+    const val EVENTS_DAY_HEADERS_BY_TAG =
+        """
+        SELECT (e.timestamp / 86400000 * 86400000) AS dayStart, COUNT(1) AS count
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+        GROUP BY (e.timestamp / 86400000)
+        ORDER BY dayStart DESC
+        """
+
+    /**
+     * Per-day keyset page of a tag read: the [EVENTS_BY_TAG_PAGE] shape plus a
+     * day window, so each day paginates on its own cursor.
+     */
+    const val EVENTS_BY_TAG_DAY_PAGE =
+        """
+        SELECT e.*,
+               (SELECT GROUP_CONCAT(t2.tag)
+                FROM item_tags_current t2
+                WHERE t2.item_id = e.ulid) AS tags
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.timestamp >= :dayStart
+          AND e.timestamp < :dayEnd
+          AND (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND e.id < :cursorId))
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
         """
 
     /** One item plus every tag it carries - the detail screen's read shape. */
@@ -246,7 +291,7 @@ object Sql {
     const val RULES_ENABLED = "SELECT * FROM rules WHERE enabled = 1"
 
     const val RULES_UPDATE_ENABLED =
-        "UPDATE rules SET enabled = :enabled WHERE id = :id AND seeded = 0"
+        "UPDATE rules SET enabled = :enabled, updated_at = :updatedAt WHERE id = :id AND seeded = 0"
 
     const val RULES_DELETE_USER_ONLY =
         "DELETE FROM rules WHERE id = :id AND seeded = 0"

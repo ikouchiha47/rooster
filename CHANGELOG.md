@@ -7,6 +7,18 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(news): complete the v9 slice left out of its commit
+
+_2026-09-15_
+
+The sectioned-paging commit shipped EventDao methods referencing SQL that was
+never committed, so every fresh checkout failed Room compilation while this
+tree stayed green on uncommitted files. Completing it: the day-headers and
+per-day page queries (COUNT(1) over the timestamp index), the v9 backfill
+test, the DAO fakes for the new reads, and the day-query suite.
+
+Lesson recorded: verify with a clean-tree build before calling a slice done.
+
 ## feat(money): M&M tile with FX watch and finance news
 
 _2026-09-15_
