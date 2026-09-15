@@ -34,4 +34,10 @@ data class RuleEntity(
      * written before v9; seeds and new user rules write both stamps.
      */
     @ColumnInfo(name = "updated_at") val updatedAt: Long? = null,
+    /**
+     * Re-poll interval in seconds. Null follows the shared feed schedule; user
+     * rows default to it at insert (the same cadence the catalog feeds use).
+     * Seeds stay null — the catalog pass already paces those URLs.
+     */
+    @ColumnInfo(name = "interval_sec") val intervalSec: Long? = null,
 )

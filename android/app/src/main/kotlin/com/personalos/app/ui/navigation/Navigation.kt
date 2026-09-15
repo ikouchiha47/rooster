@@ -25,6 +25,7 @@ import com.personalos.app.ui.messages.MessagesScreen
 import com.personalos.app.ui.money.MoneyScreen
 import com.personalos.app.ui.news.NewsScreen
 import com.personalos.app.ui.radar.RadarScreen
+import com.personalos.app.ui.rss.RssScreen
 import com.personalos.app.ui.services.ServicesScreen
 import com.personalos.app.ui.sources.SourcesScreen
 import com.personalos.app.ui.wallet.WalletScreen
@@ -41,6 +42,8 @@ sealed interface Destination {
     data object Radar : Destination
 
     data object News : Destination
+
+    data object Rss : Destination
 
     data object Money : Destination
 
@@ -74,6 +77,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Messages -> "messages"
         is Destination.Radar -> "radar"
         is Destination.News -> "news"
+        is Destination.Rss -> "rss"
         is Destination.Money -> "money"
         is Destination.Weather -> "weather"
         is Destination.Sources -> "sources"
@@ -100,6 +104,9 @@ fun AppNavHost(
                 onNavigate = { navigateToDetail(navController, it) },
                 onBack = backOrNull(navController),
             )
+        }
+        composable("rss") {
+            RssScreen(onBack = backOrNull(navController))
         }
         composable("money") {
             MoneyScreen(

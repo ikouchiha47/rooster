@@ -56,6 +56,7 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
     val totalItems by database.eventDao().observeCount().collectAsState(initial = 0)
     val tagCounts by database.itemTagDao().observeTagCounts().collectAsState(initial = emptyList())
     val sourceCounts by database.eventDao().observeSourceCounts().collectAsState(initial = emptyList())
+    val rules by container.ruleRepository.observe().collectAsState(initial = emptyList())
 
     var syncing by remember { mutableStateOf(false) }
 
@@ -113,6 +114,11 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
                 )
             }
             items(statuses, key = { it.id }) { status -> FeedRow(status) }
+
+            item { SectionGap() }
+            // The rules store's own view: user feeds (add/verify/disable/delete)
+            // and the locked seeds. One owner — writes go through RuleRepository.
+            item { UserFeedsSection(rules = rules) }
 
             item { SectionGap() }
             item { WidgetHeader(title = "By tag", note = "${tagCounts.size}") }
@@ -180,10 +186,10 @@ private fun FeedRow(status: FeedStatus) {
 }
 
 @Composable
-private fun StatusDot(status: FeedStatus) {
+internal fun StatusDot(status: FeedStatus?) {
     val color =
         when {
-            status.neverSynced -> RadarColors.ruleDot
+            status == null || status.neverSynced -> RadarColors.ruleDot
             status.ok -> Ok
             else -> CategoryColors.Vermilion
         }
@@ -220,9 +226,9 @@ private fun CountRow(
     }
 }
 
-private val Ok = Color(0xFF2F6B3A)
+internal val Ok = Color(0xFF2F6B3A)
 
-private fun ago(at: Long): String {
+internal fun ago(at: Long): String {
     if (at <= 0L) return "NEVER"
     val delta = System.currentTimeMillis() - at
     return when {

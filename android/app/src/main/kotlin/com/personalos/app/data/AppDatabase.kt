@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, RuleEntity::class],
     views = [ItemTagCurrent::class],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

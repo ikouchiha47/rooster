@@ -7,6 +7,36 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rss): feed manager with verify-then-add, schema v10
+
+_2026-09-15_
+
+The RSS tile opened a placeholder and the recovered section was never wired
+into a screen. Now: Services -> RSS (or Sources -> My feeds) lists the feeds
+this device polls — name, host, cadence, per-row health — with the add form
+FIRST, because adding is what the section is for.
+
+Add is Verify-then-Add: FeedVerifier fetches like the ingestor does (same
+Http.USER_AGENT, same parser) and reports what actually happened — the HTTP
+code, whether the body parses as a feed, and for a 403 that the host is gating
+bots so retrying is pointless. VERIFY -> VERIFYING -> ADD on success; failures
+stay in the form with the reason. Local guards run before any fetch: blank
+name, non-http scheme, duplicate URL (trailing slash ignored).
+
+Rows carry a status dot, the last sync and the HTTP code. Seeded rows are
+polled by the catalog pass, not as rules, so their health is matched by URL —
+that is what stops them reading "awaiting first sync" while syncing hourly.
+Seeded rows get no toggle and no delete: the repository refuses and the UI
+does not offer it.
+
+Schema v10 adds rules.interval_sec (nullable, no DEFAULT) so a user feed can
+override the cadence the catalog feeds use; blank in the form means that
+default. Beyond ADR 0002's stated scope (it left cadence to the scheduler) —
+flagged for amendment rather than left as drift.
+
+Verified on device: 9 seeded feeds listed with real health, add form leading,
+no crash. 240 tests green.
+
 ## feat(ui): row spines, day groups, submit glyph, new-items pill
 
 _2026-09-15_

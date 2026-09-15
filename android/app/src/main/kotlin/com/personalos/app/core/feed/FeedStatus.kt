@@ -16,6 +16,8 @@ data class FeedStatus(
     val ok: Boolean = false,
     val lastError: String? = null,
     val itemCount: Int = 0,
+    /** HTTP status of the last attempt; null when the socket never answered. */
+    val statusCode: Int? = null,
 ) {
     val neverSynced: Boolean get() = lastAttemptAt == 0L
 

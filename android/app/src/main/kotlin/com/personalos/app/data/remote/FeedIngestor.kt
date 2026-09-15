@@ -64,6 +64,11 @@ class FeedIngestor(
      * User-Agent ([Http.getText]). Injectable in tests.
      */
     private val fetch: (String) -> String = { url -> Http.getText(url) },
+    /**
+     * Raw fetch for rule polling, where the HTTP status is part of the health
+     * the RSS list shows. Same client, same User-Agent. Injectable in tests.
+     */
+    private val fetchRaw: (String) -> Http.RawResponse = { url -> Http.getRaw(url) },
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -76,6 +81,15 @@ class FeedIngestor(
 
     /** Health of each configured feed, newest attempt last. */
     val statuses: StateFlow<List<FeedStatus>> = _statuses.asStateFlow()
+
+    private val _ruleStatuses = MutableStateFlow(loadRuleStatuses())
+
+    /**
+     * Health of each *user* rule, keyed by rule id — the RSS list's per-row
+     * status dot, last sync time and HTTP code. Separate from [statuses] so the
+     * Sources "Feeds" section keeps showing catalog feeds only.
+     */
+    val ruleStatuses: StateFlow<List<FeedStatus>> = _ruleStatuses.asStateFlow()
 
     suspend fun refresh(): Int =
         withContext(Dispatchers.IO) {
@@ -222,6 +236,9 @@ class FeedIngestor(
                 .getOrElse { emptyList() }
                 .filter { it.enabled && !it.seeded && RuleKind.from(it.kind) == RuleKind.RSS }
 
+        val health = LinkedHashMap<String, FeedStatus>()
+        _ruleStatuses.value.forEach { health[it.id] = it }
+
         var added = 0
         for (rule in rules) {
             val spec =
@@ -229,30 +246,68 @@ class FeedIngestor(
                     .onFailure { Log.w(TAG, "bad rss spec for rule ${rule.id}", it) }
                     .getOrNull() ?: continue
 
+            val attemptAt = System.currentTimeMillis()
+            // The rule's own interval when set, else the shared feed schedule.
+            val intervalMs = rule.intervalSec?.times(1000L) ?: refreshAfterMs
             val key = "rule:${rule.id}"
             val entry = cache.read(key)
-            val raw =
-                if (entry != null && now - entry.at < refreshAfterMs) {
+
+            var ok = false
+            var code: Int? = null
+            var error: String? = null
+            val body =
+                if (entry != null && now - entry.at < intervalMs) {
+                    ok = true
                     entry.value
                 } else {
-                    val body =
-                        runCatching { fetch(spec.url) }
-                            .onFailure { Log.w(TAG, "rule fetch failed: ${rule.name}", it) }
-                            .getOrNull()
-                    if (body != null) {
-                        cache.write(key, body, now)
-                        body
+                    val fetched = runCatching { fetchRaw(spec.url) }
+                    val response = fetched.getOrNull()
+                    if (response != null) {
+                        code = response.code
+                        if (response.code in 200..299 && response.body.isNotBlank()) {
+                            cache.write(key, response.body, now)
+                            ok = true
+                            response.body
+                        } else {
+                            // Reachable but refused (403 gate, 5xx, empty body):
+                            // report the code, keep the stale copy on screen.
+                            error = "HTTP ${response.code}"
+                            entry?.value?.also { ok = true }
+                        }
                     } else {
-                        // Serve the stale copy rather than showing nothing.
-                        entry?.value
+                        error = fetched.exceptionOrNull()?.message ?: "fetch failed"
+                        entry?.value?.also { ok = true }
                     }
                 }
 
-            if (raw != null) {
-                val items = runCatching { FeedParser.parse(raw) }.getOrElse { emptyList() }
-                if (items.isNotEmpty()) added += ingestUserRss(rule, spec, items, now)
+            var addedForRule = 0
+            if (body != null) {
+                val items = runCatching { FeedParser.parse(body) }.getOrElse { emptyList() }
+                if (items.isNotEmpty()) {
+                    addedForRule = ingestUserRss(rule, spec, items, now)
+                    added += addedForRule
+                }
             }
+
+            health[rule.id] =
+                FeedStatus(
+                    id = rule.id,
+                    name = rule.name,
+                    url = spec.url,
+                    lastAttemptAt = attemptAt,
+                    lastOkAt = if (ok) attemptAt else (health[rule.id]?.lastOkAt ?: 0L),
+                    ok = ok,
+                    lastError = error,
+                    itemCount = addedForRule,
+                    statusCode = code,
+                )
         }
+
+        // Only live rules, so a deleted feed's dot does not outlive it.
+        val ordered = rules.mapNotNull { health[it.id] }
+        _ruleStatuses.value = ordered
+        persist(RULE_STATUS_KEY, ordered)
+
         return added
     }
 
@@ -386,14 +441,30 @@ class FeedIngestor(
             } ?: feeds.map { FeedStatus(id = it.id, name = it.name, url = it.url) }
 
     private fun persistStatuses(list: List<FeedStatus>) {
-        runCatching { cache.write(STATUS_KEY, json.encodeToString(list), System.currentTimeMillis()) }
+        persist(STATUS_KEY, list)
+    }
+
+    private fun loadRuleStatuses(): List<FeedStatus> =
+        cache
+            .read(RULE_STATUS_KEY)
+            ?.let { entry ->
+                runCatching { json.decodeFromString<List<FeedStatus>>(entry.value) }.getOrNull()
+            }.orEmpty()
+
+    private fun persist(
+        key: String,
+        list: List<FeedStatus>,
+    ) {
+        runCatching { cache.write(key, json.encodeToString(list), System.currentTimeMillis()) }
     }
 
     companion object {
         const val TAG = "Feed"
         const val CATEGORY_NEWS = "NEWS"
         const val DEFAULT_REFRESH_MS = 60L * 60 * 1000
+
         private const val STATUS_KEY = "feed:status"
+        private const val RULE_STATUS_KEY = "feed:rule-status"
 
         /** What a feed declares when it says nothing: mirrors `FeedSource`. */
         private const val DEFAULT_LANGUAGE = "en"

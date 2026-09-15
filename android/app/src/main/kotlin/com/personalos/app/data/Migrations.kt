@@ -228,6 +228,16 @@ val MIGRATION_8_9_STATEMENTS: List<String> =
     )
 
 /**
+ * v9 -> v10: per-rule re-poll interval, in seconds.
+ *
+ * Nullable with no DEFAULT (same Room-validation rule as every column before
+ * it): null means "follow the shared feed schedule", which is what every
+ * existing row keeps. No UPDATE backfill — null already means the right thing.
+ */
+val MIGRATION_9_10_STATEMENTS: List<String> =
+    listOf("ALTER TABLE rules ADD COLUMN interval_sec INTEGER")
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -243,6 +253,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         7 to MIGRATION_6_7_STATEMENTS,
         8 to MIGRATION_7_8_STATEMENTS,
         9 to MIGRATION_8_9_STATEMENTS,
+        10 to MIGRATION_9_10_STATEMENTS,
     )
 
 /** The newest version this build can migrate to. */

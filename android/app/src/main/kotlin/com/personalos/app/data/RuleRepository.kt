@@ -2,6 +2,7 @@ package com.personalos.app.data
 
 import com.personalos.app.core.rules.RuleSpecs
 import com.personalos.app.core.tag.Ulid
+import com.personalos.app.data.work.SyncScheduler
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -57,15 +58,20 @@ class RuleRepository(
      * Inserts a user rule after validating its spec.
      *
      * @throws IllegalArgumentException when the name is blank, the kind is
-     * unknown, or the spec is invalid for its kind.
+     * unknown, the spec is invalid for its kind, or the interval is outside
+     * [MIN_INTERVAL_SEC]..[MAX_INTERVAL_SEC].
      */
     suspend fun addUserRule(
         name: String,
         kind: String,
         specJson: String,
+        intervalSec: Long = DEFAULT_USER_INTERVAL_SEC,
         now: Long = System.currentTimeMillis(),
     ): RuleEntity {
         require(name.isNotBlank()) { "rule name must not be blank" }
+        require(intervalSec in MIN_INTERVAL_SEC..MAX_INTERVAL_SEC) {
+            "interval must be $MIN_INTERVAL_SEC..$MAX_INTERVAL_SEC seconds"
+        }
         RuleSpecs.parse(kind, specJson)
         val row =
             RuleEntity(
@@ -77,8 +83,20 @@ class RuleRepository(
                 enabled = true,
                 createdAt = now,
                 updatedAt = now,
+                intervalSec = intervalSec,
             )
         dao.insertAll(listOf(row))
         return row
+    }
+
+    companion object {
+        /**
+         * A new feed re-polls on the same cadence the catalog feeds already
+         * use — one owner for that number ([SyncScheduler.DEFAULT_INTERVAL_MINUTES]),
+         * not a second arbitrary default.
+         */
+        const val DEFAULT_USER_INTERVAL_SEC: Long = SyncScheduler.DEFAULT_INTERVAL_MINUTES * 60L
+        const val MIN_INTERVAL_SEC = 15L * 60
+        const val MAX_INTERVAL_SEC = 24L * 60 * 60
     }
 }

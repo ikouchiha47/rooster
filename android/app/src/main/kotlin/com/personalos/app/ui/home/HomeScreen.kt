@@ -144,6 +144,7 @@ fun HomeScreen(
                             when (tile.name) {
                                 "Radar" -> onNavigate(Destination.Radar)
                                 "News" -> onNavigate(Destination.News)
+                                "RSS" -> onNavigate(Destination.Rss)
                                 "M&M" -> onNavigate(Destination.Money)
                                 "Weather" -> onNavigate(Destination.Weather)
                                 else -> onNavigate(Destination.Placeholder(tile.name))
