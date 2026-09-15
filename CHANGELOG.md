@@ -7,6 +7,26 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): centered forecast days with condition tints
+
+_2026-09-15_
+
+The 7-day strip's day columns left-leaned inside their own width (the column
+was centered, the texts were not) and every day wore the same paper. Columns
+are centered now, and each day carries its condition: straw tints for
+clear/partly-cloudy, greige for cloud, dusty sky for rain, and solid Indigo
+for 90%+ storm — all washed from the existing palette, no new hues.
+
+Storm is the only band that flips to pale ink (paper2/pale-ink tokens,
+~7.9/~4.9:1; ink-on-Indigo fails at ~2:1, so nothing else flips). No-data
+days stay untinted, exactly as before.
+
+Also centers the sync step text in the tile sync bar ("Refreshing feeds"
+sat left in a full-width ink bar).
+
+Verified on device: centered columns, indigo storm days readable, pale tints
+elsewhere, no crash. 228 tests green.
+
 ## fix(tag): share mistag, google-news labels, fuller meta lines
 
 _2026-09-15_

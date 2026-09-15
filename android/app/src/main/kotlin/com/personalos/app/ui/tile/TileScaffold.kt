@@ -1,6 +1,7 @@
 package com.personalos.app.ui.tile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -122,6 +123,7 @@ private fun SyncBar() {
                 .fillMaxWidth()
                 .background(RadarColors.ink)
                 .padding(horizontal = 8.dp, vertical = 3.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
