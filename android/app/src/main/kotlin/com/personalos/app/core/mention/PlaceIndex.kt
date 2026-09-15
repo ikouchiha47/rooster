@@ -10,8 +10,10 @@ import com.personalos.app.data.PlaceEntity
  * word characters, so it never fires around Devanagari (or other Indic)
  * alternates — between a space and `க` there is no `\b` boundary. The
  * lookarounds treat any letter, mark, decimal digit or underscore as a word
- * character instead. The `(?U)` flag turns on Unicode-aware case folding to go
- * with them.
+ * character instead. The `(?u)` flag turns on Unicode-aware case folding to go
+ * with them — lowercase-u, because Android's regex engine rejects the `(?U)`
+ * (UNICODE_CHARACTER_CLASS) spelling the JVM accepts, and that mismatch
+ * crashed the app on first index build while every unit test stayed green.
  *
  * Returns null when there is nothing to match, so an empty vocabulary matches
  * nothing rather than the empty string everywhere.
@@ -20,7 +22,7 @@ internal fun wordPattern(escapedLongestFirst: List<String>): Regex? {
     if (escapedLongestFirst.isEmpty()) return null
     val alternation = escapedLongestFirst.joinToString("|")
     return Regex(
-        "(?U)(?<![\\p{L}\\p{M}\\p{Nd}_])(?:$alternation)(?![\\p{L}\\p{M}\\p{Nd}_])",
+        "(?u)(?<![\\p{L}\\p{M}\\p{Nd}_])(?:$alternation)(?![\\p{L}\\p{M}\\p{Nd}_])",
         RegexOption.IGNORE_CASE,
     )
 }

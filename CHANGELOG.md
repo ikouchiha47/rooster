@@ -7,6 +7,22 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(mention): use (?u) flag, Android rejects (?U)
+
+_2026-09-15_
+
+The app crashed on first mention-index build with
+PatternSyntaxException near index 3: Android's regex engine rejects the
+(?U) (UNICODE_CHARACTER_CLASS) spelling the JVM accepts, so all 152 unit
+tests stayed green while the device died. Lowercase (?u) (UNICODE_CASE) is
+accepted everywhere and is the correct flag here — the lookarounds are
+explicitly Unicode-aware regardless.
+
+Verified on device before committing: no crash across Home, Services, News
+(530 items with mentions), Weather (forecast + places + news), Messages,
+Wallet/Me/Travel (blank stubs, confirmed by code, not by misclick). DB holds
+66 party + 1096 place mentions; 92 parties seeded. 152 tests green.
+
 ## feat(party): worldwide registry with sync, schema v7
 
 _2026-09-15_
