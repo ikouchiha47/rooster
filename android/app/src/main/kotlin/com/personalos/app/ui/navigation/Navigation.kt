@@ -22,6 +22,7 @@ import com.personalos.app.ui.article.ArticleScreen
 import com.personalos.app.ui.home.HomeScreen
 import com.personalos.app.ui.me.MeScreen
 import com.personalos.app.ui.messages.MessagesScreen
+import com.personalos.app.ui.money.MoneyScreen
 import com.personalos.app.ui.news.NewsScreen
 import com.personalos.app.ui.radar.RadarScreen
 import com.personalos.app.ui.services.ServicesScreen
@@ -40,6 +41,8 @@ sealed interface Destination {
     data object Radar : Destination
 
     data object News : Destination
+
+    data object Money : Destination
 
     data object Weather : Destination
 
@@ -71,6 +74,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Messages -> "messages"
         is Destination.Radar -> "radar"
         is Destination.News -> "news"
+        is Destination.Money -> "money"
         is Destination.Weather -> "weather"
         is Destination.Sources -> "sources"
         is Destination.Wallet -> "wallet"
@@ -93,6 +97,12 @@ fun AppNavHost(
         composable("radar") { RadarScreen() }
         composable("news") {
             NewsScreen(
+                onNavigate = { navigateToDetail(navController, it) },
+                onBack = backOrNull(navController),
+            )
+        }
+        composable("money") {
+            MoneyScreen(
                 onNavigate = { navigateToDetail(navController, it) },
                 onBack = backOrNull(navController),
             )

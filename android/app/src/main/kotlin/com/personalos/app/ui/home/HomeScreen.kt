@@ -144,6 +144,7 @@ fun HomeScreen(
                             when (tile.name) {
                                 "Radar" -> onNavigate(Destination.Radar)
                                 "News" -> onNavigate(Destination.News)
+                                "M&M" -> onNavigate(Destination.Money)
                                 "Weather" -> onNavigate(Destination.Weather)
                                 else -> onNavigate(Destination.Placeholder(tile.name))
                             }
@@ -453,7 +454,7 @@ private val HOME_TILES: List<TileSpec> =
     listOf(
         TileSpec("Radar", CategoryColors.Vermilion, Glyph.Radar),
         TileSpec("Alerts", CategoryColors.Rust, Glyph.Bell),
-        TileSpec("Money", CategoryColors.Teal, Glyph.Banknote),
+        TileSpec("M&M", CategoryColors.Teal, Glyph.Banknote),
         TileSpec("News", CategoryColors.Indigo, Glyph.News),
         TileSpec("Travel", CategoryColors.Mustard, Glyph.Plane, darkGlyph = true),
         TileSpec("Social", CategoryColors.Periwinkle, Glyph.Chat),

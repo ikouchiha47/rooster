@@ -7,6 +7,25 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(money): M&M tile with FX watch and finance news
+
+_2026-09-15_
+
+The Money tile routed to a blank placeholder. It is now M&M (Money and
+Market), structured like Weather: an FX WATCH summary card (lead pair big,
+ECB/CACHED source note, honest NOT AVAILABLE empty state), a Pairs strip
+(static cells — pairs have no drill-down, so nothing pretends to tap), and a
+Markets & money finance-tagged news list with day-group sticky headers,
+spines, meta lines and the new-items pill. Finance rows open the article
+(News behavior — a dead-end row would be worse). Screen title reads
+"Money and Market" in full.
+
+Home's sample money cell and the glance FX swipe are untouched (both observe
+the same FxProvider — one fact, one owner, no new fetch, no data changes).
+
+Verified on device: FX card, pairs, news list with sticky TODAY header, no
+crash. 232 tests green.
+
 ## fix(ui): forecast strip and places fill the card width
 
 _2026-09-15_

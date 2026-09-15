@@ -45,7 +45,7 @@ fun ServicesScreen(
             TabSpec("All", total),
             TabSpec("Radar", SERVICE_GROUPS[0].tiles.size),
             TabSpec("News", SERVICE_GROUPS[1].tiles.size),
-            TabSpec("Money", SERVICE_GROUPS[2].tiles.size),
+            TabSpec("M&M", SERVICE_GROUPS[2].tiles.size),
             TabSpec("Media", SERVICE_GROUPS[3].tiles.size),
             TabSpec("App", SERVICE_GROUPS[4].tiles.size),
         )
@@ -118,6 +118,7 @@ fun ServicesScreen(
                                 when (tile.name) {
                                     "Radar" -> onNavigate(Destination.Radar)
                                     "News" -> onNavigate(Destination.News)
+                                    "M&M" -> onNavigate(Destination.Money)
                                     "Weather" -> onNavigate(Destination.Weather)
                                     "Sources" -> onNavigate(Destination.Sources)
                                     else -> onNavigate(Destination.Placeholder(tile.name))
@@ -168,7 +169,7 @@ private val SERVICE_GROUPS: List<ServiceGroup> =
             accent = CategoryColors.Teal,
             tiles =
                 listOf(
-                    TileSpec("Money", CategoryColors.Teal, Glyph.Banknote),
+                    TileSpec("M&M", CategoryColors.Teal, Glyph.Banknote),
                     TileSpec("Travel", CategoryColors.Mustard, Glyph.Plane, darkGlyph = true),
                     TileSpec("Cards", CategoryColors.Plum, Glyph.Card),
                     TileSpec("Wallet", CategoryColors.Cyan, Glyph.Wallet),
