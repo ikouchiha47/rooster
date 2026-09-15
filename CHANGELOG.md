@@ -7,6 +7,26 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## design: font switcher in the mockups
+
+_2026-09-15_
+
+The mockups can now be judged on type instead of argued about: a Fonts
+dropdown switches the pairing live, wired as one data-attribute on <html> with
+every stack declared in the stylesheet, so a combination is a data change and
+never per-page JS. The choice persists in localStorage and is applied before
+paint, so moving between pages does not flash the default.
+
+Options are two-family pairings (one serif carrying display and headlines, one
+sans for body and micro caps) after the first experiment proved three serifs
+compete: Source Serif 4 + Inter, Newsreader + Inter, Libre Franklin + Libre
+Baskerville, Archivo Narrow + Spectral + Inter, Literata + Public Sans,
+Playfair Display + Lora + Inter, IBM Plex Serif/Sans/Mono, Fraunces + Inter,
+with the app's shipped Noto pairing as the default baseline.
+
+Fonts load lazily per selection - only the baseline is in the static import -
+so the first view stays light instead of pulling fifteen families.
+
 ## fix(ui): header colour fills the status bar, taller masthead
 
 _2026-09-15_

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,700;1,6..72,500;1,6..72,600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400;1,600&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,700&family=Manrope:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap");
 
 /* ============================================================
    PERSONAL RADAR — Rule-authoring exploration
@@ -33,23 +33,26 @@
   --plum:      #7A2E5E;
   --cyan:      #1B7A8C;
 
-  /* type — TYPE EXPERIMENT (throwaway prototype, mirrors design/).
-     Role split, one place:
-       --display   Fraunces     masthead title, seal, section headers,
-                                dry-run panel title
-       --serif     Newsreader   rule names, recipe statements, stat
-                                numerals, block kickers
-       --serif-acc Crimson Pro  composed rule sentence (.sent) + note /
-                                lede accents (.note, .dryrun__msg)
-       --sans      Manrope      body, labels, metadata, controls
-       --mono      (unchanged system stack) time / figures / query */
-  --serif: "Newsreader", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+  /* type — FONT SWITCHER (prototype-only, mirrors design/).
+     Roles stay fixed, families swap via the html[data-font] blocks
+     below. Default (:root) is the app today — Noto Serif for
+     display/headlines, Noto Sans for body. Other pairings lazy-load
+     their webfonts from fontswitch.js; only Noto ships in the
+     static @import above.
+       --display   masthead title, seal, section headers, dry-run title
+       --serif     rule names, recipe statements, stat numerals, kickers
+       --serif-acc composed rule sentence (.sent) + note/lede accents
+                   (.note, .dryrun__msg)
+       --sans      body, labels, metadata, controls
+       --mono      (system stack, except the plex pairing which uses
+                   Plex Mono) time / figures / query */
+  --serif: "Noto Serif", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
            "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
-  --serif-acc: "Crimson Pro", Georgia, "Yu Mincho", "Songti SC",
-           "Times New Roman", serif;
-  --display: "Fraunces", "Hiragino Mincho ProN", "Yu Mincho",
+  --serif-acc: "Noto Serif", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --display: "Noto Serif", "Hiragino Mincho ProN", "Yu Mincho",
            "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
-  --sans:  "Manrope", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+  --sans:  "Noto Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
            "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
   --mono:  ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
@@ -66,6 +69,101 @@
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
 
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+/* ============================================================
+   FONT SWITCHER — one block per combination. fontswitch.js sets
+   html[data-font="..."]; these blocks swap the four type roles.
+   :root above is the "noto" default (the app today).
+   ============================================================ */
+html[data-font="noto"] {
+  --display: "Noto Serif", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Noto Serif", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Noto Serif", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "Noto Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="source-serif"] {
+  --display: "Source Serif 4", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Source Serif 4", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Source Serif 4", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="newsreader-inter"] {
+  --display: "Newsreader", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Newsreader", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Newsreader", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="franklin-baskerville"] {
+  --display: "Libre Baskerville", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Libre Baskerville", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Libre Baskerville", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "Libre Franklin", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="archivo-spectral"] {
+  --display: "Archivo Narrow", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Spectral", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Spectral", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="literata-public"] {
+  --display: "Literata", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Literata", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Literata", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="playfair-lora"] {
+  --display: "Playfair Display", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Lora", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "Lora", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="plex"] {
+  --display: "IBM Plex Serif", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "IBM Plex Serif", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --serif-acc: "IBM Plex Serif", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC",
+           "Noto Serif CJK SC", "Noto Serif JP", Georgia, "Times New Roman", serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+html[data-font="fraunces-inter"] {
+  --display: "Fraunces", "Hiragino Mincho ProN", "Yu Mincho",
+             "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --serif: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+           "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif-acc: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+           "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
 }
 
 html { -webkit-text-size-adjust: 100%; }
