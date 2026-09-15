@@ -7,6 +7,20 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs: worktree rule — commit before removing, never force
+
+_2026-09-15_
+
+Records the workflow that would have saved the RSS feature: self-contained
+feature work goes in a worktree, it is committed INSIDE that worktree before
+anything else, and removal is never forced. A worktree with uncommitted work
+is unrecoverable on remove — no reflog, no stash.
+
+Also records two things learned the hard way: verify a slice from a fresh
+directory (the main tree can pass on files that were never committed), and
+Room's KSP step has been seen to fail in fresh checkout directories, which is
+the toolchain rather than the code.
+
 ## feat(rss): feed manager with verify-then-add, schema v10
 
 _2026-09-15_

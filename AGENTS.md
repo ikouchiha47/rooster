@@ -30,6 +30,36 @@ Kotlin + Compose + Room, package `com.personalos.app`, project root `android/`.
    store; everything downstream updates by itself. If adding a place requires
    touching a screen, the model is wrong.
 
+## Use a worktree for self-contained feature work
+
+A self-contained feature — one that can land as its own commit — goes in a
+worktree, so a half-finished change cannot break the main tree (this has already
+cost one full feature's work):
+
+```bash
+git worktree add ../personalos-<feature> -b feat/<feature>
+# work there, then commit INSIDE the worktree before anything else
+cd ../personalos-<feature> && git commit
+cd - && git worktree remove ../personalos-<feature>   # clean only, no --force
+```
+
+Rules, in order of how much they matter:
+
+1. **Commit inside the worktree before removing it.** Uncommitted work in a
+   worktree is unrecoverable on `remove` — no reflog, no stash, nothing. A
+   worktree with unsaved work must never be removed.
+2. **Never `--force`.** If removal refuses, that is the safety net working:
+   stop and reconcile the changes first.
+3. **Verify in a fresh directory before calling a slice done**, because the main
+   tree can pass on files that were never committed (`git clone` the repo to
+   `/tmp` and build the gates there). This is how the missing-`Sql.kt` break was
+   found, after the fact.
+4. **Known limitation:** Room's KSP step has been observed to fail in fresh
+   checkout directories ("No property named value was found in annotation
+   Query") while the same commit builds in the main tree. If a worktree build
+   hits that, it is the toolchain, not the code — commit the work, then verify
+   from the main tree.
+
 ## Before you finish
 
 ```bash
