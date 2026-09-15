@@ -11,6 +11,9 @@ import java.net.URL
 object Http {
     val json: Json = Json { ignoreUnknownKeys = true }
 
+    /** The single fetch identity behind every poll, catalog or rule. */
+    const val USER_AGENT = "PersonalRadar/0.1 (personal use)"
+
     fun getText(
         url: String,
         timeoutMs: Int = 12_000,
@@ -21,7 +24,7 @@ object Http {
             connection.requestMethod = "GET"
             connection.connectTimeout = timeoutMs
             connection.readTimeout = timeoutMs
-            connection.setRequestProperty("User-Agent", "PersonalRadar/0.1 (personal use)")
+            connection.setRequestProperty("User-Agent", USER_AGENT)
             connection.setRequestProperty("Accept", accept)
             val code = connection.responseCode
             check(code in 200..299) { "HTTP $code for $url" }

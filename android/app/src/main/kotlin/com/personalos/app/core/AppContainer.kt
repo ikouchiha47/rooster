@@ -160,15 +160,14 @@ class AppContainer(
                                     com.personalos.app.core.rules.RuleSpecs
                                         .parse(row.kind, row.specJson)
                                 }.getOrNull() ?: return@mapNotNull null
-                            // Search rules own their source strings; rss rules are
-                            // inert in v1 (never polled, so no rows need them).
+                            // Every rule owns its source string (see RuleSources),
+                            // so retagging resolves user RSS rows the same way it
+                            // resolves search rows. Seeded RSS rows map sources
+                            // that never receive items (the catalog drives those
+                            // URLs), which is harmless.
                             val source =
-                                (spec as? com.personalos.app.core.rules.SearchSpec)
-                                    ?.let {
-                                        com.personalos.app.core.rules.GnewsUrl
-                                            .sourceFor(it.query)
-                                    }
-                                    ?: return@mapNotNull null
+                                com.personalos.app.core.rules.RuleSources
+                                    .sourceFor(row.id, spec)
                             source to spec.tags
                         }.toMap()
                 }.getOrDefault(emptyMap())

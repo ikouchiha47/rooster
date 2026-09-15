@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): poll user rss rows, one source string per rule
+
+_2026-09-15_
+
+Salvaged, reviewed remainder of the dead RSS-manager agent: user (never
+seeded) rss rules poll through the catalog's fetch/parse/store path with the
+same cache discipline, and every rule owns its source string in RuleSources
+(search keeps gnews:<slug>; user rss is userrss:<ruleId>) so ingest and
+retag recovery resolve identically. Http gains a single shared User-Agent
+const. The manager UI itself was never built — that follows.
+
+234 tests green, device clean.
+
 ## fix(news): complete the v9 slice left out of its commit
 
 _2026-09-15_

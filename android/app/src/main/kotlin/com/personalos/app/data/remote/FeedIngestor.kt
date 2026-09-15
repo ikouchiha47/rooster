@@ -10,7 +10,9 @@ import com.personalos.app.core.feed.FeedSource
 import com.personalos.app.core.feed.FeedStatus
 import com.personalos.app.core.net.Http
 import com.personalos.app.core.rules.GnewsUrl
+import com.personalos.app.core.rules.RssSpec
 import com.personalos.app.core.rules.RuleKind
+import com.personalos.app.core.rules.RuleSources
 import com.personalos.app.core.rules.RuleSpecs
 import com.personalos.app.core.rules.SearchSpec
 import com.personalos.app.core.tag.SourceKind
@@ -53,8 +55,8 @@ class FeedIngestor(
     /**
      * Enabled rules to poll alongside the catalog. Defaults to none, so the
      * catalog path works standalone; the app wires the rule repository here.
-     * Only `search` rules are polled — `rss` rule rows are inert in v1 (the
-     * catalog still drives those feeds) until the switchover.
+     * `search` rows and *user* `rss` rows are polled — seeded `rss` rows stay
+     * inert because the catalog already drives those same URLs.
      */
     private val loadRules: suspend () -> List<RuleEntity> = { emptyList() },
     /**
@@ -145,6 +147,7 @@ class FeedIngestor(
             persistStatuses(ordered)
 
             added += refreshSearchRules(now)
+            added += refreshRssRules(now)
 
             _lastSyncAt.value = System.currentTimeMillis()
             Log.i(TAG, "refresh: +$added items from ${feeds.size} feeds")
@@ -200,6 +203,59 @@ class FeedIngestor(
         return added
     }
 
+    /**
+     * Polls enabled user `rss` rules through the same fetch/parse/store path as
+     * catalog feeds (same cache discipline, stale fallback included).
+     * Deliberately outside [statuses]: rule health is not a status-screen
+     * concern in v1, so no screen changes.
+     *
+     * Seeded `rss` rows are skipped: they mirror the catalog's URLs, which the
+     * catalog pass already fetched — polling both would double every fetch and
+     * dedupe to nothing.
+     *
+     * Returns items added.
+     */
+    private suspend fun refreshRssRules(now: Long): Int {
+        val rules =
+            runCatching { loadRules() }
+                .onFailure { Log.w(TAG, "rules load failed", it) }
+                .getOrElse { emptyList() }
+                .filter { it.enabled && !it.seeded && RuleKind.from(it.kind) == RuleKind.RSS }
+
+        var added = 0
+        for (rule in rules) {
+            val spec =
+                runCatching { RuleSpecs.parse(RuleKind.RSS, rule.specJson) as RssSpec }
+                    .onFailure { Log.w(TAG, "bad rss spec for rule ${rule.id}", it) }
+                    .getOrNull() ?: continue
+
+            val key = "rule:${rule.id}"
+            val entry = cache.read(key)
+            val raw =
+                if (entry != null && now - entry.at < refreshAfterMs) {
+                    entry.value
+                } else {
+                    val body =
+                        runCatching { fetch(spec.url) }
+                            .onFailure { Log.w(TAG, "rule fetch failed: ${rule.name}", it) }
+                            .getOrNull()
+                    if (body != null) {
+                        cache.write(key, body, now)
+                        body
+                    } else {
+                        // Serve the stale copy rather than showing nothing.
+                        entry?.value
+                    }
+                }
+
+            if (raw != null) {
+                val items = runCatching { FeedParser.parse(raw) }.getOrElse { emptyList() }
+                if (items.isNotEmpty()) added += ingestUserRss(rule, spec, items, now)
+            }
+        }
+        return added
+    }
+
     /** Inserts one feed's items and tags whatever actually landed. */
     private suspend fun ingest(
         feed: FeedSource,
@@ -233,10 +289,33 @@ class FeedIngestor(
         now: Long,
     ): Int =
         storeItems(
-            source = GnewsUrl.sourceFor(spec.query),
+            source = RuleSources.sourceFor(rule.id, spec),
             category = if (Tags.INCIDENT in spec.tags) FeedCategories.INCIDENT else FeedCategories.NEWS,
             sender = rule.name,
             language = spec.queryLangCode,
+            declaredTags = spec.tags,
+            items = items,
+            now = now,
+        )
+
+    /**
+     * Inserts one user RSS rule's items through the same store path as feeds:
+     * dedupe by link on the existing `dedupe_key`, the rule's tags declared,
+     * and the rule name as sender. The feed declares no language, so the
+     * catalog default (`en`) applies — the tagger currently ignores language
+     * anyway, and this keeps one ingest code path.
+     */
+    private suspend fun ingestUserRss(
+        rule: RuleEntity,
+        spec: RssSpec,
+        items: List<FeedItem>,
+        now: Long,
+    ): Int =
+        storeItems(
+            source = RuleSources.sourceFor(rule.id, spec),
+            category = if (Tags.INCIDENT in spec.tags) FeedCategories.INCIDENT else FeedCategories.NEWS,
+            sender = rule.name,
+            language = DEFAULT_LANGUAGE,
             declaredTags = spec.tags,
             items = items,
             now = now,
@@ -315,5 +394,8 @@ class FeedIngestor(
         const val CATEGORY_NEWS = "NEWS"
         const val DEFAULT_REFRESH_MS = 60L * 60 * 1000
         private const val STATUS_KEY = "feed:status"
+
+        /** What a feed declares when it says nothing: mirrors `FeedSource`. */
+        private const val DEFAULT_LANGUAGE = "en"
     }
 }
