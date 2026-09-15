@@ -21,7 +21,7 @@ import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 
 /**
- * Tag rendering for an event meta line, shared by News, Weather and Money.
+ * Tag rendering for an event meta line, shared by News, Weather and M&M.
  *
  * Tags are not one list (docs/ARCHITECTURE.md §10.5): a **subject** says what an
  * item is about, a **nature** says what kind of thing it is, and `news` is a
@@ -61,6 +61,13 @@ private val SUBJECT_COLORS: Map<String, Color> =
         Tags.TECH to CategoryColors.Plum,
         Tags.TRAVEL to CategoryColors.Mustard,
         Tags.WEATHER to CategoryColors.Chartreuse,
+        // Games reads as play/social: Periwinkle is the one free accent with
+        // that meaning (Cyan is radio, Vermilion is alerts, Rust is reserved
+        // for the second layer below). Festival stays deliberately unmapped:
+        // no free accent carries a festival meaning, and inventing one would
+        // turn the line into the rainbow this file exists to avoid. An
+        // unmapped subject renders as a muted chip and takes the cream spine.
+        Tags.GAMES to CategoryColors.Periwinkle,
         // No documented accent fits scholarly output; Indigo is the editorial
         // ink and is only free because the `news` marker is muted, not filled.
         Tags.PAPER to CategoryColors.Indigo,
@@ -107,6 +114,26 @@ private const val MAX_VISIBLE_TAGS = 3
  * (0.9) show. Caps and filtering live in the UI, never in the query.
  */
 internal const val MIN_MENTION_CONFIDENCE = 0.8f
+
+/**
+ * The row spine colour for a tag set: the fill of the leading subject chip, so
+ * the list edge scans as the same layer the meta line already leads with.
+ * Order follows [orderTags] (subjects first, input order kept), so the spine
+ * always matches the first filled chip the row shows.
+ *
+ * Single owner for the subject-to-colour mapping: rows call this instead of
+ * copying [SUBJECT_COLORS]. Anything with no subject (no tags, only natures,
+ * or an unmapped subject such as festival) takes the cream fallback
+ * ([RadarColors.paper4], the paper palette's fill) rather than inventing a
+ * new accent.
+ */
+fun subjectSpineColor(tags: Collection<String>): Color {
+    val ordered = orderTags(tags, showMarker = false)
+    for (tag in ordered) {
+        SUBJECT_COLORS[tag.lowercase()]?.let { return it }
+    }
+    return RadarColors.paper4
+}
 
 /** One slot in the meta line: either a tag or a mention surface. */
 internal sealed interface MetaToken {

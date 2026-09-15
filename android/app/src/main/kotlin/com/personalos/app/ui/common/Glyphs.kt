@@ -50,6 +50,7 @@ enum class Glyph {
     Person,
     Search,
     Back,
+    Forward,
     Scan,
     Clock,
     Refresh,
@@ -143,6 +144,14 @@ private fun DrawScope.drawGlyph(
             ln(19f, 12f, 5f, 12f)
             ln(11f, 6f, 5f, 12f)
             ln(5f, 12f, 11f, 18f)
+        }
+        Glyph.Forward -> {
+            // Mirror of Back: same shaft and head, pointing right. Drawn here
+            // rather than reusing a text arrow so the search submit glyph
+            // matches the set's 1.7 stroke at the same size as the search icon.
+            ln(5f, 12f, 19f, 12f)
+            ln(13f, 6f, 19f, 12f)
+            ln(19f, 12f, 13f, 18f)
         }
         Glyph.Radar -> {
             dot(12f, 12f, 1.6f)

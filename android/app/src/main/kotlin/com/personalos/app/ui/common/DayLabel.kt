@@ -37,6 +37,45 @@ fun dayLabelRight(
 ): String = if (label == "Today" || label == "Yesterday") DAY_LABEL_FMT.format(Date(timestamp)) else ""
 
 /**
+ * One day bucket of an already time-ordered timeline, newest first.
+ *
+ * Display grouping only: the list underneath is unchanged, so batched loads
+ * keyed off pages or ids keep working while headers come and go.
+ */
+data class DayGroup<T>(
+    val dayStart: Long,
+    val items: List<T>,
+)
+
+/**
+ * Sequential day-bucketing for a time-ordered list.
+ *
+ * A new group starts wherever the [DAY_MS] bucket changes, so input order is
+ * kept and a day that arrives in two runs (it cannot, the lists are ordered,
+ * but cheap to be safe) stays two groups rather than being merged across
+ * other days. Pure, so it is unit-tested without composing.
+ */
+fun <T> groupIntoDays(
+    rows: List<T>,
+    timestampOf: (T) -> Long,
+): List<DayGroup<T>> {
+    val out = mutableListOf<DayGroup<T>>()
+    var current = Long.MIN_VALUE
+    var bucket = mutableListOf<T>()
+    for (row in rows) {
+        val day = timestampOf(row) / DAY_MS * DAY_MS
+        if (bucket.isNotEmpty() && day != current) {
+            out.add(DayGroup(current, bucket))
+            bucket = mutableListOf()
+        }
+        current = day
+        bucket.add(row)
+    }
+    if (bucket.isNotEmpty()) out.add(DayGroup(current, bucket))
+    return out
+}
+
+/**
  * Short label for a forecast row, from an ISO date: `TODAY`, else `THU`.
  *
  * Weather rows are one line per day and the date is already implied by position,

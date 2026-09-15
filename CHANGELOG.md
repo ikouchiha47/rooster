@@ -7,6 +7,22 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): row spines, day groups, submit glyph, new-items pill
+
+_2026-09-15_
+
+The components the News and Weather screens already call, committed on their
+own so HEAD builds: subjectSpineColor (the one owner of the subject-to-colour
+map, replacing per-row copies; cream fallback for no subject), subjectSpineColor
+drives the 3dp leading spine, Games gains Periwinkle as its subject accent while
+Festival stays deliberately unmapped, DayGroup/groupIntoDays hold the day
+language, Glyph.Forward replaces the drawn-arrow text in the search bar, and
+NewItemsPill is the drift indicator for rows that landed above the reader.
+
+Found while committing: those screens referenced all of this from HEAD, so the
+tree did not build. Same pattern as the missing Sql.kt — verify a slice with a
+clean-tree build before calling it done.
+
 ## feat(rules): poll user rss rows, one source string per rule
 
 _2026-09-15_

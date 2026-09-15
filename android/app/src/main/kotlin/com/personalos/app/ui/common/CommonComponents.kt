@@ -35,9 +35,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.personalos.app.core.Chars
 import com.personalos.app.core.feed.FeedCatalog
 import com.personalos.app.core.rules.GnewsUrl
+import com.personalos.app.core.rules.RuleSources
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import kotlin.math.pow
@@ -145,11 +145,13 @@ fun sourceDisplayName(
     // ("KOLKATA") rather than a provenance. The outlet already rides in the
     // headline ("... - NDTV"), so the label says where the row came from.
     if (source.startsWith(GnewsUrl.SOURCE_PREFIX)) return ruleNames[source] ?: "Google News"
+    if (source.startsWith(RuleSources.USER_RSS_PREFIX)) return ruleNames[source] ?: "Feed"
     return ruleNames[source]
         ?: FeedCatalog.bySource(source)?.name
         ?: source
             .removePrefix(FeedCatalog.SOURCE_PREFIX)
             .removePrefix(GnewsUrl.SOURCE_PREFIX)
+            .removePrefix(RuleSources.USER_RSS_PREFIX)
             .replace('-', ' ')
 }
 
@@ -394,18 +396,59 @@ fun SearchField(
             if (onSubmit != null) {
                 Spacer(Modifier.width(6.dp))
                 // Search runs when this is pressed, not on every keystroke: the
-                // query is only committed here.
-                Text(
-                    text = Chars.ARROW_RIGHT,
-                    style = RadarType.body,
-                    color = RadarColors.ink,
+                // query is only committed here. A drawn arrow in a bordered
+                // square, not a text arrow: same ink and size as the leading
+                // search icon, same paper fill and 1dp ink border as the bar.
+                Box(
                     modifier =
                         Modifier
-                            .clickable { onSubmit() }
-                            .padding(horizontal = 4.dp, vertical = 1.dp),
-                )
+                            .size(28.dp)
+                            .background(RadarColors.paper, RoundedCornerShape(2.dp))
+                            .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
+                            .clickable(onClickLabel = "Search", onClick = onSubmit),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GlyphIcon(Glyph.Forward, RadarColors.ink2, 15.dp)
+                }
             }
         }
+    }
+}
+
+/**
+ * Floating "N NEW" badge for lists fed by Room flows.
+ *
+ * A sync slides fresh items in at the top without telling the reader; this
+ * badge appears only while the list is scrolled down, counts what landed above
+ * the reader's position, and tapping it scrolls to the new items and clears
+ * itself. The count is UI-side (items above the last seen head); the store is
+ * untouched.
+ *
+ * Deliberately a 2dp rectangle, not a stadium pill: the paper bans pills, and
+ * the ink fill with a paper hairline keeps it legible over both paper rows
+ * and the ink day headers it may overlap.
+ */
+@Composable
+fun NewItemsPill(
+    count: Int,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .background(RadarColors.ink, RoundedCornerShape(2.dp))
+                .border(1.dp, RadarColors.paper2, RoundedCornerShape(2.dp))
+                .clickable(onClickLabel = "Show new items", onClick = onTap)
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "$count NEW",
+            style = RadarType.micro,
+            color = RadarColors.paper2,
+            maxLines = 1,
+        )
     }
 }
 
