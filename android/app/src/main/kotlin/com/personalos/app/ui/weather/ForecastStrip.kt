@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,10 +42,11 @@ private val COLUMN_WIDTH = 52.dp
  * part of the newsprint page; the only colour is a quiet condition wash
  * behind each column.
  *
- * Fixed-width columns inside a horizontal scroll: a full week fits a normal
- * phone, and the strip scrolls rather than compressing when it does not. The same
- * component is used on the Weather tile's card and on a place's forecast screen,
- * so the two can never drift apart.
+ * Columns share the card width equally but never go below [columnWidth]: a
+ * full week fills a normal phone edge to edge, and the strip only scrolls on
+ * screens narrower than seven minimums. The same component is used on the
+ * Weather tile's card and on a place's forecast screen, so the two can never
+ * drift apart.
  *
  * Each column is centred in its own width, and carries a quiet condition tint
  * mixed from the existing palette onto paper (see [conditionTint]) so the strip
@@ -57,17 +59,24 @@ fun ForecastStrip(
     modifier: Modifier = Modifier,
     columnWidth: Dp = COLUMN_WIDTH,
 ) {
-    Row(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-    ) {
-        days.forEachIndexed { index, day ->
-            if (index > 0) {
-                Box(Modifier.width(1.dp).height(STRIP_HEIGHT).background(RadarColors.ruleSoft))
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val fits = maxWidth >= columnWidth * days.size
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .then(if (fits) Modifier else Modifier.horizontalScroll(rememberScrollState())),
+        ) {
+            days.forEachIndexed { index, day ->
+                if (index > 0) {
+                    Box(Modifier.width(1.dp).height(STRIP_HEIGHT).background(RadarColors.ruleSoft))
+                }
+                if (fits) {
+                    ForecastColumn(day, Modifier.weight(1f))
+                } else {
+                    ForecastColumn(day, Modifier.width(columnWidth))
+                }
             }
-            ForecastColumn(day, columnWidth)
         }
     }
 }
@@ -109,7 +118,7 @@ internal fun WeatherDay.stripOnDark(): Boolean = rainChance in 0..100 && conditi
 @Composable
 private fun ForecastColumn(
     day: WeatherDay,
-    width: Dp,
+    widthModifier: Modifier,
 ) {
     val onDark = day.stripOnDark()
     val primary = if (onDark) RadarColors.paper2 else RadarColors.ink
@@ -119,7 +128,7 @@ private fun ForecastColumn(
     Column(
         modifier =
             Modifier
-                .width(width)
+                .then(widthModifier)
                 .height(STRIP_HEIGHT)
                 .background(day.stripTint() ?: Color.Transparent)
                 .padding(vertical = 6.dp),

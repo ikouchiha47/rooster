@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(ui): forecast strip and places fill the card width
+
+_2026-09-15_
+
+Fixed-width columns left a blank gutter at the card's right edge. Both rows
+now share the width equally with a minimum per cell (52dp forecast days,
+96dp places) and scroll only on screens narrower than all minimums.
+
+Verified on device for the strip; Places same pattern, same treatment.
+228 tests green.
+
 ## feat(news): sectioned day paging with counts, schema v9
 
 _2026-09-15_

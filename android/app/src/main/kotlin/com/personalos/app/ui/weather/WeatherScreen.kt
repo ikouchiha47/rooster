@@ -6,7 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -23,18 +25,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
@@ -46,14 +52,21 @@ import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
+import com.personalos.app.ui.common.CategorySpine
+import com.personalos.app.ui.common.DayMarker
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphIcon
 import com.personalos.app.ui.common.LocalAppContainer
+import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.TagLine
 import com.personalos.app.ui.common.WidgetHeader
+import com.personalos.app.ui.common.dayLabel
+import com.personalos.app.ui.common.dayLabelRight
+import com.personalos.app.ui.common.groupIntoDays
+import com.personalos.app.ui.common.subjectSpineColor
 import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -140,6 +153,41 @@ fun WeatherScreen(
 
     val listState = rememberLazyListState()
 
+    // Same new-items badge as News, for the weather-tagged timeline below:
+    // how many rows landed above the reader while scrolled down. UI-side; the
+    // store underneath is untouched.
+    var pendingNews by remember { mutableStateOf(0) }
+    var newsHeadSeenId by remember { mutableStateOf<Long?>(null) }
+    var collapsedDays by remember { mutableStateOf(setOf<Long>()) }
+    val awayFromTop by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+
+    // A head change with the reader down means fresh weather items slid in
+    // above: badge what sits above the last seen head. The reload path
+    // re-reads the same page (same head), so it never trips the badge.
+    LaunchedEffect(news) {
+        val head = news.firstOrNull()?.event?.id
+        val seen = newsHeadSeenId
+        if (head == null) {
+            newsHeadSeenId = null
+            pendingNews = 0
+        } else if (seen == null) {
+            newsHeadSeenId = head
+        } else if (head != seen) {
+            val at = news.indexOfFirst { it.event.id == seen }
+            val fresh = if (at < 0) news.size else at
+            newsHeadSeenId = head
+            pendingNews = if (awayFromTop && fresh > 0) pendingNews + fresh else 0
+        }
+    }
+
+    // Reaching the top means the reader has seen everything: drop the badge.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) -> if (index == 0 && offset == 0) pendingNews = 0 }
+    }
+
     TileScaffold(
         config = WEATHER_TILE,
         modifier = modifier,
@@ -191,6 +239,15 @@ fun WeatherScreen(
                 weekPlace?.let { container.weather.forecast(it) } ?: flowOf(emptyList<WeatherDay>())
             }.collectAsStateWithLifecycle(initialValue = emptyList())
 
+        // Day buckets for the weather timeline: display-only grouping over the
+        // page, so the one batched mention read per page is untouched and row
+        // keys stay `event:id`.
+        val newsGroups = remember(news) { groupIntoDays(news) { it.event.timestamp } }
+        // Position of the weather-news header: present, then the week when it
+        // exists, then places. Collapsing never moves it - collapsed rows sit
+        // below it - so the badge can scroll straight to it.
+        val newsHeaderIndex = 1 + (if (week.isNotEmpty()) 1 else 0) + 1
+
         Box(Modifier.fillMaxSize()) {
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 item(key = "present") {
@@ -236,8 +293,32 @@ fun WeatherScreen(
                         )
                     }
                 }
-                items(news, key = { "event:${it.event.id}" }) { item ->
-                    WeatherNewsLine(item, mentions = weatherMentions[item.event.id].orEmpty())
+                newsGroups.forEach { group ->
+                    stickyHeader(key = "wday:${group.dayStart}") {
+                        val label = remember(group.dayStart) { dayLabel(group.dayStart) }
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    onClickLabel =
+                                        if (group.dayStart in collapsedDays) "Expand day" else "Collapse day",
+                                ) {
+                                    collapsedDays =
+                                        if (group.dayStart in collapsedDays) {
+                                            collapsedDays - group.dayStart
+                                        } else {
+                                            collapsedDays + group.dayStart
+                                        }
+                                },
+                        ) {
+                            DayMarker(label = label, right = dayLabelRight(label, group.dayStart))
+                        }
+                    }
+                    if (group.dayStart !in collapsedDays) {
+                        items(group.items, key = { "event:${it.event.id}" }) { item ->
+                            WeatherNewsLine(item, mentions = weatherMentions[item.event.id].orEmpty())
+                        }
+                    }
                 }
 
                 item(key = "footer") {
@@ -259,6 +340,17 @@ fun WeatherScreen(
                         .fillMaxHeight()
                         .padding(vertical = 2.dp),
             )
+
+            if (pendingNews > 0 && awayFromTop) {
+                NewItemsPill(
+                    count = pendingNews,
+                    onTap = {
+                        pendingNews = 0
+                        scope.launch { listState.animateScrollToItem(newsHeaderIndex) }
+                    },
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                )
+            }
         }
     }
 }
@@ -443,22 +535,33 @@ private fun PlacesCard(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
             )
         } else {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(PLACE_ROW_HEIGHT)
-                        .horizontalScroll(rememberScrollState()),
-            ) {
-                places.forEachIndexed { index, snapshot ->
-                    if (index > 0) {
-                        Box(Modifier.width(1.dp).fillMaxHeight().background(RadarColors.ruleSoft))
+            // Cells share the card width equally down to a 96dp floor, mirroring
+            // ForecastStrip: the row fills edge to edge and only scrolls on
+            // screens narrower than all minimums.
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val fits = maxWidth >= PLACE_CELL_WIDTH * places.size
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(PLACE_ROW_HEIGHT)
+                            .then(if (fits) Modifier else Modifier.horizontalScroll(rememberScrollState())),
+                ) {
+                    places.forEachIndexed { index, snapshot ->
+                        if (index > 0) {
+                            Box(Modifier.width(1.dp).fillMaxHeight().background(RadarColors.ruleSoft))
+                        }
+                        PlaceCell(
+                            snapshot = snapshot,
+                            modifier =
+                                if (fits) {
+                                    Modifier.weight(1f).fillMaxHeight()
+                                } else {
+                                    Modifier.width(PLACE_CELL_WIDTH).fillMaxHeight()
+                                },
+                            onOpen = { onOpen(snapshot) },
+                        )
                     }
-                    PlaceCell(
-                        snapshot = snapshot,
-                        modifier = Modifier.width(PLACE_CELL_WIDTH).fillMaxHeight(),
-                        onOpen = { onOpen(snapshot) },
-                    )
                 }
             }
         }
@@ -517,30 +620,75 @@ private fun WeatherNewsLine(
     item: TaggedEvent,
     mentions: List<MentionEntity> = emptyList(),
 ) {
+    // Same row language as News: 3dp subject spine at the edge, fixed two-line
+    // headline block, one-line meta. The spine reads the FULL tag list so the
+    // `weather` marker implied by this tile still colours the edge Chartreuse;
+    // the meta line gets the filtered list so it does not print WEATHER forty
+    // times. Rows with no other subject than weather still scan as weather.
     Column(Modifier.fillMaxWidth()) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
         ) {
-            Text(
-                text = item.event.title,
-                style = RadarType.serifTitle,
-                color = RadarColors.ink,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(3.dp))
-            // `weather` is implied by this tile, so it is dropped from the chips.
-            TagLine(
-                tags = item.tagList.filter { it != Tags.WEATHER },
-                source = item.event.source,
-                mentions = mentions,
-            )
+            CategorySpine(color = subjectSpineColor(item.tagList))
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            ) {
+                // Fixed two-line block, same defect and fix as News: the old Text
+                // had maxLines=2 with no width modifier, so it measured
+                // wrap-content - its paragraph took its preferred single-line
+                // width and Ellipsis trimmed that one line, and maxLines never
+                // engaged because nothing handed the paragraph the row's width
+                // as a wrap boundary. fillMaxWidth wraps it first and only then
+                // ellipsises; minLines pins the Text to the full block so every
+                // row measures one height whatever the headline length.
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(weatherTitleBlockHeight()),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Text(
+                        text = item.event.title,
+                        style = RadarType.serifTitle,
+                        color = RadarColors.ink,
+                        minLines = WEATHER_TITLE_LINES,
+                        maxLines = WEATHER_TITLE_LINES,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(Modifier.height(3.dp))
+                // `weather` is implied by this tile, so it is dropped from the chips.
+                TagLine(
+                    tags = item.tagList.filter { it != Tags.WEATHER },
+                    source = item.event.source,
+                    mentions = mentions,
+                )
+            }
         }
         SoftRule()
     }
 }
+
+/**
+ * Headlines are held to exactly two lines so every row is one height, the
+ * same fixed block News uses: a one-line headline centres inside it instead
+ * of pulling its meta line up, so the list scans as a grid.
+ */
+private const val WEATHER_TITLE_LINES = 2
+
+@Composable
+private fun weatherTitleBlockHeight(): Dp =
+    with(LocalDensity.current) {
+        (RadarType.serifTitle.lineHeight * WEATHER_TITLE_LINES).toDp()
+    }
 
 /**
  * A snapshot's position as `22.57°N 88.36°E`.
