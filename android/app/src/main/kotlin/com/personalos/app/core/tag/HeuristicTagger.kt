@@ -16,7 +16,7 @@ package com.personalos.app.core.tag
  */
 class HeuristicTagger(
     private val lexicon: () -> Map<String, Regex> = TermStore(listOf(BundledTermSource))::lexicon,
-    override val version: Int = 7,
+    override val version: Int = 9,
 ) : Tagger {
     override val id: String = "${TaggerKind.HEURISTIC.name.lowercase()}-v$version"
 

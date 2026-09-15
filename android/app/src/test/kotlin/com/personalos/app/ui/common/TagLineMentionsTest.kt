@@ -66,17 +66,17 @@ class TagLineMentionsTest {
     }
 
     @Test
-    fun `a tag-less row of three parties shows two plus one`() {
-        val (visible, hidden) = metaTokens(emptyList(), listOf("AAP", "BJP", "Congress"), false)
+    fun `a tag-less row of four parties shows three plus one`() {
+        val (visible, hidden) = metaTokens(emptyList(), listOf("AAP", "BJP", "Congress", "TMC"), false)
         assertEquals(
-            listOf(MetaToken.Mention("AAP"), MetaToken.Mention("BJP")),
+            listOf(MetaToken.Mention("AAP"), MetaToken.Mention("BJP"), MetaToken.Mention("Congress")),
             visible,
         )
         assertEquals(1, hidden)
     }
 
     @Test
-    fun `subjects lead mentions lead natures inside the two slots`() {
+    fun `subjects lead mentions lead natures inside the three slots`() {
         val (visible, hidden) =
             metaTokens(
                 listOf("promo", "finance"),
@@ -84,11 +84,11 @@ class TagLineMentionsTest {
                 false,
             )
         assertEquals(
-            listOf(MetaToken.Tag("finance"), MetaToken.Mention("BJP")),
+            listOf(MetaToken.Tag("finance"), MetaToken.Mention("BJP"), MetaToken.Mention("Kolkata")),
             visible,
         )
-        // Kolkata and promo fold into the count, never a third slot.
-        assertEquals(2, hidden)
+        // Promo folds into the count, never a fourth slot.
+        assertEquals(1, hidden)
     }
 
     @Test
@@ -103,8 +103,30 @@ class TagLineMentionsTest {
 
     @Test
     fun `tags alone behave exactly as before`() {
-        val (visible, hidden) = metaTokens(listOf("finance", "tech", "promo"), emptyList(), false)
-        assertEquals(listOf(MetaToken.Tag("finance"), MetaToken.Tag("tech")), visible)
+        // weather is a subject, so it sorts with finance and tech ahead of the
+        // promo nature; the fourth slot folds.
+        val (visible, hidden) = metaTokens(listOf("finance", "tech", "promo", "weather"), emptyList(), false)
+        assertEquals(listOf(MetaToken.Tag("finance"), MetaToken.Tag("tech"), MetaToken.Tag("weather")), visible)
         assertEquals(1, hidden)
+    }
+
+    @Test
+    fun `a mention echoing the rule query spends no slot`() {
+        // A gnews:kolkata row already names Kolkata in its source label; the
+        // chip would say the same thing twice.
+        val (visible, hidden) = metaTokens(listOf("finance"), listOf("Kolkata", "BJP"), false, echo = "kolkata")
+        assertEquals(
+            listOf(MetaToken.Tag("finance"), MetaToken.Mention("BJP")),
+            visible,
+        )
+        assertEquals(0, hidden)
+    }
+
+    @Test
+    fun `queryEcho reads the rule query and nothing else`() {
+        assertEquals("kolkata", queryEcho("gnews:kolkata"))
+        assertEquals("west bengal", queryEcho("gnews:west-bengal"))
+        assertEquals(null, queryEcho("rss:thehindu-top"))
+        assertEquals(null, queryEcho(null))
     }
 }

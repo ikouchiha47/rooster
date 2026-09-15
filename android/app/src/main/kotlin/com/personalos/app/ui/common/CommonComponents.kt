@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personalos.app.core.Chars
 import com.personalos.app.core.feed.FeedCatalog
+import com.personalos.app.core.rules.GnewsUrl
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import kotlin.math.pow
@@ -131,12 +132,26 @@ fun CategorySpine(
  * "THEHINDU TOP" - a feed id leaking into the UI, and a different-looking label in
  * each of the three places that derived it. One name per source, derived once.
  *
- * Anything the catalog does not know - an SMS sender, or a feed since removed from
- * the seeds - falls back to a de-slugged id, so a label is never blank.
+ * Rule rows (`gnews:<slug>`) resolve through [ruleNames] — source string to the
+ * rule's user-visible name — so an item shows its RULE name. Anything neither
+ * the catalog nor the rules know - an SMS sender, a removed feed, an unknown
+ * rule - falls back to a de-slugged id, so a label is never blank.
  */
-fun sourceDisplayName(source: String): String =
-    FeedCatalog.bySource(source)?.name
-        ?: source.removePrefix(FeedCatalog.SOURCE_PREFIX).replace('-', ' ')
+fun sourceDisplayName(
+    source: String,
+    ruleNames: Map<String, String> = emptyMap(),
+): String {
+    // A search-rule row is named by its query slug, which reads as a place
+    // ("KOLKATA") rather than a provenance. The outlet already rides in the
+    // headline ("... - NDTV"), so the label says where the row came from.
+    if (source.startsWith(GnewsUrl.SOURCE_PREFIX)) return ruleNames[source] ?: "Google News"
+    return ruleNames[source]
+        ?: FeedCatalog.bySource(source)?.name
+        ?: source
+            .removePrefix(FeedCatalog.SOURCE_PREFIX)
+            .removePrefix(GnewsUrl.SOURCE_PREFIX)
+            .replace('-', ' ')
+}
 
 @Composable
 fun SourceLabel(

@@ -38,7 +38,7 @@ object BundledTermSource : TermSource {
                 "flood|floods|flooding|cyclone|earthquake|quake|landslide|heatwave|heat_wave|" +
                 "monsoon|heavy_rain|rainfall|storm|drought|humidity|temperature|thunderstorm|cold_wave",
             Tags.FINANCE to
-                "sensex|nifty|rupee|stock|stocks|share|shares|market|markets|rbi|sebi|inflation|gdp|" +
+                "sensex|nifty|rupee|stock|stocks|shares|share_price|market_share|market|markets|rbi|sebi|inflation|gdp|" +
                 "ipo|bond|bonds|mutual_fund|equity|earnings|bse|nse|portfolio|tariff",
             Tags.TECH to
                 "gadget|smartphone|semiconductor|chip|chips|software|developer|cybersecurity|robot|" +
@@ -80,11 +80,28 @@ object BundledTermSource : TermSource {
              * both ways so both spellings are listed.
              */
             Tags.GAMES to
+                // Bat-and-ball.
                 "cricket|football|soccer|hockey|badminton|tennis|kabaddi|motogp|moto_gp|f1|formula_1|" +
-                "formula_one|olympics|olympic|olympiad|asiad|commonwealth_games|world_cup|ipl|isl|pkl|" +
-                "odi|t20|test_match|wicket|batsman|bowler|innings|grand_slam|wimbledon|premier_league|" +
-                "la_liga|bundesliga|fifa|uefa|champions_league|marathon|chess|boxing|wrestling|" +
-                "archery|weightlifting|athletics|medal|tournament|championship",
+                "formula_one|olympics|olympic|paralympic|paralympics|olympiad|asiad|asian_games|asia_cup|" +
+                "commonwealth_games|south_asian_games|national_games|world_cup|ipl|isl|pkl|odi|t20|t20i|" +
+                "test_match|wicket|batsman|bowler|innings|ranji|champions_trophy|" +
+                // Racquet, cue and board.
+                "grand_slam|wimbledon|us_open|french_open|australian_open|atp|wta|davis_cup|" +
+                "thomas_cup|uber_cup|all_england|table_tennis|squash|snooker|billiards|chess|chess_olympiad|" +
+                // Leagues and federations.
+                "premier_league|la_liga|bundesliga|serie_a|i_league|fifa|uefa|champions_league|" +
+                "europa_league|copa_america|afc_asian_cup|" +
+                // Olympic programme (LA28 35 sports) plus the Asian-Games set.
+                "archery|athletics|swimming|diving|gymnastics|sailing|rowing|canoe|fencing|judo|karate|" +
+                "taekwondo|wushu|boxing|wrestling|weightlifting|golf|rugby|rugby_sevens|basketball|" +
+                "3x3_basketball|volleyball|beach_volleyball|baseball|softball|handball|cycling|" +
+                "surfing|skateboarding|climbing|triathlon|trampoline|modern_pentathlon|equestrian|" +
+                "lacrosse|flag_football|sepaktakraw|kho_kho|" +
+                // Winter programme.
+                "skiing|skating|figure_skating|ice_hockey|snowboard|curling|biathlon|bobsleigh|luge|ski_jumping|" +
+                // Combat, motorsport, mind and miscellany.
+                "ufc|wwe|grand_prix|marathon|diamond_league|esports|bgmi|" +
+                "medal|tournament|championship",
             Tags.PAPER to
                 "arxiv|preprint|doi|peer-reviewed|journal|dataset|methodology|researchers|empirical",
             Tags.OFFICIAL to

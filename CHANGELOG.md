@@ -7,6 +7,34 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(tag): share mistag, google-news labels, fuller meta lines
+
+_2026-09-15_
+
+Three fixes in one pass, all reported from the same screenshots:
+
+- Bare `share` leaves the finance vocabulary ("Doctors Share Concern"
+  tagged a dengue story finance); `shares`, `share_price` and `market_share`
+  stay. Tagger v8.
+- Search-rule rows read GOOGLE NEWS instead of their query slug (KOLKATA as
+  a source label read as a place). The outlet already rides in the headline
+  ("... - NDTV"), verified row by row, so the label says where it came from.
+- The meta line gets a third slot (2 was starving with tags plus mentions
+  competing) and a mention echoing the rule query spends no slot, so a
+  gnews:kolkata row never shows a KOLKATA chip.
+
+Games vocabulary goes full-programme in the same pass (tagger v9): LA28's 35
+sports, the winter set, Asian-Games staples (asian_games, asia_cup, t20i —
+the T20I boundary miss that left AFG-IND untagged). Deliberately skipped:
+bare ashes (funerals), shooting/shootout (crime), euro (currency).
+
+Stale stopworded mention rows are deleted once by the BackfillWorker
+(prefs-gated; the fix only removes matches, so no rescan), and the retagger
+recovers rule tags for non-catalog sources with a recovery-versioned cursor.
+
+Verified on device: dengue news-only, AFG-IND games, 155/155 gnews items
+with news, ghost chips uniform at three slots, no crash. 192 tests green.
+
 ## fix(app): launch work off the main thread, stopword noisy towns
 
 _2026-09-15_

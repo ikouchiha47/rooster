@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.personalos.app.core.rules.GnewsUrl
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.ui.theme.CategoryColors
@@ -95,7 +96,7 @@ private val SECOND_LAYER: Color = CategoryColors.Rust
  * plus about this many chips; the rest fold into a `+N` rather than being dropped
  * without trace or allowed to wrap onto a second line.
  */
-private const val MAX_VISIBLE_TAGS = 2
+private const val MAX_VISIBLE_TAGS = 3
 
 /**
  * Mentions below this never reach the meta line.
@@ -147,12 +148,14 @@ internal fun metaTokens(
     tags: Collection<String>,
     mentionSurfaces: Collection<String>,
     showMarker: Boolean,
+    echo: String? = null,
 ): Pair<List<MetaToken>, Int> {
     val ordered = orderTags(tags, showMarker)
     val tagWords = ordered.map { it.lowercase() }.toSet()
     val subjects = ordered.filter { rankOf(it.lowercase()) == 0 }
     val rest = ordered.filter { rankOf(it.lowercase()) != 0 }
-    val mentions = mentionSurfaces.filter { it.lowercase() !in tagWords }
+    val echoWord = echo?.lowercase()
+    val mentions = mentionSurfaces.filter { it.lowercase() !in tagWords && it.lowercase() != echoWord }
     val all: List<MetaToken> =
         subjects.map { MetaToken.Tag(it) } +
             mentions.map { MetaToken.Mention(it) } +
@@ -160,6 +163,17 @@ internal fun metaTokens(
     val visible = all.take(MAX_VISIBLE_TAGS)
     return visible to (all.size - visible.size)
 }
+
+/**
+ * The query a search-rule row already names in its source label ("GOOGLE
+ * NEWS" over `gnews:kolkata`), so a mention spelling the same word spends no
+ * slot. Returns null for anything that is not a search-rule source.
+ */
+internal fun queryEcho(source: String?): String? =
+    source
+        ?.removePrefix(GnewsUrl.SOURCE_PREFIX)
+        ?.takeIf { it != source }
+        ?.replace('-', ' ')
 
 /**
  * A fixed one-line meta: optional [source] label, then [tags] as chips ordered
@@ -188,7 +202,10 @@ fun TagLine(
     showMarker: Boolean = false,
     mentions: Collection<MentionEntity> = emptyList(),
 ) {
-    val (visible, hidden) = remember(tags, mentions, showMarker) { metaTokens(tags, selectMentions(mentions), showMarker) }
+    val (visible, hidden) =
+        remember(tags, mentions, showMarker, source) {
+            metaTokens(tags, selectMentions(mentions), showMarker, queryEcho(source))
+        }
 
     FlowRow(
         modifier = modifier,

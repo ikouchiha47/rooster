@@ -35,4 +35,19 @@ class SourceDisplayNameTest {
         // SMS rows store the bare source "sms"; the label is unchanged.
         assertEquals("sms", sourceDisplayName("sms"))
     }
+
+    @Test
+    fun `a search-rule row is labelled by provenance, not its query`() {
+        // gnews:kolkata used to render KOLKATA — a query slug leaking into the
+        // source slot. The outlet rides in the headline ("... - NDTV"), so the
+        // label says where the row came from.
+        assertEquals("Google News", sourceDisplayName("gnews:kolkata"))
+        assertEquals("Google News", sourceDisplayName("gnews:west-bengal"))
+    }
+
+    @Test
+    fun `an explicitly named rule still wins`() {
+        val names = mapOf("gnews:west-bengal" to "West Bengal")
+        assertEquals("West Bengal", sourceDisplayName("gnews:west-bengal", names))
+    }
 }

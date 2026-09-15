@@ -163,8 +163,67 @@ class HeuristicTaggerTest {
     @Test
     fun `id and version describe the implementation`() {
         assertEquals(TaggerKind.HEURISTIC, tagger.kind)
-        assertEquals(7, tagger.version)
-        assertEquals("heuristic-v7", tagger.id)
+        assertEquals(9, tagger.version)
+        assertEquals("heuristic-v9", tagger.id)
+    }
+
+    // ---------------------------------------------------------------- finance
+
+    @Test
+    fun `the verb share is not finance`() {
+        // "Doctors Share Concern" tagged a dengue story finance. Bare `share`
+        // left the vocabulary; the stock senses stay.
+        val result = tags("Kolkata Doctors Share Concern over dengue", declaredTags = setOf(Tags.NEWS))
+        assertTrue(result.none { it == Tags.FINANCE })
+    }
+
+    @Test
+    fun `the stock senses of share still fire`() {
+        for (
+        headline in
+        listOf(
+            "Sensex shares rally on rate cut hopes",
+            "Share price hits a 52-week high",
+            "Market share gains for the lender",
+        )
+        ) {
+            assertTrue("expected finance: $headline", tags(headline, declaredTags = setOf(Tags.NEWS)).contains(Tags.FINANCE))
+        }
+    }
+
+    @Test
+    fun `the full games programme fires`() {
+        for (
+        headline in
+        listOf(
+            "AFG vs IND first T20I ahead of Asian Games",
+            "Asia Cup trophy row: BCCI official speaks",
+            "Golf major playoff goes to sudden death",
+            "Table tennis team storms into semifinals",
+            "Boxing federation elections postponed",
+            "Grapplers win wrestling trials",
+            "Kabaddi World Cup squad announced",
+            "Ranji Trophy quarterfinal lineup set",
+            "National Games mascot unveiled",
+        )
+        ) {
+            assertTrue("expected games: $headline", tags(headline, declaredTags = setOf(Tags.NEWS)).contains(Tags.GAMES))
+        }
+    }
+
+    @Test
+    fun `olympic disciplines fire without the word olympics`() {
+        for (
+        headline in
+        listOf(
+            "Skateboarding street final decided by 0.1",
+            "Archery recurve team takes silver",
+            "Curling rink to open in Gulmarg",
+            "Sepaktakraw demonstration at the stadium",
+        )
+        ) {
+            assertTrue("expected games: $headline", tags(headline, declaredTags = setOf(Tags.NEWS)).contains(Tags.GAMES))
+        }
     }
 
     // --------------------------------------------------- disasters and festivals

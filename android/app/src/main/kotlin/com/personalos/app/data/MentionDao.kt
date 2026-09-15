@@ -27,4 +27,8 @@ interface MentionDao {
         afterId: Long,
         limit: Int,
     ): List<MentionCandidate>
+
+    /** Drops stale rows for since-stopworded surfaces. Returns rows deleted. */
+    @Query(Sql.MENTIONS_DELETE_SURFACES)
+    suspend fun deleteSurfaces(surfaces: List<String>): Int
 }
