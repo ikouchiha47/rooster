@@ -7,6 +7,26 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## design: off-theme font options, and the mockups actually parse again
+
+_2026-09-16_
+
+The mockup stylesheets had been broken since the font switcher landed: the
+:root block never closed, so every rule after it - including all fifteen
+font-combination blocks - nested inside :root and the sheet parsed to 3 rules
+instead of 234. Nothing could ever change. One brace fixes it, verified
+headlessly: 234 rules parse, all fifteen selectors present, and the computed
+font actually follows the attribute (noto -> Noto Serif, mono-all -> JetBrains
+Mono, poster -> Anton/Archivo).
+
+Also adds six deliberately incongruent options in a second group - mono
+everything, Space Grotesk + Space Mono, HUD (Chakra Petch/Rajdhani/Share Tech
+Mono), Corporate (Roboto Slab/Roboto), Poster (Anton/Archivo) and Soft
+(Nunito) - and the switcher now injects ONE control, on the viewer only.
+
+Note: headless Chrome does not fetch the webfonts, so that render check proves
+the cascade, not the glyphs. Judging the faces needs a browser with network.
+
 ## feat(theme): IBM Plex and Space Grotesk, chosen in Settings
 
 _2026-09-16_

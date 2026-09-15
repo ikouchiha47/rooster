@@ -32,49 +32,94 @@
      css:null means "already covered by the static @import" (noto). */
   var COMBOS = [
     {
+      group: "Editorial",
       value: "noto",
       label: "Noto (app today) — Noto Serif + Noto Sans",
       css: null
     },
     {
+      group: "Editorial",
       value: "source-serif",
       label: "Source Serif 4 + Inter",
       css: "https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap"
     },
     {
+      group: "Editorial",
       value: "newsreader-inter",
       label: "Newsreader + Inter",
       css: "https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Newsreader:ital,wght@0,500;0,700;1,500;1,600&display=swap"
     },
     {
+      group: "Editorial",
       value: "franklin-baskerville",
       label: "Libre Franklin + Libre Baskerville",
       css: "https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Libre+Franklin:wght@400;600;700&display=swap"
     },
     {
+      group: "Editorial",
       value: "archivo-spectral",
       label: "Archivo Narrow (headers) + Spectral + Inter",
       css: "https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap"
     },
     {
+      group: "Editorial",
       value: "literata-public",
       label: "Literata + Public Sans",
       css: "https://fonts.googleapis.com/css2?family=Literata:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Public+Sans:wght@400;600;700&display=swap"
     },
     {
+      group: "Editorial",
       value: "playfair-lora",
       label: "Playfair Display + Lora + Inter",
       css: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&display=swap"
     },
     {
+      group: "Editorial",
       value: "plex",
       label: "IBM Plex Serif + Plex Sans + Plex Mono",
       css: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap"
     },
     {
+      group: "Editorial",
       value: "fraunces-inter",
       label: "Fraunces (headers only) + Inter",
       css: "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,700;1,700&family=Inter:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap"
+    },
+    {
+      group: "Off-theme",
+      value: "mono-all",
+      label: "Mono everything — JetBrains Mono",
+      css: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+    },
+    {
+      group: "Off-theme",
+      value: "space-grotesk",
+      label: "Space Grotesk + Space Mono",
+      css: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap"
+    },
+    {
+      group: "Off-theme",
+      value: "hud",
+      label: "HUD — Chakra Petch + Rajdhani",
+      css: "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap"
+    },
+    {
+      group: "Off-theme",
+      value: "corporate",
+      label: "Corporate — Roboto Slab + Roboto",
+      css: "https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600&family=Roboto+Slab:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap"
+    },
+    {
+      group: "Off-theme",
+      value: "poster",
+      label: "Poster — Anton + Archivo",
+      css: "https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700&display=swap"
+    },
+    {
+      group: "Off-theme",
+      value: "soft",
+      label: "Soft — Nunito + Nunito Sans",
+      css: "https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Nunito+Sans:wght@400;600;700&display=swap"
     }
   ];
 
@@ -190,11 +235,21 @@
     label.textContent = "Fonts";
     var select = document.createElement("select");
     select.setAttribute("aria-label", "Font combination");
+    var seen = [];
     for (var i = 0; i < COMBOS.length; i++) {
-      var opt = document.createElement("option");
-      opt.value = COMBOS[i].value;
-      opt.textContent = COMBOS[i].label;
-      select.appendChild(opt);
+      var name = COMBOS[i].group || "Editorial";
+      if (seen.indexOf(name) !== -1) continue;
+      seen.push(name);
+      var og = document.createElement("optgroup");
+      og.label = name;
+      for (var j = 0; j < COMBOS.length; j++) {
+        if ((COMBOS[j].group || "Editorial") !== name) continue;
+        var opt = document.createElement("option");
+        opt.value = COMBOS[j].value;
+        opt.textContent = COMBOS[j].label;
+        og.appendChild(opt);
+      }
+      select.appendChild(og);
     }
     select.value = current;
     select.addEventListener("change", function () {
@@ -213,11 +268,17 @@
 
   var initial = read();
   apply(initial, false);
+
+  /* ONE control, on the viewer only. The viewer drives its phone iframes;
+     an individual screen just wears the chosen font. Two viewers (design and
+     design-rules) share the choice through localStorage. */
+  function maybeBuild() {
+    if (!document.querySelector("iframe")) return;
+    buildControl(read());
+  }
   if (document.body) {
-    buildControl(initial);
+    maybeBuild();
   } else {
-    document.addEventListener("DOMContentLoaded", function () {
-      buildControl(read());
-    });
+    document.addEventListener("DOMContentLoaded", maybeBuild);
   }
 })();

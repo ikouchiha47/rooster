@@ -73,6 +73,7 @@
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
 
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+}
 /* ============================================================
    FONT SWITCHER — one block per combination. fontswitch.js sets
    html[data-font="..."]; these blocks swap the four type roles.
@@ -168,6 +169,47 @@ html[data-font="fraunces-inter"] {
            "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
   --sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
           "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+
+html[data-font="mono-all"] {
+  --display: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --serif: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --serif-acc: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+html[data-font="space-grotesk"] {
+  --display: "Space Grotesk", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif: "Space Grotesk", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif-acc: "Space Grotesk", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --sans: "Space Grotesk", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --mono: "Space Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+html[data-font="hud"] {
+  --display: "Chakra Petch", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif: "Rajdhani", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif-acc: "Rajdhani", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --sans: "Rajdhani", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --mono: "Share Tech Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+html[data-font="corporate"] {
+  --display: "Roboto Slab", Georgia, "Times New Roman", serif;
+  --serif: "Roboto Slab", Georgia, "Times New Roman", serif;
+  --serif-acc: "Roboto", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --sans: "Roboto", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --mono: "Roboto Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+html[data-font="poster"] {
+  --display: "Anton", "Arial Narrow", Impact, "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif: "Archivo", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif-acc: "Archivo", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --sans: "Archivo", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+}
+html[data-font="soft"] {
+  --display: "Nunito", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif: "Nunito", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --serif-acc: "Nunito", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
+  --sans: "Nunito Sans", "-apple-system", BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", Arial, sans-serif;
 }
 
 html { -webkit-text-size-adjust: 100%; }
