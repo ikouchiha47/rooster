@@ -1,6 +1,7 @@
 package com.personalos.app.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -29,23 +30,26 @@ import com.personalos.app.ui.theme.RadarType
  * - **Subject** - a filled accent chip. Colour is reserved for the one layer a
  *   reader scans by ("is this Money, Tech, Travel?"), matching the `.chip--money`
  *   / `.chip--tech` / ... classes in design/style.css.
- * - **Nature** - an outlined, uncoloured chip (`.chip--ghost`). The kind of thing
- *   is usually already obvious from the headline; it is a quiet second layer,
- *   told apart from subjects by form (outline vs. fill), not by more colour.
+ * - **Nature** - a tinted ghost chip (`.chip--ghost` with colour): transparent
+ *   fill, 1dp Rust outline, Rust micro text. The kind of thing is usually
+ *   already obvious from the headline; it is a quiet second layer, told apart
+ *   from subjects by form (outline vs. fill) and given just enough colour to
+ *   feel finished next to them. Rust is the one accent with no subject meaning,
+ *   so it tints without claiming Money, Travel, Tech or any other scan layer.
  * - **Marker** (`news`) - suppressed by default. In the News tile every single
  *   row carries it, so it adds the same word forty times and competes with the
  *   subjects; pass [showMarker] in a mixed feed (Home, Radar) where `news` still
  *   says something, and it renders as a muted chip so it never out-shouts a
  *   subject.
  *
- * - **Mentions** (places, parties) - plain micro-caps text in ink2, ordered
- *   after subjects and before natures. A mention is a who or where the headline
- *   names; it reads as the same quiet layer as a nature (plain text, never a
- *   fill and never a bordered box), so the coloured subject stays the one thing
- *   a reader scans by and the line never turns into a rainbow. This is what
- *   keeps a tag-less row honest: "From AAP to BJP to Congress..." names three
- *   parties and no subject, so without mentions its meta line is just the
- *   source label while every neighbouring row carries chips.
+ * - **Mentions** (places, parties) - the same tinted ghost chip as a nature,
+ *   ordered after subjects and before natures. A mention is a who or where the
+ *   headline names; it reads as the same quiet layer as a nature (outline,
+ *   never a fill), so the coloured subject stays the one thing a reader scans
+ *   by and the line never turns into a rainbow. This is what keeps a tag-less
+ *   row honest: "From AAP to BJP to Congress..." names three parties and no
+ *   subject, so without mentions its meta line is just the source label while
+ *   every neighbouring row carries chips.
  *
  * Anything unmapped degrades to that same muted chip, so an unknown tag is
  * visible but never crashes and never claims a meaning it does not have.
@@ -77,6 +81,14 @@ private val NATURES: Set<String> =
     )
 
 private enum class TagStyle { SUBJECT, NATURE, MUTED }
+
+/**
+ * The one colour for the second layer (natures + mentions). Rust is the only
+ * category accent with no subject meaning, so it reads as colour without
+ * borrowing Money's Teal, Travel's Mustard, Tech's Plum and the rest. One
+ * colour for the whole layer keeps the line out of rainbow territory.
+ */
+private val SECOND_LAYER: Color = CategoryColors.Rust
 
 /**
  * How many tags a one-line meta shows. At micro size a 360dp row fits the source
@@ -164,8 +176,8 @@ internal fun metaTokens(
  *   and rendered as the leading label when not null.
  * @param showMarker whether to render the `news` marker as a muted chip.
  * @param mentions stored mention rows for this item; filtered, ordered and
- *   clamped here (see [selectMentions] and [metaTokens]) and rendered as plain
- *   ink2 text between subjects and natures.
+ *   clamped here (see [selectMentions] and [metaTokens]) and rendered as
+ *   tinted ghost chips between subjects and natures.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -189,7 +201,7 @@ fun TagLine(
         visible.forEach { token ->
             when (token) {
                 is MetaToken.Tag -> TagChip(tag = token.tag)
-                is MetaToken.Mention -> PlainTag(text = token.surface.uppercase(), color = RadarColors.ink2)
+                is MetaToken.Mention -> GhostChip(text = token.surface.uppercase())
             }
         }
         if (hidden > 0) {
@@ -206,11 +218,10 @@ private fun TagChip(tag: String) {
             val fill = SUBJECT_COLORS[tag.lowercase()] ?: RadarColors.ink2
             ChipBox(text = label, background = fill, content = onColor(fill))
         }
-        // Natures and unknown tags are **plain text, never a box**. An outlined
-        // or filled pill reads as a grey/white chip against the paper, which is
-        // exactly what a tag must not look like. The layers still read apart by
-        // form: a subject is the only thing that gets a fill.
-        TagStyle.NATURE -> PlainTag(text = label, color = RadarColors.ink2)
+        // Natures are the quiet second layer: an outline, never a fill, in the
+        // one layer colour. Form keeps them below subjects; colour keeps them
+        // finished next to subjects.
+        TagStyle.NATURE -> GhostChip(text = label)
         TagStyle.MUTED -> PlainTag(text = label, color = RadarColors.ink3)
     }
 }
@@ -223,7 +234,28 @@ private fun PlainTag(
     Text(text = text, style = RadarType.micro, color = color, maxLines = 1)
 }
 
-/** The one chip shape: a filled subject chip. Nothing else gets a box. */
+/**
+ * The second layer: transparent fill, 1dp outline and micro text all in
+ * [SECOND_LAYER]. Same 2dp corners and same inner padding as a subject chip, so
+ * the line keeps one height whether it carries fills, ghosts or both. Outline
+ * vs. fill is what keeps a ghost below a subject; the colour only has to be
+ * present, never loud.
+ */
+@Composable
+private fun GhostChip(text: String) {
+    val shape = RoundedCornerShape(2.dp)
+    Box(Modifier.border(1.dp, SECOND_LAYER, shape)) {
+        Text(
+            text = text,
+            style = RadarType.micro,
+            color = SECOND_LAYER,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+        )
+    }
+}
+
+/** The filled subject chip. Only subjects get a fill. */
 @Composable
 private fun ChipBox(
     text: String,

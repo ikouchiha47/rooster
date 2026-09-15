@@ -7,6 +7,25 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): tinted ghost chips for the second layer
+
+_2026-09-15_
+
+Natures (incident, expense) and mentions (places, parties) shared one
+treatment — plain grey micro text — and read as unfinished next to the filled
+subject chips. They now share one tinted ghost chip instead: transparent fill,
+1dp Rust outline, Rust text, same shape and padding as the subject chip, so a
+row reads [filled TRAVEL] [outlined KOLKATA] with fill-vs-outline marking the
+layer at a glance.
+
+Rust is the only category accent with no subject meaning (teal is money,
+mustard travel, plum tech, indigo paper), so it tints without borrowing. Line
+mechanics untouched: one-line clamp, 2-slot budget, ordering, +N overflow,
+uniform row heights.
+
+Verified on device before committing: ghost chips render (JAMMU, PUNJAB +
+EXPENSE side by side, GONDA), rows uniform, no crash. Only TagLine.kt touched.
+
 ## fix(mention): use (?u) flag, Android rejects (?U)
 
 _2026-09-15_
