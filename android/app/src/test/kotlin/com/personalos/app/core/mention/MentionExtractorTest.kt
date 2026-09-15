@@ -68,6 +68,31 @@ class MentionExtractorTest {
     }
 
     @Test
+    fun `ordinary words that happen to be town names yield no place`() {
+        // Each of these fired on device before it was stopworded: "along"
+        // on "along with", "men" on "men's team", "met" on the verb, and
+        // "ali"/"kant"/"patra" on surnames. All are real gazetteer towns of
+        // 2k–27k people; the collision cost dwarfs the match value.
+        val index =
+            PlaceIndex(
+                listOf(
+                    place("1", "Along", "Along", 18425, ""),
+                    place("2", "Men", "Men", 3174, ""),
+                    place("3", "Ali", "Ali", 27169, ""),
+                    place("4", "Kant", "Kant", 24430, ""),
+                    place("5", "Patra", "Patra", 9536, ""),
+                    place("6", "Met", "Met", 2107, ""),
+                ),
+            )
+        val hits =
+            MentionExtractor(index)
+                .extract("Gold prices rose along with silver as men met Ali Kant Patra")
+                .filter { it.kind == MentionKind.PLACE }
+
+        assertTrue("expected no place hits, got $hits", hits.isEmpty())
+    }
+
+    @Test
     fun `unknown text yields nothing`() {
         assertTrue(extractor().extract("the quick brown fox jumps").isEmpty())
         assertTrue(extractor().extract("").isEmpty())

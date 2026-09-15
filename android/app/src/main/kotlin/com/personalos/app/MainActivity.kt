@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.personalos.app.core.AppContainer
 import com.personalos.app.data.AppDatabase
@@ -93,17 +92,10 @@ class MainActivity : ComponentActivity() {
         // Periodic background ingest; WorkManager persists this across reboots.
         SyncScheduler.schedule(this)
 
-        // Backfill tags for items that predate the active tagger. Incremental and
-        // idempotent - one empty query once the cursor reaches the end.
-        // The gazetteer seeds first (the mention backfill's index reads it),
-        // then the party registry (the lexicon reads it), then mentions
-        // backfill for whatever has none yet.
-        lifecycleScope.launch {
-            runCatching { container.retagger.run() }
-            runCatching { container.placesSeeder.seed() }
-            runCatching { container.partySeeder.seed() }
-            runCatching { container.mentionWriter.backfill() }
-        }
+        // Launch catch-up runs as a persisted worker, not in this scope: the
+        // chain (retag, seeds, mention backfill) is store-wide CPU work that
+        // ANR'd the app when it ran Main-bound here. See BackfillWorker.
+        SyncScheduler.enqueueBackfillOnce(this)
 
         smsPermissionGranted = ContextCompat.checkSelfPermission(
             this,

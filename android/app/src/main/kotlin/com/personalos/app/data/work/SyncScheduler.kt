@@ -34,6 +34,7 @@ object SyncScheduler {
     private const val ENRICH_UNIQUE_NAME = "article-enrich"
     private const val PARTY_UNIQUE_NAME = "party-sync"
     private const val PARTY_MANUAL_NAME = "party-resync-now"
+    private const val BACKFILL_UNIQUE_NAME = "launch-backfill"
     private const val BACKOFF_MINUTES = 15L
 
     /** Party lists change per election cycle, not per hour: yearly is plenty. */
@@ -111,6 +112,24 @@ object SyncScheduler {
                 PARTY_UNIQUE_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
                 partyRequest,
+            )
+    }
+
+    /**
+     * Launch catch-up, run once per install/update rather than stacked: KEEP
+     * means a second launch while one backfill runs is a no-op, and the chain
+     * inside is cursor-gated so any restart resumes. No network constraint —
+     * this is local store work (seeds, retag, mention backfill).
+     */
+    fun enqueueBackfillOnce(context: Context) {
+        val request = OneTimeWorkRequestBuilder<BackfillWorker>().build()
+
+        WorkManager
+            .getInstance(context)
+            .enqueueUniqueWork(
+                BACKFILL_UNIQUE_NAME,
+                ExistingWorkPolicy.KEEP,
+                request,
             )
     }
 

@@ -4,6 +4,8 @@ import android.util.Log
 import com.personalos.app.data.PartyDao
 import com.personalos.app.data.PartyEntity
 import com.personalos.app.data.PartySourceDao
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 
 /**
@@ -34,83 +36,88 @@ class PartySyncer(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /** Syncs every registered source. Returns countries completed. */
-    suspend fun syncAll(): List<String> {
-        val done = ArrayList<String>()
-        for (source in sourceDao.all()) {
-            runCatching { syncCountry(source.country, source.url) }
-                .onSuccess { done += source.country }
-                .onFailure { Log.w(TAG, "party sync failed for ${source.country}", it) }
+    suspend fun syncAll(): List<String> =
+        // Owns its dispatcher (see Retagger.run): the Sources screen calls this
+        // from a Main-bound scope, and it fetches plus parses six pages.
+        withContext(Dispatchers.IO) {
+            val done = ArrayList<String>()
+            for (source in sourceDao.all()) {
+                runCatching { syncCountry(source.country, source.url) }
+                    .onSuccess { done += source.country }
+                    .onFailure { Log.w(TAG, "party sync failed for ${source.country}", it) }
+            }
+            done
         }
-        return done
-    }
 
     /** Syncs one country. Returns rows written. Public for the manual trigger. */
     suspend fun syncCountry(
         country: String,
         url: String,
-    ): Int {
-        val parser = parsers[country] ?: return 0
-        val startedAt = now()
-        // Fetch and parse failures propagate: syncAll catches per country, so
-        // a dead page excludes the country from "done" instead of counting a
-        // zero-row no-op as completed.
-        val html = fetch(url)
-        val parsed = parser.parse(Jsoup.parse(html)).filter { it.englishName.isNotBlank() }
-        if (parsed.isEmpty()) {
-            // A renamed section or a failed fetch must degrade to a no-op, not
-            // a wipe: never advance the clock on zero rows.
-            Log.w(TAG, "party parse yielded nothing for $country, clock untouched")
-            return 0
-        }
+    ): Int =
+        // Same ownership as syncAll: this is public for the manual trigger.
+        withContext(Dispatchers.IO) {
+            val parser = parsers[country] ?: return@withContext 0
+            val startedAt = now()
+            // Fetch and parse failures propagate: syncAll catches per country, so
+            // a dead page excludes the country from "done" instead of counting a
+            // zero-row no-op as completed.
+            val html = fetch(url)
+            val parsed = parser.parse(Jsoup.parse(html)).filter { it.englishName.isNotBlank() }
+            if (parsed.isEmpty()) {
+                // A renamed section or a failed fetch must degrade to a no-op, not
+                // a wipe: never advance the clock on zero rows.
+                Log.w(TAG, "party parse yielded nothing for $country, clock untouched")
+                return@withContext 0
+            }
 
-        val existing = partyDao.all().filter { it.country == country }
-        val byName = existing.associateBy { normalize(it.name) }
-        val byAlias =
-            existing
-                .flatMap { row -> row.aliases.split('|').map { normalize(it) to row } }
-                .filter { (alias, _) -> alias.length >= MIN_MATCH_LENGTH }
-                .toMap()
-        // Working copies: matches later in the loop see earlier merges, so two
-        // parsed rows hitting the same slug accumulate aliases instead of
-        // clobbering each other.
-        val working = existing.associateBy { it.slug }.toMutableMap()
-        val changed = ArrayList<PartyEntity>()
-        for (row in parsed) {
-            val current = findMatch(row, byName, byAlias, working)
-            if (current == null) {
-                // No match anywhere: a genuinely new party.
-                val slug = row.code?.let(::slugish)?.takeIf { it.isNotBlank() } ?: slugish(row.englishName)
-                if (slug.isBlank()) continue
-                val entity =
-                    PartyEntity(
-                        slug = slug,
-                        country = country,
-                        name = row.englishName,
-                        aliases = candidateAliases(row).joinToString("|"),
-                        stronghold = row.stronghold,
+            val existing = partyDao.all().filter { it.country == country }
+            val byName = existing.associateBy { normalize(it.name) }
+            val byAlias =
+                existing
+                    .flatMap { row -> row.aliases.split('|').map { normalize(it) to row } }
+                    .filter { (alias, _) -> alias.length >= MIN_MATCH_LENGTH }
+                    .toMap()
+            // Working copies: matches later in the loop see earlier merges, so two
+            // parsed rows hitting the same slug accumulate aliases instead of
+            // clobbering each other.
+            val working = existing.associateBy { it.slug }.toMutableMap()
+            val changed = ArrayList<PartyEntity>()
+            for (row in parsed) {
+                val current = findMatch(row, byName, byAlias, working)
+                if (current == null) {
+                    // No match anywhere: a genuinely new party.
+                    val slug = row.code?.let(::slugish)?.takeIf { it.isNotBlank() } ?: slugish(row.englishName)
+                    if (slug.isBlank()) continue
+                    val entity =
+                        PartyEntity(
+                            slug = slug,
+                            country = country,
+                            name = row.englishName,
+                            aliases = candidateAliases(row).joinToString("|"),
+                            stronghold = row.stronghold,
+                            recognition = row.recognition,
+                            updatedAt = startedAt,
+                        )
+                    working[slug] = entity
+                    changed += entity
+                    continue
+                }
+                val mergedAliases = (current.aliases.split('|') + candidateAliases(row)).distinct().joinToString("|")
+                val updated =
+                    current.copy(
+                        aliases = mergedAliases,
                         recognition = row.recognition,
+                        stronghold = current.stronghold.ifEmpty { row.stronghold },
                         updatedAt = startedAt,
                     )
-                working[slug] = entity
-                changed += entity
-                continue
+                working[current.slug] = updated
+                changed += updated
             }
-            val mergedAliases = (current.aliases.split('|') + candidateAliases(row)).distinct().joinToString("|")
-            val updated =
-                current.copy(
-                    aliases = mergedAliases,
-                    recognition = row.recognition,
-                    stronghold = current.stronghold.ifEmpty { row.stronghold },
-                    updatedAt = startedAt,
-                )
-            working[current.slug] = updated
-            changed += updated
+            if (changed.isNotEmpty()) partyDao.upsertAll(changed)
+            sourceDao.updateLastSync(country, startedAt)
+            Log.i(TAG, "party sync $country: ${changed.size} rows")
+            changed.size
         }
-        if (changed.isNotEmpty()) partyDao.upsertAll(changed)
-        sourceDao.updateLastSync(country, startedAt)
-        Log.i(TAG, "party sync $country: ${changed.size} rows")
-        return changed.size
-    }
 
     private fun findMatch(
         row: ParsedParty,

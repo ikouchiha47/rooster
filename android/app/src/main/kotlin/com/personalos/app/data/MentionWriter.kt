@@ -8,6 +8,8 @@ import com.personalos.app.core.mention.PartyEntry
 import com.personalos.app.core.mention.PartyLexicon
 import com.personalos.app.core.mention.PartySource
 import com.personalos.app.core.mention.PlaceIndex
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Writes mention rows for ingested items. Mirrors [TagWriter]:
@@ -82,18 +84,21 @@ class MentionWriter(
      * advance the cursor, so the walk always terminates, and `IGNORE` makes a
      * re-run safe. Returns rows written.
      */
-    suspend fun backfill(batchSize: Int = DEFAULT_BATCH_SIZE): Int {
-        var afterId = 0L
-        var written = 0
-        while (true) {
-            val batch = dao.missingItems(afterId, batchSize)
-            if (batch.isEmpty()) break
-            written += writeAll(batch.map { it.ulid to "${it.title}\n${it.content}" })
-            afterId = batch.last().rowId
+    suspend fun backfill(batchSize: Int = DEFAULT_BATCH_SIZE): Int =
+        // Owns its dispatcher (see Retagger.run): this compiles the gazetteer
+        // index and scans every unmentioned item.
+        withContext(Dispatchers.IO) {
+            var afterId = 0L
+            var written = 0
+            while (true) {
+                val batch = dao.missingItems(afterId, batchSize)
+                if (batch.isEmpty()) break
+                written += writeAll(batch.map { it.ulid to "${it.title}\n${it.content}" })
+                afterId = batch.last().rowId
+            }
+            if (written > 0) Log.i(TAG, "backfilled $written mentions")
+            written
         }
-        if (written > 0) Log.i(TAG, "backfilled $written mentions")
-        return written
-    }
 
     private suspend fun extractorOrNull(): MentionExtractor? {
         val index =

@@ -7,6 +7,24 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(app): launch work off the main thread, stopword noisy towns
+
+_2026-09-15_
+
+The app ANR'd on cold start: the launch block ran retag, all seeds and the
+mention backfill — including compiling a ~40k-alternative regex — on the
+Main-bound lifecycleScope. Input froze past 5s and the process died. Every
+heavy entry point now owns withContext(Dispatchers.IO), and the whole chain
+moved into a persisted BackfillWorker that survives the app being closed
+mid-walk (every step is cursor- or count-gated, so restarts resume).
+
+Also stopwords six gazetteer towns that lose to their English doubles: along,
+men, ali, kant, patra, met — each fired on device (ALONG on "along with").
+Real towns of 2k–27k; the collision cost dwarfs the match value.
+
+Verified on device: smooth navigation across all tabs, worker completes
+(+31 tags on a warm run), no ANR. 192 tests green.
+
 ## feat(rules): universal source spec with Google News search, schema v8
 
 _2026-09-15_

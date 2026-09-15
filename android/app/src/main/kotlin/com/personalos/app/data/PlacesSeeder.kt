@@ -1,6 +1,8 @@
 package com.personalos.app.data
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.util.zip.GZIPInputStream
 
@@ -17,25 +19,27 @@ class PlacesSeeder(
     private val openAsset: () -> InputStream,
     private val batchSize: Int = DEFAULT_BATCH_SIZE,
 ) {
-    suspend fun seed(): Int {
-        if (dao.count() > 0) return 0
-        val places =
-            runCatching {
-                openAsset().use { PlacesImporter.load(GZIPInputStream(it)) }
-            }.onFailure { Log.w(TAG, "places seed failed", it) }
-                .getOrNull()
-                .orEmpty()
-        if (places.isEmpty()) return 0
+    suspend fun seed(): Int =
+        // Owns its dispatcher (see Retagger.run).
+        withContext(Dispatchers.IO) {
+            if (dao.count() > 0) return@withContext 0
+            val places =
+                runCatching {
+                    openAsset().use { PlacesImporter.load(GZIPInputStream(it)) }
+                }.onFailure { Log.w(TAG, "places seed failed", it) }
+                    .getOrNull()
+                    .orEmpty()
+            if (places.isEmpty()) return@withContext 0
 
-        var seeded = 0
-        for (batch in places.chunked(batchSize)) {
-            runCatching { dao.insertAll(batch) }
-                .onFailure { Log.w(TAG, "places seed insert failed", it) }
-                .onSuccess { seeded += batch.size }
+            var seeded = 0
+            for (batch in places.chunked(batchSize)) {
+                runCatching { dao.insertAll(batch) }
+                    .onFailure { Log.w(TAG, "places seed insert failed", it) }
+                    .onSuccess { seeded += batch.size }
+            }
+            Log.i(TAG, "seeded $seeded places")
+            seeded
         }
-        Log.i(TAG, "seeded $seeded places")
-        return seeded
-    }
 
     private companion object {
         const val TAG = "Places"

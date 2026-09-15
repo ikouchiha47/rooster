@@ -118,7 +118,13 @@ class PlaceIndex(
          * occurrence in text is near-certainly the word, not the town — tuned
          * by test (`Punch` failed first). Multi-word surfaces containing these
          * are unaffected; only the exact single-word surface is dropped.
+         *
+         * Each addition below fired on device before it was listed: `along`
+         * on a gold-prices body ("along with"), `men` on a sports body
+         * ("men's team"), `ali`/`kant`/`patra` on surnames, `met` on the verb.
+         * All are towns of 2k–27k people; the collision cost dwarfs the match
+         * value at 0.85 canonical confidence.
          */
-        val STOPWORDS: Set<String> = setOf("bank", "punch")
+        val STOPWORDS: Set<String> = setOf("bank", "punch", "along", "men", "ali", "kant", "patra", "met")
     }
 }

@@ -6,6 +6,8 @@ import com.personalos.app.core.feed.FeedCatalog
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.RetagCandidate
 import com.personalos.app.data.TagWriter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Backfills tags for items that predate the active tagger, or that arrived
@@ -29,6 +31,12 @@ class Retagger(
     private val tagWriter: TagWriter,
     private val cache: StringCache,
     private val tagger: Tagger,
+    /**
+     * Declared tags by source for rows the catalog does not know (search
+     * rules). Loaded once per run; defaults to none so the catalog-only path
+     * needs no rules dependency.
+     */
+    private val ruleTags: suspend () -> Map<String, Set<String>> = { emptyMap() },
 ) {
     /**
      * Tags up to `batchSize * maxBatches` items. Returns how many items gained
@@ -38,32 +46,36 @@ class Retagger(
     suspend fun run(
         batchSize: Int = DEFAULT_BATCH_SIZE,
         maxBatches: Int = DEFAULT_MAX_BATCHES,
-    ): Int {
-        var cursor = cache.read(cursorKey())?.value?.toLongOrNull() ?: 0L
-        var tagged = 0
-        var batches = 0
+    ): Int =
+        // Owns its dispatcher: callers include a Main-bound launch block, and
+        // this walks the whole store. FeedIngestor.refresh sets the precedent.
+        withContext(Dispatchers.IO) {
+            var cursor = cache.read(cursorKey())?.value?.toLongOrNull() ?: 0L
+            var tagged = 0
+            var batches = 0
+            val extras = runCatching { ruleTags() }.getOrDefault(emptyMap())
 
-        while (batches < maxBatches) {
-            val batch = dao.itemsAfter(cursor, batchSize)
-            if (batch.isEmpty()) break
+            while (batches < maxBatches) {
+                val batch = dao.itemsAfter(cursor, batchSize)
+                if (batch.isEmpty()) break
 
-            tagged += tagWriter.writeAll(batch.map { it.toTagInput() })
-            cursor = batch.last().rowId
-            batches++
+                tagged += tagWriter.writeAll(batch.map { it.toTagInput(extras) })
+                cursor = batch.last().rowId
+                batches++
 
-            // Persist after each batch so a kill mid-walk resumes, not restarts.
-            cache.write(cursorKey(), cursor.toString(), System.currentTimeMillis())
+                // Persist after each batch so a kill mid-walk resumes, not restarts.
+                cache.write(cursorKey(), cursor.toString(), System.currentTimeMillis())
+            }
+
+            if (tagged > 0) {
+                Log.i(TAG, "re-tag with ${tagger.id}: $tagged items tagged (cursor=$cursor)")
+            }
+            tagged
         }
 
-        if (tagged > 0) {
-            Log.i(TAG, "re-tag with ${tagger.id}: $tagged items tagged (cursor=$cursor)")
-        }
-        return tagged
-    }
+    private fun cursorKey() = "retag:cursor:${tagger.id}:r$RECOVERY_VERSION"
 
-    private fun cursorKey() = "retag:cursor:${tagger.id}"
-
-    private fun RetagCandidate.toTagInput(): Pair<String, TagInput> {
+    private fun RetagCandidate.toTagInput(ruleTags: Map<String, Set<String>>): Pair<String, TagInput> {
         val isSms = source == SMS_SOURCE
 
         return ulid to
@@ -75,9 +87,15 @@ class Retagger(
                 sender = title.takeIf { isSms },
                 // Recover the source's full tag set from the catalog rather than
                 // the single `category` column, so a re-tag restores *all* of a
-                // source's tags. SMS rows store an SmsClass name in `category`,
+                // source's tags. Rules the catalog never heard of fall back to
+                // the rule table. SMS rows store an SmsClass name in `category`,
                 // which is not a tag, so they declare nothing.
-                declaredTags = if (isSms) emptySet() else FeedCatalog.bySource(source)?.tags.orEmpty(),
+                declaredTags =
+                    if (isSms) {
+                        emptySet()
+                    } else {
+                        FeedCatalog.bySource(source)?.tags ?: ruleTags[source].orEmpty()
+                    },
             )
     }
 
@@ -86,5 +104,12 @@ class Retagger(
         const val SMS_SOURCE = "sms"
         const val DEFAULT_BATCH_SIZE = 200
         const val DEFAULT_MAX_BATCHES = 40
+
+        /**
+         * Bump when what a re-tag *recovers* changes without a tagger version
+         * bump (r1: rule-table fallback for non-catalog sources). A new cursor
+         * starts a fresh walk; the orphaned old cursor is one tiny prefs row.
+         */
+        const val RECOVERY_VERSION = 1
     }
 }
