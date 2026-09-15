@@ -1,0 +1,48 @@
+<!-- Twemoji chicken (U+1F414, CC BY 4.0 Twemoji) as the foreground, centered in
+     the adaptive-icon safe zone: 72-unit art scaled 0.9 into the 108dp layer.
+     Background is solid black (R.color.ic_launcher_background). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.9"
+        android:scaleY="0.9"
+        android:translateX="21.6"
+        android:translateY="21.6">
+        <path
+            android:fillColor="#EA5A47"
+            android:pathData="M44.62,26.25c0,0 4.375,-7.25 2.375,-8.25s-5,1 -5,1s2,-7 -2,-7s-5,4 -5,4s-1.457,-8.296 -7,-6c-3.464,1.435 -5,5 0,15" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M21,35c0,0 4,-11 15,-11s15,11 15,11c15,28 -15,29 -15,29S6,63 21,35z" />
+        <path
+            android:fillColor="#F1B31C"
+            android:pathData="M36,43c0,0 18,-1 0,18C36,61 18,43 36,43z" />
+        <path
+            android:pathData="M44.46,26.25c0,0 4.375,-7.25 2.375,-8.25s-5,1 -5,1s2,-7 -2,-7s-5,4 -5,4s-1.457,-8.296 -7,-6c-3.464,1.435 -5,5 0,15"
+            android:strokeColor="#000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M25,39a2,2 0 1,0 4,0a2,2 0 1,0 -4,0" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M43,39a2,2 0 1,0 4,0a2,2 0 1,0 -4,0" />
+        <path
+            android:pathData="M36.02,43c0,0 18,-1 0,18C36.02,61 18.02,43 36.02,43z"
+            android:strokeColor="#000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+        <path
+            android:pathData="M21,35c0,0 4,-11 15,-11s15,11 15,11c15,28 -15,29 -15,29S6,63 21,35z"
+            android:strokeColor="#000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+    </group>
+</vector>

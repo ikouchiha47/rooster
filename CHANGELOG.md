@@ -7,6 +7,18 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(app): chicken icon on black
+
+_2026-09-15_
+
+The app had no icon at all — manifest set no android:icon, so it wore the
+system default. Now a Twemoji chicken (U+1F414) as an adaptive-icon foreground
+on a solid black background, centered in the safe zone. Min SDK is 26, so
+adaptive XML needs no legacy PNGs.
+
+Verified: aapt validates the vector at build, installs clean. Launcher
+drawer shot still pending — the swipe missed into an article.
+
 ## feat(ui): tinted ghost chips for the second layer
 
 _2026-09-15_
