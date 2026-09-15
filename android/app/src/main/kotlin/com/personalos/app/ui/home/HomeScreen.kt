@@ -147,6 +147,7 @@ fun HomeScreen(
                                 "RSS" -> onNavigate(Destination.Rss)
                                 "M&M" -> onNavigate(Destination.Money)
                                 "Weather" -> onNavigate(Destination.Weather)
+                                "Settings" -> onNavigate(Destination.Settings)
                                 else -> onNavigate(Destination.Placeholder(tile.name))
                             }
                         },

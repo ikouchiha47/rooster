@@ -22,6 +22,7 @@ import com.personalos.app.data.PlacesSeeder
 import com.personalos.app.data.RuleRepository
 import com.personalos.app.data.RuleSeeder
 import com.personalos.app.data.TagWriter
+import com.personalos.app.data.ThemeRepository
 import com.personalos.app.data.cache.PrefsStringCache
 import com.personalos.app.data.location.AndroidLocationProvider
 import com.personalos.app.data.remote.ArticleEnricher
@@ -92,6 +93,13 @@ class AppContainer(
     val tagger: Tagger = HeuristicTagger(terms::lexicon)
 
     val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger)
+
+    /**
+     * Single owner of the theme fact: seeds nothing, stores the choice in the
+     * shared prefs store. Settings writes through it; the app seeds the
+     * runtime theme from it at startup.
+     */
+    val themeRepository: ThemeRepository = ThemeRepository(cache)
 
     /** Seeds the gazetteer once; afterwards a single `COUNT(*)` no-op. */
     val placesSeeder: PlacesSeeder =

@@ -7,6 +7,33 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(theme): IBM Plex and Space Grotesk, chosen in Settings
+
+_2026-09-16_
+
+Noto is out. Two combinations ship and Settings picks between them: IBM Plex
+(Serif heads, Sans body, Mono figures) as the default, and Space Grotesk
+(one sans for heads and body, Space Mono for figures). Font payload drops from
+3.9 MB to 1.6 MB: Plex Serif/Mono and Space Mono ship as static cuts, Plex Sans
+and Space Grotesk as the variable files, expanded per weight through the same
+FontVariation technique the Noto build used.
+
+The swap is live - no restart. One owner (RadarFonts.theme) holds the choice;
+RadarFonts' families and every RadarType style became getters over it, so
+reading a style in composition tracks the state and dozens of call sites keep
+working unchanged. The choice persists through the prefs store, is loaded
+before first composition, and an unknown stored value falls back to the default
+rather than breaking startup.
+
+New Settings screen (dense newspaper language: header band, section rule,
+tappable rows with an IN USE marker, footer note) reached from both the Services
+and Home grids - the Home tile still pointed at the placeholder, which is why
+tapping Settings from Home showed a blank screen.
+
+Verified on device: both themes render, the swap is instant, and the stored
+value survives a cold start (theme.value = space_grotesk on disk). 249 tests
+green.
+
 ## design: font switcher in the mockups
 
 _2026-09-15_

@@ -122,6 +122,7 @@ fun ServicesScreen(
                                     "M&M" -> onNavigate(Destination.Money)
                                     "Weather" -> onNavigate(Destination.Weather)
                                     "Sources" -> onNavigate(Destination.Sources)
+                                    "Settings" -> onNavigate(Destination.Settings)
                                     else -> onNavigate(Destination.Placeholder(tile.name))
                                 }
                             },

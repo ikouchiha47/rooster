@@ -37,8 +37,9 @@ Open items, one line each. Details live in the linked docs.
 - [ ] **`docs/ARCHITECTURE.md`** — single index: sources → adapters → Event → Room → screens, linking ADR 0001, the plan, the feed catalog and the classification doc.
 
 ## Fonts / typography
-- [x] **Bundled Noto Serif + Noto Sans** (variable, ~3.9 MB, OFL 1.1, licence in `assets/fonts/`). Replaces `FontFamily.Serif`, which meant "whatever the OEM ships" — on this device the serif rendered as a **Japanese mincho**.
-- [ ] **Not bundled, on purpose:** `mono` (platform monospace) and the Devanagari/Bengali faces (~2.8 MB more). Those scripts resolve through Android's Noto fallback chain. Revisit if fallback proves inconsistent across devices.
+- [x] **Theme setting: IBM Plex (default) + Space Grotesk.** Reverses the Noto decision below: `res/font` now ships Plex Serif (regular/bold/italic) + Plex Sans (variable wdth+wght) + Plex Mono (regular/bold) and Space Grotesk (variable wght) + Space Mono (regular/bold). The space theme uses Space Grotesk for both the serif and sans roles, by design. Swaps at runtime via the single `RadarFonts.theme` state; stored under key `theme` in the prefs store, written from the Settings screen. Licences in `assets/fonts/` (`OFL-IBMPlex.txt`, `OFL-SpaceGrotesk.txt`, `OFL-SpaceMono.txt`, verbatim from `google/fonts`).
+- [x] ~~Bundled Noto Serif + Noto Sans~~ (reversed - files deleted, replaced by the Plex/Space pairing above).
+- [ ] **Not bundled, on purpose:** the Devanagari/Bengali faces (~2.8 MB more). Those scripts resolve through Android's Noto fallback chain. Revisit if fallback proves inconsistent across devices.
 - [ ] **Subsetting was skipped.** `pyftsubset` would cut each face to ~100-300 KB, but needs `fonttools` installed first. Worth doing before any release build.
 - [ ] **Not visually verified.** The device was offline when the fonts landed; no screenshot confirms the serif changed.
 
