@@ -308,9 +308,37 @@ object Sql {
         "DELETE FROM sources WHERE id = :id AND seeded = 0"
 
     // ------------------------------------------------------------------- rules
-    // ADR 0003: rules are pure evaluators over stored items. Storage only here;
-    // the condition and action JSON schemas arrive with the evaluator.
+    // ADR 0003: rules are pure evaluators over stored items. As with `sources`,
+    // the write guards (`AND seeded = 0`) make bundled seeds add-only even to a
+    // caller that bypasses the repository — the UI hiding buttons is not
+    // enforcement. Condition and action JSON are validated by `core/rules`
+    // (ConditionJson / ActionJson) at write, never by the schema.
     const val RULES_ALL = "SELECT * FROM rules"
+
+    const val RULES_COUNT = "SELECT COUNT(*) FROM rules"
+
+    /**
+     * Edits a user rule in place. Every edit stamps `updated_at`; `position` is
+     * written from the parsed action, so the column and `action_json` cannot
+     * disagree. Returns rows touched.
+     */
+    const val RULES_UPDATE_USER_ONLY =
+        """
+        UPDATE rules
+        SET name = :name,
+            condition_json = :conditionJson,
+            action_json = :actionJson,
+            position = :position,
+            updated_at = :updatedAt
+        WHERE id = :id AND seeded = 0
+        """
+
+    /** Guarded: `seeded` rows never match, so disabling a locked seed is an error. */
+    const val RULES_UPDATE_ENABLED_USER_ONLY =
+        "UPDATE rules SET enabled = :enabled, updated_at = :updatedAt WHERE id = :id AND seeded = 0"
+
+    /** Guarded: only user rows delete. Returns rows removed. */
+    const val RULES_DELETE_USER_ONLY = "DELETE FROM rules WHERE id = :id AND seeded = 0"
 
     // -------------------------------------------------------------- item_rules
     const val ITEM_RULES_ALL = "SELECT * FROM item_rules"

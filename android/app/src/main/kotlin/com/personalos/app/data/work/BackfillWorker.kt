@@ -34,9 +34,10 @@ class BackfillWorker(
         val places = runCatching { container.placesSeeder.seed() }.getOrDefault(0)
         val parties = runCatching { container.partySeeder.seed() }.getOrDefault(0)
         val sources = runCatching { container.sourceSeeder.seed() }.getOrDefault(0)
+        val rules = runCatching { container.ruleSeeder.seed() }.getOrDefault(0)
         val cleaned = runCatching { cleanStopwordedMentions() }.getOrDefault(0)
         val mentions = runCatching { container.mentionWriter.backfill() }.getOrDefault(0)
-        Log.i(TAG, "backfill done: +$retagged tags, +$places places, +$parties parties, +$sources sources, -$cleaned stale mentions, +$mentions mentions")
+        Log.i(TAG, "backfill done: +$retagged tags, +$places places, +$parties parties, +$sources sources, +$rules rules, -$cleaned stale mentions, +$mentions mentions")
         return Result.success()
     }
 

@@ -19,6 +19,8 @@ import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
+import com.personalos.app.data.RuleRepository
+import com.personalos.app.data.RuleSeeder
 import com.personalos.app.data.RuleWriter
 import com.personalos.app.data.SourceRepository
 import com.personalos.app.data.SourceSeeder
@@ -124,6 +126,15 @@ class AppContainer(
 
     /** Seeds the v1 source set once; afterwards a single `COUNT(*)` no-op. */
     val sourceSeeder: SourceSeeder = SourceSeeder(database.sourceDao())
+
+    /** Seeds the v1 rule set once; afterwards a single `COUNT(*)` no-op. */
+    val ruleSeeder: RuleSeeder = RuleSeeder(database.ruleDao())
+
+    /**
+     * Single owner of the rules fact (ADR 0003): the authoring screen edits
+     * through it, the writer evaluates what is stored.
+     */
+    val ruleRepository: RuleRepository = RuleRepository(database.ruleDao())
 
     /**
      * Writes `item_rules` matches (ADR 0003 §7–§10). Reads tags and mentions

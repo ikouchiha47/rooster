@@ -200,7 +200,27 @@ class FeedIngestorSourcesTest {
 
         override suspend fun all(): List<RuleEntity> = rules
 
+        override suspend fun count(): Int = rules.size
+
         override suspend fun insertAll(rules: List<RuleEntity>): List<Long> = rules.map { 1L }
+
+        // Ingest only reads rules to evaluate them; these exist to satisfy the DAO.
+        override suspend fun updateUserOnly(
+            id: String,
+            name: String,
+            conditionJson: String,
+            actionJson: String,
+            position: Long,
+            updatedAt: Long,
+        ): Int = 0
+
+        override suspend fun updateEnabledUserOnly(
+            id: String,
+            enabled: Boolean,
+            updatedAt: Long,
+        ): Int = 0
+
+        override suspend fun deleteUserOnly(id: String): Int = 0
     }
 
     private class FakeItemRuleDao : ItemRuleDao {
