@@ -29,6 +29,8 @@ import com.personalos.app.ui.money.MoneyScreen
 import com.personalos.app.ui.news.NewsScreen
 import com.personalos.app.ui.radar.RadarScreen
 import com.personalos.app.ui.rss.RssScreen
+import com.personalos.app.ui.rules.RuleBuilderScreen
+import com.personalos.app.ui.rules.RulesScreen
 import com.personalos.app.ui.services.ServicesScreen
 import com.personalos.app.ui.settings.SettingsScreen
 import com.personalos.app.ui.sources.SourcesScreen
@@ -38,6 +40,8 @@ import com.personalos.app.ui.weather.WeatherScreen
 
 sealed interface Destination {
     data object Home : Destination
+
+    data object Rules : Destination
 
     data object Services : Destination
 
@@ -74,11 +78,17 @@ sealed interface Destination {
     data class Placeholder(
         val serviceName: String,
     ) : Destination
+
+    /** Build or edit a rule. Null [ruleId] means a new rule. */
+    data class RuleBuilder(
+        val ruleId: String? = null,
+    ) : Destination
 }
 
 private fun routeFor(destination: Destination): String =
     when (destination) {
         is Destination.Home -> "home"
+        is Destination.Rules -> "rules"
         is Destination.Services -> "services"
         is Destination.Messages -> "messages"
         is Destination.Radar -> "radar"
@@ -94,6 +104,12 @@ private fun routeFor(destination: Destination): String =
         // Place names can contain spaces, so the segment is encoded on the way in.
         is Destination.Forecast -> "forecast/${Uri.encode(destination.place)}"
         is Destination.Placeholder -> "placeholder/${destination.serviceName}"
+        is Destination.RuleBuilder ->
+            if (destination.ruleId != null) {
+                "ruleBuilder?ruleId=${destination.ruleId}"
+            } else {
+                "ruleBuilder"
+            }
     }
 
 @Composable
@@ -103,6 +119,30 @@ fun AppNavHost(
 ) {
     NavHost(navController, startDestination = routeFor(startDestination)) {
         composable("home") { HomeScreen(onNavigate = { openFromGrid(navController, it) }) }
+        composable("rules") {
+            RulesScreen(
+                onNewRule = { navigateToDetail(navController, Destination.RuleBuilder()) },
+                onEditRule = { rule -> navigateToDetail(navController, Destination.RuleBuilder(rule.id)) },
+                onBack = backOrNull(navController),
+            )
+        }
+        composable(
+            route = "ruleBuilder?ruleId={ruleId}",
+            arguments =
+                listOf(
+                    navArgument("ruleId") {
+                        type = NavType.StringType
+                        nullable = true
+                    },
+                ),
+        ) { entry ->
+            val id = entry.arguments?.getString("ruleId")
+            RuleBuilderScreen(
+                ruleId = id,
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable("services") { ServicesScreen(onNavigate = { openFromGrid(navController, it) }) }
         composable("messages") { MessagesScreen() }
         composable("radar") { RadarScreen() }
@@ -204,6 +244,7 @@ private fun openFromGrid(
 
 private fun Destination.isRootTab(): Boolean =
     this is Destination.Home ||
+        this is Destination.Rules ||
         this is Destination.Services ||
         this is Destination.Messages ||
         this is Destination.Wallet ||

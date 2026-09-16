@@ -50,12 +50,26 @@ sealed interface RulePreview {
     ) : RulePreview
 
     /**
-     * The rule cannot be previewed yet. [reason] is a complete sentence the UI
-     * can show verbatim; it never reads as "no matches".
+     * The rule cannot be previewed yet. [reason] is a **kind, not a sentence** — the UI
+     * owns the wording, so a developer-facing explanation can never reach the screen.
+     * [detail] carries the underlying cause for logs only, and is never shown.
      */
     data class Unavailable(
-        val reason: String,
+        val reason: UnavailableReason,
+        val detail: String? = null,
     ) : RulePreview
+}
+
+/** Why a preview could not run. The UI supplies the words (CODE-DESIGN-GUIDELINES.md §3). */
+enum class UnavailableReason {
+    /** The condition is not valid JSON yet — a half-written draft. */
+    INVALID_DRAFT,
+
+    /** A series predicate, which the monitor engine evaluates instead (ADR 0003 §8). */
+    SERIES_UNSUPPORTED,
+
+    /** Anything unforeseen; [RulePreview.Unavailable.detail] carries the cause for logs. */
+    UNKNOWN,
 }
 
 /** Candidate rows plus whether the scan cap cut them short. */
@@ -197,11 +211,11 @@ class RulePreviewer(
     ): RulePreview {
         val condition =
             runCatching { ConditionJson.parse(conditionJson) }
-                .getOrElse { return RulePreview.Unavailable("the condition is not valid yet: ${it.message}") }
+                .getOrElse { return RulePreview.Unavailable(UnavailableReason.INVALID_DRAFT, it.message) }
         try {
             RuleEvaluator.requireItemEvaluable(condition)
         } catch (e: SeriesPredicateUnsupportedException) {
-            return RulePreview.Unavailable(e.message ?: SERIES_UNAVAILABLE)
+            return RulePreview.Unavailable(UnavailableReason.SERIES_UNSUPPORTED, e.message ?: SERIES_UNAVAILABLE)
         }
         val since = now - windowDays.toLong() * DAY_MS
         val loaded = loader.candidates(condition, since, scanCap)
