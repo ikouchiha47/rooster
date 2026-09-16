@@ -20,6 +20,8 @@ internal data class RuleSeed(
     val name: String,
     val conditionJson: String,
     val actionJson: String,
+    /** The rule's own colour as `#RRGGBB`, or null. Validated by [RuleColor]. */
+    val color: String? = null,
 )
 
 /**
@@ -47,6 +49,7 @@ internal fun RuleSeed.toEntity(now: Long): RuleEntity {
         position = action.position,
         createdAt = now,
         updatedAt = now,
+        color = RuleColor.requireValid(color),
     )
 }
 
@@ -143,6 +146,16 @@ class RuleSeeder(
          *
          * The `seed:rule:` ids are stable across releases — that is what makes
          * reconciliation possible, so a rename or reorder must never change one.
+         *
+         * Each seed carries its own explicit `color`, so the list is legible out
+         * of the box and shows colour is a property of the rule, not of the
+         * subject: `Finance and rates watch` is Indigo, deliberately *not* the
+         * Teal the rules list used to infer from the `finance` tag. The five are
+         * distinct values from the theme's category palette (`CategoryColors`),
+         * written as literals here because the data layer may not import `ui/`:
+         * Indigo `#2B4C8C`, Vermilion `#D93B2B`, Cyan `#1B7A8C`, Rust `#B4532A`,
+         * Plum `#7A2E5E`. If that palette changes, these move with it — the
+         * colour is data, so a release updates it as data.
          */
         val BUNDLED: List<RuleSeed> =
             listOf(
@@ -154,12 +167,14 @@ class RuleSeeder(
                     conditionJson =
                         """{"all":[{"subject":"finance"},{"any":[{"source":"rss:mint-markets"},{"source":"rss:mint-money"}]}]}""",
                     actionJson = """{"delivery":"push","position":10}""",
+                    color = "#2B4C8C",
                 ),
                 RuleSeed(
                     id = "seed:rule:bandh-and-strike-watch",
                     name = "Bandh and strike watch",
                     conditionJson = """{"text":{"pattern":"bandh|strike","target":"any"}}""",
                     actionJson = """{"delivery":"push","position":20}""",
+                    color = "#D93B2B",
                 ),
                 RuleSeed(
                     id = "seed:rule:kolkata-place-watch",
@@ -167,6 +182,7 @@ class RuleSeeder(
                     conditionJson = """{"mention":{"kind":"place","value":"Kolkata"}}""",
                     // `none` on purpose: surface, never interrupt (ADR §9).
                     actionJson = """{"delivery":"none","position":30}""",
+                    color = "#1B7A8C",
                 ),
                 RuleSeed(
                     id = "seed:rule:news-incident-watch",
@@ -176,6 +192,7 @@ class RuleSeeder(
                     // `news` (FeedCatalog), so they stay out of this alert.
                     conditionJson = """{"all":[{"marker":true},{"nature":"incident"}]}""",
                     actionJson = """{"delivery":"push","position":40}""",
+                    color = "#B4532A",
                 ),
                 RuleSeed(
                     id = "seed:rule:large-sms-amount-watch",
@@ -191,6 +208,7 @@ class RuleSeeder(
                     conditionJson =
                         """{"all":[{"source":"sms"},{"field":{"name":"amount","op":"gt","value":10000}}]}""",
                     actionJson = """{"delivery":"push","position":50}""",
+                    color = "#7A2E5E",
                 ),
             )
     }

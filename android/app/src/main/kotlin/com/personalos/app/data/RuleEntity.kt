@@ -32,4 +32,12 @@ data class RuleEntity(
     /** Epoch ms the row was written. */
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long? = null,
+    /**
+     * The rule's own colour as `#RRGGBB`, or null for "none chosen".
+     *
+     * A rule's colour is its own, never inherited from its subject: two rules
+     * about the same tag are still tellable apart. [RuleColor] is the one owner
+     * of the accepted form; this column only carries it verbatim.
+     */
+    @ColumnInfo(name = "color") val color: String? = null,
 )

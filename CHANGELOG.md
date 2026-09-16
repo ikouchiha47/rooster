@@ -7,6 +7,34 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): a rule owns its colour, so it is not green for being about finance
+
+_2026-09-16_
+
+The rules list took each rule's colour from its tag - Tags.FINANCE mapped to Teal and
+so on - so a rule about finance was green because of its subject, and two rules about
+the same subject were indistinguishable. Colour is now a property of the rule.
+
+Migration v14 adds a nullable color column, and RuleColor.requireValid is the single
+owner of the accepted form: #RRGGBB, no alpha, no shorthand, no named tokens. That is
+the narrowest form that round-trips straight from the theme palette into a picker,
+and it avoids baking presentation choices into storage before a surface needs them.
+It is called by create, update and the seed reconcile, so the three cannot disagree,
+and a bad value is rejected before any write with a message naming the value.
+
+The five bundled rules carry distinct explicit colours - Finance is deliberately
+Indigo rather than the Teal the old tag map gave it, which is the point. Existing
+installs keep color = NULL on already-seeded rows, because the reconcile is add-only
+and a row that exists is never updated; the migration comment records that, and NULL
+is a valid state meaning none chosen rather than a broken one.
+
+A trap worth passing to the picker lane, recorded in the report: color defaults to
+null, so the existing four-argument update call compiles but clears the colour on
+every save. The picker must pass the row's current colour back, the way it already
+does for name and condition.
+
+Verified: 407 tests, 0 failures. Not verified: the migration on a real device DB.
+
 ## docs(plan): a text-only condition renders no summary on the rules list
 
 _2026-09-16_

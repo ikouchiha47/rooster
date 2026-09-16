@@ -29,6 +29,7 @@ class RuleWriterTest {
             name: String,
             conditionJson: String,
             actionJson: String,
+            color: String?,
             position: Long,
             updatedAt: Long,
         ): Int = 0

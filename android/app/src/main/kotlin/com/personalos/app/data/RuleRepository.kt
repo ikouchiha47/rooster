@@ -27,6 +27,11 @@ import kotlinx.coroutines.flow.Flow
  * `position` is materialised onto the row from the parsed action, so the column
  * and `action_json` cannot drift — the action is the owner, the column is the
  * ordering-for-surfacing view of it.
+ *
+ * **The rule's colour is its own.** [create] and [update] run a supplied colour
+ * through [RuleColor], the one owner of the accepted `#RRGGBB` form, so the two
+ * paths cannot disagree and a bad value is rejected before any write. `null` is
+ * a valid choice meaning "no colour" and is never rejected.
  */
 class RuleRepository(
     private val dao: RuleDao,
@@ -38,20 +43,25 @@ class RuleRepository(
     suspend fun all(): List<RuleEntity> = dao.all()
 
     /**
-     * Creates a user rule after validating its condition and action.
+     * Creates a user rule after validating its condition, action and colour.
      *
-     * @throws IllegalArgumentException when the name is blank or either document
-     * is malformed, has an unknown key, or carries an invalid value.
+     * @param color the rule's own colour as `#RRGGBB`, or null for "none chosen";
+     *   validated by [RuleColor] before any write.
+     * @throws IllegalArgumentException when the name is blank, either document
+     * is malformed, has an unknown key, or carries an invalid value, or the
+     * colour is not `null` and not `#RRGGBB`.
      */
     suspend fun create(
         name: String,
         conditionJson: String,
         actionJson: String,
+        color: String? = null,
         now: Long = System.currentTimeMillis(),
     ): RuleEntity {
         require(name.isNotBlank()) { "rule name must not be blank" }
         ConditionJson.parse(conditionJson)
         val action = ActionJson.parse(actionJson)
+        val validColor = RuleColor.requireValid(color)
         val row =
             RuleEntity(
                 id = Ulid.next(),
@@ -63,16 +73,22 @@ class RuleRepository(
                 position = action.position,
                 createdAt = now,
                 updatedAt = now,
+                color = validColor,
             )
         dao.insertAll(listOf(row))
         return row
     }
 
     /**
-     * Edits a user rule's name, condition and action in place.
+     * Edits a user rule's name, condition, action and colour in place.
      *
-     * @throws IllegalArgumentException when the name is blank or either document
-     * is malformed, has an unknown key, or carries an invalid value.
+     * @param color the rule's own colour as `#RRGGBB`, or null for "none chosen";
+     *   validated by [RuleColor] before any write. A caller that omits it is
+     *   choosing "no colour", so an edit surface must pass the row's current
+     *   value back to preserve it.
+     * @throws IllegalArgumentException when the name is blank, either document
+     * is malformed, has an unknown key, or carries an invalid value, or the
+     * colour is not `null` and not `#RRGGBB`.
      * @throws IllegalStateException when the row is a locked seed or unknown.
      */
     suspend fun update(
@@ -80,17 +96,20 @@ class RuleRepository(
         name: String,
         conditionJson: String,
         actionJson: String,
+        color: String? = null,
         now: Long = System.currentTimeMillis(),
     ) {
         require(name.isNotBlank()) { "rule name must not be blank" }
         ConditionJson.parse(conditionJson)
         val action = ActionJson.parse(actionJson)
+        val validColor = RuleColor.requireValid(color)
         val touched =
             dao.updateUserOnly(
                 id = id,
                 name = name.trim(),
                 conditionJson = conditionJson,
                 actionJson = actionJson,
+                color = validColor,
                 position = action.position,
                 updatedAt = now,
             )

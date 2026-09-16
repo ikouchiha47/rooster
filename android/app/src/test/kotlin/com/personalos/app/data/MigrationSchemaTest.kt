@@ -8,6 +8,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -371,6 +372,36 @@ class MigrationSchemaTest {
         }
     }
 
+    @Test
+    fun `v13 to v14 adds a nullable color column and keeps existing rules`() {
+        withMigratedToV13 { db ->
+            // A row exactly as a pre-v14 release left it: no colour exists yet.
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO rules (id, name, enabled, seeded, condition_json, action_json, position, created_at, updated_at) VALUES
+                  ('user-1', 'My rule', 1, 0, '{"marker":true}', '{"delivery":"push","position":10}', 10, 1, 1)
+                """.trimIndent(),
+            )
+
+            MIGRATION_STATEMENTS.getValue(14).forEach { db.createStatement().executeUpdate(it) }
+
+            val columns = columnsOf(db, "rules")
+            assertTrue("rules.color", columns.containsKey("color"))
+            // Nullable with no default: the DEFAULT trap Room validates against.
+            assertEquals("rules.color is nullable", 0, columns.getValue("color"))
+
+            // The existing row survives the ALTER and takes "no colour chosen".
+            db
+                .createStatement()
+                .executeQuery("SELECT name, color FROM rules WHERE id = 'user-1'")
+                .use { rs ->
+                    assertTrue(rs.next())
+                    assertEquals("My rule", rs.getString(1))
+                    assertNull(rs.getString(2))
+                }
+        }
+    }
+
     // ----------------------------------------------------------------- helpers
 
     /**
@@ -419,6 +450,18 @@ class MigrationSchemaTest {
             MIGRATION_STATEMENTS.entries
                 .sortedBy { it.key }
                 .filter { it.key <= 12 }
+                .forEach { (_, statements) -> statements.forEach { db.createStatement().executeUpdate(it) } }
+            block(db)
+        }
+    }
+
+    /** Replays the chain to v13 only, so the v13 -> v14 statements can be applied alone. */
+    private fun withMigratedToV13(block: (Connection) -> Unit) {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
+            V2_STATEMENTS.forEach { db.createStatement().executeUpdate(it) }
+            MIGRATION_STATEMENTS.entries
+                .sortedBy { it.key }
+                .filter { it.key <= 13 }
                 .forEach { (_, statements) -> statements.forEach { db.createStatement().executeUpdate(it) } }
             block(db)
         }
