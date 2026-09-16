@@ -7,6 +7,45 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): poll for new messages in the background, so classification stops waiting for the app
+
+_2026-09-17_
+
+No worker touched SMS. The only thing that ever read the provider was the observer
+MainActivity started on ON_START and stopped on ON_STOP, so SMS was ingested only
+while the app was in the foreground. Since tagging runs at ingest and SMS is the
+majority of the store - about 2,500 of 4,900 items - Promo, Expense and Incident
+classification of text messages waited for the owner to open the app. Feeds never had
+that problem; the feed worker polls them hourly.
+
+There is now a periodic SmsSyncWorker, deliberately a poll rather than a broadcast: a
+manifest SMS_RECEIVED receiver is gated behind being the default SMS app on modern
+Android, whereas reading the provider is already permitted and already implemented.
+
+The worker and the observer share one suspend entry point, and that sharing is the
+point - two implementations would drift, and the observer path already had the
+high-water logic. A poll reads only rows newer than the persisted lastSeenId and
+advances it afterwards, so it cannot re-ingest the inbox; the store keeps sms:<id> as
+a second guard.
+
+No network constraint, which looks like an omission beside the feed worker and is not:
+reading the provider and writing to Room is entirely local, so requiring CONNECTED
+would make a catch-up fail on a train for no reason. The comment says so.
+
+The honest limits are in the code too: WorkManager's periodic floor is fifteen
+minutes and Doze may defer it further, so this is within about fifteen minutes best
+effort rather than instant, and with the app force-stopped nothing runs until the
+next launch. The observer stays for immediacy while the app is open.
+
+Getting there required taking Context and AppDatabase out of SmsSource in favour of a
+SmsReader and a SmsSyncMark, which is why the worker is testable on the JVM at all,
+and why MainActivity now takes the source from the composition root instead of
+building its own - the observer and the worker are one object graph.
+
+Verified: 416 tests, 0 failures (9 new). The fifteen-minute floor and the absent
+network constraint are asserted on the built work request. Not verified on a device:
+real Doze deferral and force-stop behaviour are reasoned, not observed.
+
 ## feat(rules): a preview hit carries the amount and the place, so rows can show what matched
 
 _2026-09-16_

@@ -38,7 +38,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.rememberNavController
 import com.personalos.app.core.AppContainer
-import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.SmsSource
 import com.personalos.app.data.work.SyncScheduler
 import com.personalos.app.ui.common.Glyph
@@ -86,16 +85,9 @@ class MainActivity : ComponentActivity() {
         }
 
         val container = AppContainer(this)
-        val database = AppDatabase.getInstance(this)
-        smsSource =
-            SmsSource(
-                this,
-                database,
-                container.tagWriter,
-                container.mentionWriter,
-                container.fieldWriter,
-                container.ruleWriter,
-            )
+        // SMS ingest lives in the container so the foreground observer here and
+        // the background worker share one instance and one entry point.
+        smsSource = container.smsSource
 
         // Periodic background ingest; WorkManager persists this across reboots.
         SyncScheduler.schedule(this)
