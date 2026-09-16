@@ -1,6 +1,7 @@
 package com.personalos.app.data
 
 import android.util.Log
+import com.personalos.app.core.mention.MentionKind
 import com.personalos.app.core.rules.Condition
 import com.personalos.app.core.rules.ConditionJson
 import com.personalos.app.core.rules.RuleEvaluator
@@ -119,6 +120,46 @@ class RuleWriter(
         RuleEvaluator.requireItemEvaluable(condition)
         val matches = materialise(seeds).filter { RuleEvaluator.evaluate(it, condition) }
         return RuleDryRunResult(matches.map { it.id })
+    }
+
+    /**
+     * The typed extras and place mention for the preview's **sampled** hits
+     * (ADR §12's dry run, R4). Returns facts keyed by item id, absent for an
+     * item that stored neither.
+     *
+     * Deliberately separate from [materialise]: that reads the *whole candidate
+     * set*, because the evaluator must see every candidate. A hit only renders,
+     * so this is called with the sampled ids alone - a handful, never the scan.
+     * Reading fields and mentions for all 500 candidates would make the preview
+     * cost more than the ingest it previews; that bound is the point, not an
+     * optimisation, and [RulePreviewer] is its only caller.
+     *
+     * It reads through the same batched DAO shapes [materialise] uses (one read
+     * per table), so there is one way to read fields and mentions, not two. A
+     * failed read is logged and yields absent facts rather than throwing: a hit
+     * with no amount is a blank, not a preview that crashes.
+     */
+    suspend fun hitFacts(itemIds: List<String>): Map<String, RulePreviewHitFacts> {
+        if (itemIds.isEmpty()) return emptyMap()
+        val fields =
+            runCatching { fieldDao.forItems(itemIds) }
+                .onFailure { Log.w(TAG, "hit field load failed for ${itemIds.size} items", it) }
+                .getOrNull()
+                .orEmpty()
+                .mapNotNull { row -> row.toFieldValue()?.let { row.itemId to (row.name to it) } }
+                .groupBy({ it.first }, { it.second })
+                .mapValues { (_, named) -> named.toMap() }
+        val places =
+            runCatching { mentionDao.forItems(itemIds) }
+                .onFailure { Log.w(TAG, "hit mention load failed for ${itemIds.size} items", it) }
+                .getOrNull()
+                .orEmpty()
+                .filter { it.kind == MentionKind.PLACE }
+                .groupBy { it.itemId }
+                .mapValues { (_, mentions) -> mentions.first().surface }
+        return itemIds.associateWith { id ->
+            RulePreviewHitFacts(fields = fields[id].orEmpty(), place = places[id])
+        }
     }
 
     /** Enabled rules with their parsed conditions; unreadable rows are logged and skipped. */

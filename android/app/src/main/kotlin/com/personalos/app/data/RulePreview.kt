@@ -2,11 +2,30 @@ package com.personalos.app.data
 
 import com.personalos.app.core.rules.Condition
 import com.personalos.app.core.rules.ConditionJson
+import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.RuleEvaluator
 import com.personalos.app.core.rules.SeriesPredicateUnsupportedException
 import com.personalos.app.core.tag.TagGroups
 
-/** One hit a preview can render: identity, source, title and when it landed. */
+/**
+ * The stored facts a preview hit renders beyond its identity: the item's typed
+ * extras ([fields]) and its place mention ([place]).
+ *
+ * [fields] is the store's own shape - `item_fields`' `FieldValue` map keyed by
+ * name - so `FieldNames.AMOUNT` and `FieldNames.SENDER` arrive without a
+ * parallel type, and a future producer field needs no change here. [place] is
+ * the `MentionKind.PLACE` surface, the one mention the mockup's row shows.
+ *
+ * Both may be absent on an item that has neither, which is a valid hit: the row
+ * simply has no extras to show (an empty map and a null place, never a crash or
+ * a dropped row).
+ */
+data class RulePreviewHitFacts(
+    val fields: Map<String, FieldValue> = emptyMap(),
+    val place: String? = null,
+)
+
+/** One hit a preview can render: identity, source, title, when it landed, and its extras. */
 data class RulePreviewHit(
     /** `events.ulid`. */
     val itemId: String,
@@ -15,6 +34,10 @@ data class RulePreviewHit(
     val title: String,
     /** `events.timestamp` (publish time), for the list's time column. */
     val timestamp: Long,
+    /** Typed extras (`FieldNames.AMOUNT`, `FieldNames.SENDER`, ...) - the mockup's amount line. */
+    val fields: Map<String, FieldValue> = emptyMap(),
+    /** The place surface (`MentionKind.PLACE`) - the mockup's location. */
+    val place: String? = null,
 )
 
 /**
@@ -221,10 +244,14 @@ class RulePreviewer(
         val loaded = loader.candidates(condition, since, scanCap)
         val byId = loaded.candidates.associateBy { it.itemId }
         val matched = ruleWriter.dryRun(condition, loaded.candidates.map { it.toRuleSeed() })
-        val sample =
-            matched.matchedItemIds
-                .take(sampleLimit)
-                .mapNotNull { id -> byId[id]?.toHit() }
+        val sampleIds = matched.matchedItemIds.take(sampleLimit)
+        // Only the sampled hits get their fields and place read. The evaluator
+        // above saw every candidate - materialise is bounded by the scan cap -
+        // but a hit row needs extras for a handful. Reading them for all 500
+        // candidates would make the preview cost more than the ingest it
+        // previews, so the read is bounded by sampleLimit, never by scanCap.
+        val facts = ruleWriter.hitFacts(sampleIds)
+        val sample = sampleIds.mapNotNull { id -> byId[id]?.toHit(facts[id]) }
         return RulePreview.Available(
             matchedCount = matched.count,
             scannedCount = loaded.candidates.size,
@@ -259,10 +286,12 @@ private fun RulePreviewCandidate.toRuleSeed(): RuleItemSeed =
         content = content,
     )
 
-private fun RulePreviewCandidate.toHit(): RulePreviewHit =
+private fun RulePreviewCandidate.toHit(facts: RulePreviewHitFacts?): RulePreviewHit =
     RulePreviewHit(
         itemId = itemId,
         sourceId = sourceId,
         title = title,
         timestamp = timestamp,
+        fields = facts?.fields.orEmpty(),
+        place = facts?.place,
     )

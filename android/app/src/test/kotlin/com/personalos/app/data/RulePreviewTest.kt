@@ -1,6 +1,9 @@
 package com.personalos.app.data
 
+import com.personalos.app.core.mention.MentionKind
 import com.personalos.app.core.rules.ConditionJson
+import com.personalos.app.core.rules.FieldNames
+import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.tag.Tags
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -477,6 +480,77 @@ class RulePreviewTest {
             assertNull(events.lastArgs!!.mentionKind)
         }
 
+    // ------------------------------------------------------------- hit facts
+
+    @Test
+    fun `a hit carries the item's amount and place`() =
+        runBlocking {
+            val events = FakeEventDao(mutableListOf(candidate("e1")))
+            val fields =
+                mapOf("e1" to listOf(ItemFieldEntity(itemId = "e1", name = FieldNames.AMOUNT, valueNum = 12_480.0)))
+            val mentions =
+                mapOf(
+                    "e1" to
+                        listOf(
+                            MentionEntity(
+                                itemId = "e1",
+                                kind = MentionKind.PLACE,
+                                surface = "Indiranagar",
+                                entityId = null,
+                                confidence = 1f,
+                                mentionedAt = 1L,
+                            ),
+                        ),
+                )
+
+            val result =
+                previewer(
+                    eventDao = events,
+                    fieldDao = FieldsByItem(fields),
+                    mentionDao = MentionsByItem(mentions),
+                ).preview("""{"source":"src-1"}""", now = NOW) as RulePreview.Available
+
+            val hit = result.sample.single()
+            assertEquals(FieldValue.Num(12_480.0), hit.fields[FieldNames.AMOUNT])
+            assertEquals("Indiranagar", hit.place)
+        }
+
+    @Test
+    fun `an item with no fields or mentions still makes a valid hit`() =
+        runBlocking {
+            val events = FakeEventDao(mutableListOf(candidate("bare")))
+
+            val result =
+                previewer(events).preview("""{"source":"src-1"}""", now = NOW) as RulePreview.Available
+
+            val hit = result.sample.single()
+            assertEquals("the row is not dropped", "bare", hit.itemId)
+            assertTrue(hit.fields.isEmpty())
+            assertNull(hit.place)
+        }
+
+    @Test
+    fun `the hit fact read is bounded by the sample, not the candidate set`() =
+        runBlocking {
+            suspend fun lastFactRead(candidateCount: Int): Pair<List<String>, List<String>> {
+                val events = FakeEventDao(MutableList(candidateCount) { candidate("i$it", timestamp = NOW - it * 1_000L) })
+                val fieldDao = RecordingItemFieldDao()
+                val mentionDao = RecordingMentionDao()
+                previewer(events, fieldDao = fieldDao, mentionDao = mentionDao, scanCap = 100, sampleLimit = 2)
+                    .preview("""{"source":"src-1"}""", now = NOW)
+                return fieldDao.calls.last() to mentionDao.calls.last()
+            }
+
+            // The evaluator reads facts for every candidate (materialise); the
+            // hit read is the call after it, and only the sample reaches it.
+            val (smallFields, smallMentions) = lastFactRead(5)
+            val (largeFields, largeMentions) = lastFactRead(50)
+
+            assertEquals(listOf("i0", "i1"), smallFields)
+            assertEquals("a bigger candidate set must not widen the field read", smallFields, largeFields)
+            assertEquals("a bigger candidate set must not widen the mention read", smallMentions, largeMentions)
+        }
+
     // ------------------------------------------------------------ writes nothing
 
     @Test
@@ -546,6 +620,25 @@ class RulePreviewTest {
         private val fields: Map<String, List<ItemFieldEntity>>,
     ) : StubItemFieldDao() {
         override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = itemIds.flatMap { fields[it].orEmpty() }
+    }
+
+    /** Records each batched read's ids, so the sample bound is observable. */
+    private class RecordingItemFieldDao : StubItemFieldDao() {
+        val calls = mutableListOf<List<String>>()
+
+        override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> {
+            calls += itemIds
+            return emptyList()
+        }
+    }
+
+    private class RecordingMentionDao : StubMentionDao() {
+        val calls = mutableListOf<List<String>>()
+
+        override suspend fun forItems(itemIds: List<String>): List<MentionEntity> {
+            calls += itemIds
+            return emptyList()
+        }
     }
 
     private companion object {

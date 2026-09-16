@@ -7,6 +7,39 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): a preview hit carries the amount and the place, so rows can show what matched
+
+_2026-09-16_
+
+The dry-run mockup shows each matching event as a row with its amount and its place
+- "Sample Bank debit 12,480" and "Indiranagar" underneath. The preview could not
+render that: RulePreviewHit carried only id, source, title and timestamp, while the
+amount lives in item_fields and the place in mentions. The data was modelled and
+stored; it was simply never projected.
+
+A hit now carries the item's typed fields and its place surface. It carries the whole
+typed-field map rather than a named amount and sender, so a new producer field needs
+no change here and nothing speculative is added.
+
+The important part is what the read is bounded by. The evaluator must see every
+candidate - that is the scan cap, 500 - but extras are only needed for the handful
+the UI renders, so the field and mention read is issued for the sampled ids alone. A
+test runs the preview over 5 and then 50 candidates with a sample limit of 2 and
+asserts the extras read is the same two ids both times, which is the check that
+stops a ten-times-larger candidate set from costing ten times as much. The obvious
+implementation gets this wrong, so it is asserted rather than commented.
+
+The extras read reuses the same batched DAO shapes materialise already uses, so there
+is still exactly one way to read fields and mentions. The preview continues to write
+nothing, and the existing snapshot assertion that proves it stays green.
+
+Deliberately not built: the mockup's "would have fired 4 alerts / 2 grouped by
+merchant" line, which the UI can derive from the match count and the action, and the
+threshold what-if, which is a different feature.
+
+Verified: 410 tests, 0 failures. Not verified: on a device - the UI does not render
+the new extras yet; that is the next lane.
+
 ## feat(rules): a rule owns its colour, so it is not green for being about finance
 
 _2026-09-16_
