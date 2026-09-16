@@ -43,7 +43,7 @@ class HeuristicTagger(
             // them claim weather, festival or games is how a phone's promo inbox
             // ended up in the Weather timeline. Natures still fire — only *subject*
             // inference is gated here.
-            if (fromAdvert && tag in SUBJECTS) continue
+            if (fromAdvert && tag in TagGroups.SUBJECTS) continue
             if (pattern.containsMatchIn(text)) tags += tag
         }
 
@@ -71,13 +71,6 @@ class HeuristicTagger(
         /** Rung 0 is a keyword match, so confidence is deliberately modest. */
         const val WORD_CONFIDENCE = 0.7f
         const val BARE_CONFIDENCE = 0.2f
-
-        /**
-         * Tags that answer "what is this about" (§10.5). A subject is a stronger
-         * claim than a nature, so it is the one we refuse to infer from
-         * advertising copy.
-         */
-        val SUBJECTS = setOf(Tags.FINANCE, Tags.TECH, Tags.TRAVEL, Tags.FESTIVAL, Tags.GAMES, Tags.WEATHER, Tags.PAPER)
 
         /** DLT category suffixes: `-P` promotional, `-S`/`-T`/`-G` transactional or service. */
         val DLT_SUFFIXES = listOf("-P", "-S", "-T", "-G")

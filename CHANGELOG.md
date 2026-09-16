@@ -7,6 +7,41 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): the predicate language, and one owner for the tag taxonomy
+
+_2026-09-16_
+
+The rules engine needs to express conditions, and the tag taxonomy it refers to
+existed in fragments: `Tags` in Tagger.kt, plus a private `SUBJECTS` copy inside
+HeuristicTagger. One fact, one owner - so TagGroups now owns the three groups and
+HeuristicTagger reads them.
+
+The groups are derived from the tags that actually exist: marker is news, the 7
+subjects are the ones already in the old SUBJECTS set, and the 5 natures are what
+is left. ARCHITECTURE section 10.5 prose lists `announcement` and `maintenance`
+as natures, but Tags has no such constants, so they were not invented - the
+discrepancy is recorded in the KDoc instead. A test proves the three groups
+partition Tags.ALL exactly once, so an ungrouped tag cannot slip through.
+
+core/rules/ is now the pure language, free for the engine per ADR 0003: a sealed
+Condition over all/any composition with the item predicates (subject, nature,
+marker, mention, source, field, text) and the series predicates (crossing, delta,
+min/max over a window), plus an action carrying delivery and position - the two
+axes ADR 0003 section 9 separates. Parsing rejects unknown keys in conditions and
+actions, so a typo fails at write time instead of silently never matching, and
+isEnrichmentSensitive recurses through nested composition because that is what
+ADR section 10's scoped re-evaluation keys off.
+
+Text matching bounds its input and pattern length, uses (?u), and reuses the
+Unicode boundary definition the gazetteers already had - extracted to one owner in
+WordBoundary.kt, which now serves PlaceIndex and PartySource as well.
+
+Verified: 291 tests, 0 failures (40 new). Residual risk stated rather than hidden:
+the bound is input length, not a time sandbox, so a deliberately catastrophic
+pattern inside the bound can still burn CPU, and matching is truncated at the
+bound. RE2/J would remove the class but is not a drop-in - it has no lookaround,
+which is exactly what the word-boundary pattern is built from.
+
 ## docs(research): RBI feeds, and why bank holidays have no single source
 
 _2026-09-16_
