@@ -1,5 +1,6 @@
 package com.personalos.app.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 
 /** Room projection: how many events came from each source. */
@@ -45,6 +46,15 @@ data class EnrichmentCandidate(
     val ulid: String,
     val url: String,
     val content: String,
+    /** Carried so a rule-evaluation seed can be built when the text grows (R3). */
+    val source: String,
+    val title: String,
+)
+
+/** One item's tag, for the batched rule-evaluation read. */
+data class ItemTagRow(
+    @ColumnInfo(name = "item_id") val itemId: String,
+    @ColumnInfo(name = "tag") val tag: String,
 )
 
 /**

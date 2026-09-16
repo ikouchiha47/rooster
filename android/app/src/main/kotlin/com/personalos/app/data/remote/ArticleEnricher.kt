@@ -5,6 +5,7 @@ import com.personalos.app.core.enrich.ArticleSummary
 import com.personalos.app.core.net.Http
 import com.personalos.app.data.EnrichmentCandidate
 import com.personalos.app.data.EventDao
+import com.personalos.app.data.RuleItemSeed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -27,6 +28,13 @@ class ArticleEnricher(
         Http.getText(url, timeoutMs = REQUEST_TIMEOUT_MS, accept = "text/html")
     },
     private val pauseMs: Long = DEFAULT_PAUSE_MS,
+    /**
+     * Called once per batch with the items whose text actually grew, so rules
+     * whose condition contains a text predicate can be re-evaluated against the
+     * new content (ADR §10, R3). Defaults to a no-op, so enrichment works
+     * standalone and cannot block on the rule engine.
+     */
+    private val onEnriched: suspend (List<RuleItemSeed>) -> Unit = {},
 ) {
     /** Returns how many items gained a summary. */
     suspend fun enrichBatch(limit: Int = DEFAULT_BATCH): Int =
@@ -34,7 +42,7 @@ class ArticleEnricher(
             val candidates: List<EnrichmentCandidate> = dao.enrichmentCandidates(limit)
             if (candidates.isEmpty()) return@withContext 0
 
-            var enriched = 0
+            val enriched = ArrayList<RuleItemSeed>()
             for ((index, candidate) in candidates.withIndex()) {
                 val summary =
                     runCatching { ArticleSummary.extract(fetch(candidate.url)) }
@@ -47,15 +55,25 @@ class ArticleEnricher(
                     dao.markEnrichmentAttempted(candidate.id, FAILED_ATTEMPT)
                 } else {
                     dao.updateEnrichedContent(candidate.id, summary, System.currentTimeMillis())
-                    enriched++
+                    // Only items that actually grew, with their new text: the
+                    // rule engine never sees a failed attempt.
+                    enriched +=
+                        RuleItemSeed(
+                            itemId = candidate.ulid,
+                            sourceId = candidate.source,
+                            title = candidate.title,
+                            content = summary,
+                        )
                 }
 
                 // Be a polite client: one request at a time, spaced out.
                 if (index != candidates.lastIndex) delay(pauseMs)
             }
 
-            Log.i(TAG, "enriched $enriched of ${candidates.size} candidates")
-            enriched
+            if (enriched.isNotEmpty()) onEnriched(enriched)
+
+            Log.i(TAG, "enriched ${enriched.size} of ${candidates.size} candidates")
+            enriched.size
         }
 
     private companion object {

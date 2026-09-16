@@ -37,4 +37,8 @@ interface ItemTagDao {
 
     @Query(Sql.ITEM_TAGS_DELETE_ALL)
     suspend fun deleteAll()
+
+    /** The active tagger's tags for a page of items — one read, not one per row. */
+    @Query(Sql.ITEM_TAGS_CURRENT_FOR_ITEMS)
+    suspend fun tagsForItems(itemIds: List<String>): List<ItemTagRow>
 }

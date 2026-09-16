@@ -11,14 +11,20 @@ import com.personalos.app.data.DayHeader
 import com.personalos.app.data.EnrichmentCandidate
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
+import com.personalos.app.data.ItemRuleDao
+import com.personalos.app.data.ItemRuleEntity
 import com.personalos.app.data.ItemTagDao
 import com.personalos.app.data.ItemTagEntity
+import com.personalos.app.data.ItemTagRow
 import com.personalos.app.data.MentionCandidate
 import com.personalos.app.data.MentionDao
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PlaceEntity
 import com.personalos.app.data.RetagCandidate
+import com.personalos.app.data.RuleDao
+import com.personalos.app.data.RuleEntity
+import com.personalos.app.data.RuleWriter
 import com.personalos.app.data.SourceCount
 import com.personalos.app.data.SourceEntity
 import com.personalos.app.data.TagCount
@@ -183,6 +189,40 @@ class FeedIngestorSourcesTest {
         override suspend fun deleteAll() {
             rows.clear()
         }
+
+        override suspend fun tagsForItems(itemIds: List<String>): List<ItemTagRow> = rows.filter { it.itemId in itemIds }.map { ItemTagRow(it.itemId, it.tag) }
+    }
+
+    private class FakeRuleDao(
+        private val rules: List<RuleEntity> = emptyList(),
+    ) : RuleDao {
+        override fun observeAll(): Flow<List<RuleEntity>> = flowOf(rules)
+
+        override suspend fun all(): List<RuleEntity> = rules
+
+        override suspend fun insertAll(rules: List<RuleEntity>): List<Long> = rules.map { 1L }
+    }
+
+    private class FakeItemRuleDao : ItemRuleDao {
+        val rows = mutableListOf<ItemRuleEntity>()
+        var insertCalls = 0
+
+        override fun observeAll(): Flow<List<ItemRuleEntity>> = flowOf(rows)
+
+        override suspend fun all(): List<ItemRuleEntity> = rows
+
+        override suspend fun insertAll(matches: List<ItemRuleEntity>): List<Long> {
+            insertCalls++
+            return matches.map { match ->
+                val known = rows.any { it.itemId == match.itemId && it.ruleId == match.ruleId }
+                if (known) {
+                    -1L
+                } else {
+                    rows += match
+                    1L
+                }
+            }
+        }
     }
 
     private class FakeMentionDao : MentionDao {
@@ -274,6 +314,8 @@ class FeedIngestorSourcesTest {
         sources: List<SourceEntity>,
         fetched: MutableList<String>,
         places: List<PlaceEntity> = listOf(kolkata),
+        rules: RuleDao = FakeRuleDao(),
+        matches: FakeItemRuleDao = FakeItemRuleDao(),
     ): FeedIngestor =
         FeedIngestor(
             dao = events,
@@ -285,6 +327,7 @@ class FeedIngestorSourcesTest {
                     loadPlaces = { places },
                     loadParties = { emptyList() },
                 ),
+            ruleWriter = RuleWriter(rules, matches, tags, mentions),
             feeds = emptyList<FeedSource>(),
             loadSources = { sources },
             fetch = { url ->
@@ -366,4 +409,67 @@ class FeedIngestorSourcesTest {
             assertEquals(0, ingestor.refresh())
             assertTrue(fetched.isEmpty())
         }
+
+    @Test
+    fun `an item that lands is evaluated by enabled rules`() =
+        runBlocking {
+            val events = FakeEventDao()
+            val matches = FakeItemRuleDao()
+            val ingestor =
+                ingestor(
+                    events,
+                    FakeItemTagDao(),
+                    FakeMentionDao(),
+                    FakeTagger(),
+                    listOf(source),
+                    mutableListOf(),
+                    places = emptyList(),
+                    rules = FakeRuleDao(listOf(rule("r1", """{"source": "gnews:west-bengal"}"""))),
+                    matches = matches,
+                )
+
+            assertEquals(1, ingestor.refresh())
+
+            assertEquals(1, matches.rows.size)
+            assertEquals(events.rows.single().ulid, matches.rows.single().itemId)
+            assertEquals("r1", matches.rows.single().ruleId)
+        }
+
+    @Test
+    fun `a re-fetched item is not re-evaluated`() =
+        runBlocking {
+            val events = FakeEventDao()
+            val matches = FakeItemRuleDao()
+            val ingestor =
+                ingestor(
+                    events,
+                    FakeItemTagDao(),
+                    FakeMentionDao(),
+                    FakeTagger(),
+                    listOf(source),
+                    mutableListOf(),
+                    places = emptyList(),
+                    rules = FakeRuleDao(listOf(rule("r1", """{"source": "gnews:west-bengal"}"""))),
+                    matches = matches,
+                )
+
+            assertEquals(1, ingestor.refresh())
+            assertEquals(0, ingestor.refresh())
+
+            assertEquals("a deduped item does not run evaluation again", 1, matches.insertCalls)
+        }
+
+    private fun rule(
+        id: String,
+        condition: String,
+    ) = RuleEntity(
+        id = id,
+        name = id,
+        enabled = true,
+        seeded = false,
+        conditionJson = condition,
+        actionJson = """{"delivery": "none", "position": 0}""",
+        position = 0,
+        createdAt = 1L,
+    )
 }

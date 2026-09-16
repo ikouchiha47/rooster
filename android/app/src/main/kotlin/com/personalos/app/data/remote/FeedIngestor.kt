@@ -22,8 +22,10 @@ import com.personalos.app.core.tag.Ulid
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.MentionWriter
+import com.personalos.app.data.RuleWriter
 import com.personalos.app.data.SourceEntity
 import com.personalos.app.data.TagWriter
+import com.personalos.app.data.toRuleItemSeed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +52,12 @@ class FeedIngestor(
     private val cache: StringCache,
     private val tagWriter: TagWriter,
     private val mentionWriter: MentionWriter,
+    /**
+     * Evaluates enabled rules against items that actually landed (ADR 0003 §10,
+     * R2). Takes the landed rows only, so a re-fetched item does not re-trigger
+     * evaluation — and its tagged/mentioned facts are already stored by then.
+     */
+    private val ruleWriter: RuleWriter,
     private val feeds: List<FeedSource> = FeedCatalog.SEEDS,
     private val refreshAfterMs: Long = DEFAULT_REFRESH_MS,
     /**
@@ -378,7 +386,7 @@ class FeedIngestor(
             now = now,
         )
 
-    /** The one ingest code path: stores items, tags what landed, writes mentions. */
+    /** The one ingest code path: stores items, tags what landed, writes mentions, evaluates rules. */
     private suspend fun storeItems(
         source: String,
         category: String,
@@ -411,11 +419,13 @@ class FeedIngestor(
         val rowIds = dao.insertAll(records)
 
         val toTag = ArrayList<Pair<String, TagInput>>(records.size)
+        val landed = ArrayList<EventEntity>(records.size)
         var added = 0
         rowIds.forEachIndexed { index, rowId ->
             if (rowId == -1L) return@forEachIndexed
             added++
             val record = records[index]
+            landed += record
             toTag +=
                 record.ulid to
                 TagInput(
@@ -432,6 +442,9 @@ class FeedIngestor(
         if (toTag.isNotEmpty()) {
             mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
         }
+        // Only rows that actually landed, and only after their tags and mentions
+        // are stored, so evaluation reads the same facts the rest of the app does.
+        if (landed.isNotEmpty()) ruleWriter.writeAll(landed.map { it.toRuleItemSeed() })
         return added
     }
 

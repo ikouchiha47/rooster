@@ -19,6 +19,7 @@ import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
+import com.personalos.app.data.RuleWriter
 import com.personalos.app.data.SourceRepository
 import com.personalos.app.data.SourceSeeder
 import com.personalos.app.data.TagWriter
@@ -124,6 +125,18 @@ class AppContainer(
     /** Seeds the v1 source set once; afterwards a single `COUNT(*)` no-op. */
     val sourceSeeder: SourceSeeder = SourceSeeder(database.sourceDao())
 
+    /**
+     * Writes `item_rules` matches (ADR 0003 §7–§10). Reads tags and mentions
+     * from the store, so the store stays the one owner of those facts.
+     */
+    val ruleWriter: RuleWriter =
+        RuleWriter(
+            database.ruleDao(),
+            database.itemRuleDao(),
+            database.itemTagDao(),
+            database.mentionDao(),
+        )
+
     /** Refreshes the party registry from the per-country list pages. */
     val partySync: com.personalos.app.data.remote.parties.PartySyncer =
         com.personalos.app.data.remote.parties.PartySyncer(
@@ -195,15 +208,21 @@ class AppContainer(
             cache,
             tagWriter,
             mentionWriter,
+            ruleWriter,
             loadSources = { sourceRepository.enabledSources() },
         )
 
     /**
      * Fills in summaries for items whose feed shipped none - notably Indian
      * Express, whose `<description>` is empty for every item. Bounded batches;
-     * see [ArticleEnricher].
+     * see [ArticleEnricher]. Items whose text grows are handed to the rule
+     * writer, which re-evaluates only text-predicate rules (ADR §10, R3).
      */
-    val enricher: ArticleEnricher = ArticleEnricher(database.eventDao())
+    val enricher: ArticleEnricher =
+        ArticleEnricher(
+            database.eventDao(),
+            onEnriched = { seeds -> ruleWriter.reevaluateEnriched(seeds) },
+        )
 
     /** Shared sync state: drives the in-tile progress bar and the `Sync` log tag. */
     val sync: SyncStatus = SyncStatus()
