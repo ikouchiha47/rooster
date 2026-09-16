@@ -7,6 +7,21 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): the preview loader landed, the UI is building against it
+
+_2026-09-16_
+
+Records the bounded history loader as landed (3740401, merged 5e82197) rather than
+in flight, and what it actually is: a date-bounded, scan-capped candidate read that
+narrows in SQL only where the condition makes it cheap and indexed - source, tag,
+mention - and leaves regex and typed comparisons to the evaluator, which is the
+division ADR section 12 draws. A series condition comes back as
+RulePreview.Unavailable rather than throwing into the screen, and the preview
+writing nothing is asserted by snapshotting every table around it rather than
+trusted. The SQL is tested against real SQLite, not only through fakes.
+
+T6.3 and T6.4 are now in flight against that fixed API.
+
 ## feat(rules): a bounded preview over stored history, for the authoring UI
 
 _2026-09-16_
