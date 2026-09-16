@@ -1,11 +1,5 @@
 package com.personalos.app.data
 
-import android.content.Context
-import android.content.SharedPreferences
-import android.database.ContentObserver
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.provider.Telephony
 import android.util.Log
 import androidx.lifecycle.Lifecycle
@@ -23,9 +17,35 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * The one SMS ingest entry point. The foreground observer in [SmsSource] and
+ * `SmsSyncWorker` in the background both call [ingestNewMessages]; [SmsSource]
+ * is the only implementation, so the two paths cannot diverge.
+ */
+interface SmsIngest {
+    /**
+     * Reads messages newer than the persisted high-water mark and stores what is
+     * new. Returns the number of rows that actually landed.
+     */
+    suspend fun ingestNewMessages(): Int
+}
+
+/**
+ * Reads the device's SMS inbox into the store.
+ *
+ * Two callers, one code path:
+ *  - [startObserving] registers a content observer on `ON_START` and unregisters
+ *    on `ON_STOP`, giving immediacy while the app is foregrounded;
+ *  - `SmsSyncWorker` calls [ingestNewMessages] on a periodic background schedule,
+ *    covering the time the app spends closed.
+ *
+ * [reader] and [mark] isolate the two platform touchpoints (the ContentResolver
+ * and SharedPreferences) so the ingest itself is a plain suspend function.
+ */
 class SmsSource(
-    private val context: Context,
-    private val database: AppDatabase,
+    private val reader: SmsReader,
+    private val mark: SmsSyncMark,
+    private val eventDao: EventDao,
     private val tagWriter: TagWriter,
     private val mentionWriter: MentionWriter,
     /**
@@ -39,21 +59,18 @@ class SmsSource(
      * rule can match (ADR §10, R2).
      */
     private val ruleWriter: RuleWriter,
-) : LifecycleObserver {
+) : LifecycleObserver,
+    SmsIngest {
     companion object {
         /** `events.source` for every SMS row — the identity a `source` predicate reads. */
         const val SOURCE_ID = "sms"
 
         private const val TAG = "M1"
-        private const val PREFS = "sms_source"
-        private const val KEY_LAST_SEEN_ID = "last_seen_id"
     }
 
     private val scope = CoroutineScope(Dispatchers.IO)
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private var contentObserver: SmsContentObserver? = null
+    private var observation: AutoCloseable? = null
     private var isObserving = false
 
     /**
@@ -61,18 +78,12 @@ class SmsSource(
      * cold launch does not re-scan and re-insert the whole inbox.
      */
     @Volatile
-    private var lastSeenId: Long = prefs.getLong(KEY_LAST_SEEN_ID, 0L)
+    private var lastSeenId: Long = mark.read()
 
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun startObserving() {
         if (isObserving) return
-        val observer = SmsContentObserver(Handler(Looper.getMainLooper()))
-        context.contentResolver.registerContentObserver(
-            Telephony.Sms.CONTENT_URI,
-            true,
-            observer,
-        )
-        contentObserver = observer
+        observation = reader.observe { ingestNewSms() }
         isObserving = true
         Log.i(TAG, "SmsSource: observing content://sms (lastSeenId=$lastSeenId)")
         ingestNewSms()
@@ -81,8 +92,8 @@ class SmsSource(
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun stopObserving() {
         if (!isObserving) return
-        contentObserver?.let { context.contentResolver.unregisterContentObserver(it) }
-        contentObserver = null
+        observation?.close()
+        observation = null
         isObserving = false
         Log.i(TAG, "SmsSource: stopped observing content://sms")
     }
@@ -90,7 +101,7 @@ class SmsSource(
     private fun ingestNewSms() {
         scope.launch {
             try {
-                ingestSms()
+                ingestNewMessages()
             } catch (e: SecurityException) {
                 Log.e(TAG, "SmsSource: SecurityException reading SMS - permission not granted", e)
             } catch (e: Exception) {
@@ -99,110 +110,87 @@ class SmsSource(
         }
     }
 
-    private suspend fun ingestSms() =
+    override suspend fun ingestNewMessages(): Int =
         withContext(Dispatchers.IO) {
             resetMarkIfTableIsEmpty()
             tagWriter.ensureActive()
 
             val since = lastSeenId
-            val selection = if (since > 0) "${Telephony.Sms._ID} > ?" else null
-            val selectionArgs = if (since > 0) arrayOf(since.toString()) else null
-            val projection =
-                arrayOf(
-                    Telephony.Sms._ID,
-                    Telephony.Sms.ADDRESS,
-                    Telephony.Sms.BODY,
-                    Telephony.Sms.DATE,
-                    Telephony.Sms.TYPE,
+            val messages = reader.messagesAfter(since)
+            if (messages == null) {
+                Log.i(TAG, "SmsSource: no SMS access")
+                return@withContext 0
+            }
+            if (messages.isEmpty()) {
+                Log.i(TAG, "SmsSource: no new SMS (lastSeenId=$since)")
+                return@withContext 0
+            }
+
+            val ingestedAt = System.currentTimeMillis()
+            val events = ArrayList<EventEntity>(messages.size)
+            val tagInputs = ArrayList<TagInput>(messages.size)
+            val fieldInputs = ArrayList<Map<String, FieldValue>>(messages.size)
+            var maxId = since
+
+            for (message in messages) {
+                if (message.id > maxId) maxId = message.id
+
+                val address = message.address ?: "Unknown"
+                val body = message.body ?: ""
+
+                // Classify once, at ingest, so the category is queryable
+                // (Radar filters on it) instead of recomputed per render.
+                val category = SmsClassifier.classify(address, body).klass.name
+
+                events.add(
+                    EventEntity(
+                        ulid = Ulid.next(),
+                        // Provider row id: re-ingest is idempotent, and two
+                        // messages from the same sender never collide.
+                        dedupeKey = "sms:${message.id}",
+                        source = SOURCE_ID,
+                        type = typeName(message.type),
+                        category = category,
+                        timestamp = message.date,
+                        title = address,
+                        content = body,
+                        entities = "[]",
+                        location = null,
+                        url = null,
+                        ingestedAt = ingestedAt,
+                    ),
                 )
+                tagInputs.add(TagInput(text = body, source = Transport.SMS, sender = address))
+                fieldInputs.add(smsFields(address, body))
+            }
 
-            val cursor =
-                context.contentResolver.query(
-                    Telephony.Sms.CONTENT_URI,
-                    projection,
-                    selection,
-                    selectionArgs,
-                    "${Telephony.Sms._ID} ASC",
-                )
+            val inserted = eventDao.insertAll(events)
 
-            cursor?.use { c ->
-                val idIndex = c.getColumnIndexOrThrow(Telephony.Sms._ID)
-                val addressIndex = c.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
-                val bodyIndex = c.getColumnIndexOrThrow(Telephony.Sms.BODY)
-                val dateIndex = c.getColumnIndexOrThrow(Telephony.Sms.DATE)
-                val typeIndex = c.getColumnIndexOrThrow(Telephony.Sms.TYPE)
+            // Tag only what actually landed: duplicates come back as -1.
+            val toTag = ArrayList<Pair<String, TagInput>>(events.size)
+            val toFields = ArrayList<Pair<String, Map<String, FieldValue>>>(events.size)
+            val landed = ArrayList<EventEntity>(events.size)
+            var newCount = 0
+            inserted.forEachIndexed { index, insertedId ->
+                if (insertedId == -1L) return@forEachIndexed
+                newCount++
+                toTag += events[index].ulid to tagInputs[index]
+                toFields += events[index].ulid to fieldInputs[index]
+                landed += events[index]
+            }
+            if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)
+            if (toTag.isNotEmpty()) {
+                mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
+            }
+            // Fields before evaluation: the writer reads them from the store
+            // (ADR §13), so they must be persisted first.
+            if (toFields.isNotEmpty()) fieldWriter.writeAll(toFields)
+            if (landed.isNotEmpty()) ruleWriter.writeAll(landed.map { it.toRuleItemSeed() })
 
-                val events = ArrayList<EventEntity>(c.count.coerceAtLeast(0))
-                val tagInputs = ArrayList<TagInput>(c.count.coerceAtLeast(0))
-                val fieldInputs = ArrayList<Map<String, FieldValue>>(c.count.coerceAtLeast(0))
-                var maxId = since
-                val ingestedAt = System.currentTimeMillis()
-
-                while (c.moveToNext()) {
-                    val rowId = c.getLong(idIndex)
-                    if (rowId > maxId) maxId = rowId
-
-                    val address = c.getString(addressIndex) ?: "Unknown"
-                    val body = c.getString(bodyIndex) ?: ""
-
-                    // Classify once, at ingest, so the category is queryable
-                    // (Radar filters on it) instead of recomputed per render.
-                    val category = SmsClassifier.classify(address, body).klass.name
-
-                    events.add(
-                        EventEntity(
-                            ulid = Ulid.next(),
-                            // Provider row id: re-ingest is idempotent, and two
-                            // messages from the same sender never collide.
-                            dedupeKey = "sms:$rowId",
-                            source = SOURCE_ID,
-                            type = typeName(c.getInt(typeIndex)),
-                            category = category,
-                            timestamp = c.getLong(dateIndex),
-                            title = address,
-                            content = body,
-                            entities = "[]",
-                            location = null,
-                            url = null,
-                            ingestedAt = ingestedAt,
-                        ),
-                    )
-                    tagInputs.add(TagInput(text = body, source = Transport.SMS, sender = address))
-                    fieldInputs.add(smsFields(address, body))
-                }
-
-                if (events.isEmpty()) {
-                    Log.i(TAG, "SmsSource: no new SMS (lastSeenId=$since)")
-                    return@use
-                }
-
-                val inserted = database.eventDao().insertAll(events)
-
-                // Tag only what actually landed: duplicates come back as -1.
-                val toTag = ArrayList<Pair<String, TagInput>>(events.size)
-                val toFields = ArrayList<Pair<String, Map<String, FieldValue>>>(events.size)
-                val landed = ArrayList<EventEntity>(events.size)
-                var newCount = 0
-                inserted.forEachIndexed { index, insertedId ->
-                    if (insertedId == -1L) return@forEachIndexed
-                    newCount++
-                    toTag += events[index].ulid to tagInputs[index]
-                    toFields += events[index].ulid to fieldInputs[index]
-                    landed += events[index]
-                }
-                if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)
-                if (toTag.isNotEmpty()) {
-                    mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
-                }
-                // Fields before evaluation: the writer reads them from the store
-                // (ADR §13), so they must be persisted first.
-                if (toFields.isNotEmpty()) fieldWriter.writeAll(toFields)
-                if (landed.isNotEmpty()) ruleWriter.writeAll(landed.map { it.toRuleItemSeed() })
-
-                lastSeenId = maxId
-                prefs.edit().putLong(KEY_LAST_SEEN_ID, maxId).apply()
-                Log.i(TAG, "SmsSource: ingested $newCount new SMS (scanned ${events.size}, lastSeenId=$maxId)")
-            } ?: Log.i(TAG, "SmsSource: cursor is null - no SMS access")
+            lastSeenId = maxId
+            mark.write(maxId)
+            Log.i(TAG, "SmsSource: ingested $newCount new SMS (scanned ${events.size}, lastSeenId=$maxId)")
+            newCount
         }
 
     /**
@@ -212,9 +200,9 @@ class SmsSource(
      */
     private suspend fun resetMarkIfTableIsEmpty() {
         if (lastSeenId <= 0) return
-        if (database.eventDao().getCount() > 0) return
+        if (eventDao.getCount() > 0) return
         lastSeenId = 0
-        prefs.edit().putLong(KEY_LAST_SEEN_ID, 0L).apply()
+        mark.write(0L)
         Log.i(TAG, "SmsSource: table empty but mark was set - re-ingesting from scratch")
     }
 
@@ -243,15 +231,4 @@ class SmsSource(
             Telephony.Sms.MESSAGE_TYPE_QUEUED -> "queued"
             else -> "unknown"
         }
-
-    private inner class SmsContentObserver(
-        handler: Handler,
-    ) : ContentObserver(handler) {
-        override fun onChange(
-            selfChange: Boolean,
-            uri: Uri?,
-        ) {
-            ingestNewSms()
-        }
-    }
 }

@@ -16,15 +16,18 @@ import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.ContentResolverSmsReader
 import com.personalos.app.data.FieldWriter
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
+import com.personalos.app.data.PrefsSmsSyncMark
 import com.personalos.app.data.RulePreviewLoader
 import com.personalos.app.data.RulePreviewer
 import com.personalos.app.data.RuleRepository
 import com.personalos.app.data.RuleSeeder
 import com.personalos.app.data.RuleWriter
+import com.personalos.app.data.SmsSource
 import com.personalos.app.data.SourceRepository
 import com.personalos.app.data.SourceSeeder
 import com.personalos.app.data.TagWriter
@@ -191,6 +194,24 @@ class AppContainer(
                     )
                 }
             },
+        )
+
+    /**
+     * The single SMS ingest path. The Activity's lifecycle observer calls its
+     * suspend entry point while foregrounded; `SmsSyncWorker` calls the same one
+     * on a periodic background schedule. One instance per coordinate, but the
+     * high-water mark lives in SharedPreferences, so separate instances (the
+     * worker builds its own container) still share it.
+     */
+    val smsSource: SmsSource =
+        SmsSource(
+            ContentResolverSmsReader(context.applicationContext),
+            PrefsSmsSyncMark(context.applicationContext),
+            database.eventDao(),
+            tagWriter,
+            mentionWriter,
+            fieldWriter,
+            ruleWriter,
         )
 
     /** Backfills tags for items that predate the active tagger (docs §11.5). */

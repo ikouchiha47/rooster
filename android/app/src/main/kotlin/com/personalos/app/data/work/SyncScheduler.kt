@@ -7,6 +7,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
@@ -33,6 +34,9 @@ object SyncScheduler {
     const val SYNC_GROUP_MINUTES = 60L
 
     /** WorkManager's floor for periodic work is 15 minutes. */
+    const val MIN_INTERVAL_MINUTES = 15L
+
+    /** Default feed cadence: the bucket width that groups Today's News. */
     const val DEFAULT_INTERVAL_MINUTES = SYNC_GROUP_MINUTES
 
     /** Enrichment is far slower per item and not time-critical. */
@@ -41,6 +45,7 @@ object SyncScheduler {
     private const val FEED_UNIQUE_NAME = "feed-sync"
     private const val ENRICH_UNIQUE_NAME = "article-enrich"
     private const val PARTY_UNIQUE_NAME = "party-sync"
+    private const val SMS_UNIQUE_NAME = "sms-sync"
     private const val PARTY_MANUAL_NAME = "party-resync-now"
     private const val BACKFILL_UNIQUE_NAME = "launch-backfill"
     private const val BACKOFF_MINUTES = 15L
@@ -121,7 +126,46 @@ object SyncScheduler {
                 ExistingPeriodicWorkPolicy.KEEP,
                 partyRequest,
             )
+
+        // Background SMS catch-up. Polling, not a broadcast: reading the
+        // provider is already permitted, whereas a manifest SMS_RECEIVED
+        // receiver is gated behind being the default SMS app. The foreground
+        // observer in SmsSource stays — this is an addition, not a replacement:
+        // the observer gives immediacy while the app is open, this worker
+        // covers the rest.
+        //
+        // Honest limits: WorkManager's periodic floor is 15 minutes and
+        // Doze/battery optimisation may defer it further, so this is "within
+        // about 15 minutes, best effort" rather than instant; with the app
+        // force-stopped nothing runs until the next launch.
+        WorkManager
+            .getInstance(context)
+            .enqueueUniquePeriodicWork(
+                SMS_UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                smsSyncRequest(),
+            )
     }
+
+    /**
+     * The SMS poll. Built apart from [schedule] so the two properties that are
+     * deliberate here — the 15-minute floor and the *absence* of a network
+     * constraint — are testable without a running WorkManager.
+     *
+     * No network constraint: reading the provider and writing to Room is
+     * entirely local, so requiring CONNECTED would make a background SMS
+     * catch-up fail on an offline device for no reason. That is a deliberate
+     * difference from the feed request above, not an omission.
+     */
+    internal fun smsSyncRequest(): PeriodicWorkRequest =
+        PeriodicWorkRequestBuilder<SmsSyncWorker>(
+            MIN_INTERVAL_MINUTES,
+            TimeUnit.MINUTES,
+        ).setBackoffCriteria(
+            BackoffPolicy.EXPONENTIAL,
+            BACKOFF_MINUTES,
+            TimeUnit.MINUTES,
+        ).build()
 
     /**
      * Launch catch-up, run once per install/update rather than stacked: KEEP
