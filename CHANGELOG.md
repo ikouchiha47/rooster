@@ -7,6 +7,21 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): correct the feed:rule-status note, and say whose error it was
+
+_2026-09-16_
+
+The earlier note called the empty feed:rule-status "unexplained". It is not: the
+code deliberately keeps two health pipelines, statuses (feed:status) for the
+seeded catalog rendered by SourcesScreen, and sourceStatuses (feed:rule-status)
+for user-added sources rendered by UserFeedsSection. It is empty because there
+are no user-added RSS sources for sources.mapNotNull { health[it.id] } to keep.
+
+The mistake was mine for writing it down without reading the two write paths
+first, so the correction says so rather than quietly disappearing. The key name
+is legacy from when rules meant sources, and is one of the values frozen across
+v11 - renaming it would silently drop user source health.
+
 ## docs(plan): record slice 1's cleanup, evidence and gaps
 
 _2026-09-16_
