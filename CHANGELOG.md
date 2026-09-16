@@ -7,6 +7,31 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(adr): the sources, items and rules model, and the plan that lands it
+
+_2026-09-16_
+
+ADR 0003 settles what a source is, what an item is, and what a rule is - the
+design that `43517af` began implementing. It supersedes ADR 0002, whose table
+called `rules` was really a source registry.
+
+The load-bearing decisions: producers are an interface with opaque internals, so
+statefulness and non-determinism (cookies, regex, ML) are absorbed at ingest and
+values are frozen into items; a canonical item is a JSON Feed 1.1 subset plus a
+typed `fields` bag; identity is source-declared or a per-transport hash and never
+content-derived; rules never fetch, they are pure evaluators over stored items;
+delivery is the interruption while surfacing is a read-time projection, so Radar
+is a query rather than a destination; and a match is stored once in `item_rules`
+and read wherever a view asks for it.
+
+Also adds plan 0002, which carries the EARS requirements (43 of them, traceable
+by id from every task), the five slices, the verification bar, and a RALPH-style
+loop header so the work survives context loss - the repo has lost work before,
+and `docs/plans/0001` was the only precedent.
+
+Both files were untracked while being cited by the code and the schema; this
+commit puts the design of record in git.
+
 ## refactor(data): the rules table becomes sources, and rules becomes real
 
 _2026-09-16_
