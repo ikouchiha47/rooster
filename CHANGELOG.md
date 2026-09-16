@@ -7,6 +7,40 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): four starter rules, and a repository that respects them
+
+_2026-09-16_
+
+The engine could evaluate but nothing could author, so the rules table was empty.
+RuleSeeder now mirrors SourceSeeder - runs only when the table is empty, validates
+every seed before inserting, marks them seeded - and RuleRepository gives the
+authoring UI something to call, with the same locked-seed guard the sources
+repository uses: the SQL says AND seeded = 0 and a zero-row result becomes an
+IllegalStateException, so a bundled rule cannot be edited or deleted.
+
+Four seeds, each chosen so it can actually match data that exists today: a finance
+and rates watch over the two Mint feeds, a bandh and strike text watch, a Kolkata
+place watch, and a news incident watch. The fourth deliberately carries
+delivery = none, which is ADR section 9's surfacing-without-interrupting case.
+
+The load-bearing constraint: no seed uses the field predicate. Typed fields have no
+storage yet - item_fields lands in slice 7 - so a seed such as amount > 10000 would
+evaluate to false forever and read as a broken engine rather than a missing
+column. A test asserts the literal is absent from every shipped condition, so a
+future seed cannot quietly reintroduce the trap. Source ids were checked against
+FeedCatalog rather than invented: the mockups' illustrative SMS:BANK is not a
+source this app has.
+
+The repository validates conditions and actions through core/rules before writing,
+so a malformed rule cannot be saved, but it deliberately does not require the
+condition to be item-evaluable: a field or series rule saves, a field rule then
+matches nothing and a series rule is refused loudly when it runs. That boundary is
+documented in both classes rather than silently enforced one way or the other.
+
+Verified: 334 tests, 0 failures. Confirmed against the device's store that every
+seed has something to match - 249, 20, 103 and 81 items respectively - so seeding
+makes the engine checkable rather than merely present.
+
 ## feat(rules): evaluate rules over landed items, and materialise matches
 
 _2026-09-16_
