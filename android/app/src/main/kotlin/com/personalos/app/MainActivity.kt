@@ -151,6 +151,7 @@ fun PersonalOSApp() {
     val tabs =
         listOf(
             TabItem("Home", Glyph.Home),
+            TabItem("Rules", Glyph.Rules),
             TabItem("Services", Glyph.Grid),
             TabItem("Messages", Glyph.Mail),
             TabItem("Wallet", Glyph.Wallet),
@@ -160,6 +161,7 @@ fun PersonalOSApp() {
     val destinations =
         listOf(
             Destination.Home,
+            Destination.Rules,
             Destination.Services,
             Destination.Messages,
             Destination.Wallet,

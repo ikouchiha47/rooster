@@ -7,6 +7,41 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): the rules authoring screen
+
+_2026-09-16_
+
+T6.3 and T6.4. A Rules tab in the bottom nav lists every rule with its condition in
+words rather than raw JSON; tapping one you made opens the builder; tapping New rule
+starts a fresh one. The builder offers the predicates the parser actually accepts -
+subject, nature, marker, mention, source, field and text, composed with all or any -
+and emits them through buildJsonObject with the exact key shapes ConditionJson and
+ActionJson expect, so it cannot produce a condition the parser would reject. Preview
+and save stay disabled until the draft is valid.
+
+The live preview is the point of the screen and it is real: it calls the bounded
+loader over stored history and shows "N events would match, last 7 days", with the
+sample rows and a live marker, and it says "first N shown" when the scan cap cut
+the set short rather than implying the count is exact.
+
+ADR section 9 is kept visible rather than blurred: delivery is its own section with
+one toggle - does this interrupt you - and position is a separate one, described as
+emphasis, so the two axes are never presented as a single choice.
+
+Bundled rules are inert by design: they carry a chip, their row does not open, they
+have no edit or delete, and their toggle is not clickable, because the repository's
+AND seeded = 0 guard would otherwise throw on a tap. Three deliberate departures
+from the mockups, each for a reason: only the Form builder shipped, since the
+mockups' Recipe mode offers toggles (\'add to timeline\', \'daily digest\') that have
+no keys in the action schema and honouring them would mean emitting invalid JSON;
+Rules became a sixth nav tab rather than evicting a working one; and preview hits
+show source and title but not amount and place chips, because RulePreviewHit does
+not carry them and the API was fixed for this lane.
+
+Verified: 400 tests, 0 failures, ktlint clean. Not verified: any of it on a device -
+the screens compose and call the real repository and previewer, but no create, edit,
+delete or toggle has been tapped through on a running app.
+
 ## refactor(rules): the preview reports why, not what to display
 
 _2026-09-16_

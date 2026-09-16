@@ -58,6 +58,7 @@ enum class Glyph {
     Place,
     Stack,
     Card,
+    Rules,
 }
 
 @Composable
@@ -420,6 +421,12 @@ private fun DrawScope.drawGlyph(
             box(3f, 6f, 18f, 12f, 1.5f)
             ln(3f, 10f, 21f, 10f)
             ln(7f, 14f, 10f, 14f)
+        }
+        Glyph.Rules -> {
+            ln(4f, 6f, 20f, 6f)
+            ln(4f, 12f, 20f, 12f)
+            ln(4f, 18f, 14f, 18f)
+            ring(19.5f, 18f, 2f)
         }
     }
 }
