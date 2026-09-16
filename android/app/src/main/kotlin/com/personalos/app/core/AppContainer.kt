@@ -19,8 +19,8 @@ import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
-import com.personalos.app.data.RuleRepository
-import com.personalos.app.data.RuleSeeder
+import com.personalos.app.data.SourceRepository
+import com.personalos.app.data.SourceSeeder
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.ThemeRepository
 import com.personalos.app.data.cache.PrefsStringCache
@@ -116,13 +116,13 @@ class AppContainer(
         )
 
     /**
-     * Single owner of the rules fact (ADR 0002): seeds write through it,
+     * Single owner of the sources fact (ADR 0003): seeds write through it,
      * Settings will write through it, the ingestor reads through it.
      */
-    val ruleRepository: RuleRepository = RuleRepository(database.ruleDao())
+    val sourceRepository: SourceRepository = SourceRepository(database.sourceDao())
 
-    /** Seeds the v1 rule set once; afterwards a single `COUNT(*)` no-op. */
-    val ruleSeeder: RuleSeeder = RuleSeeder(database.ruleDao())
+    /** Seeds the v1 source set once; afterwards a single `COUNT(*)` no-op. */
+    val sourceSeeder: SourceSeeder = SourceSeeder(database.sourceDao())
 
     /** Refreshes the party registry from the per-country list pages. */
     val partySync: com.personalos.app.data.remote.parties.PartySyncer =
@@ -157,24 +157,24 @@ class AppContainer(
             tagWriter,
             cache,
             tagger,
-            ruleTags = {
+            sourceTags = {
                 runCatching {
                     database
-                        .ruleDao()
+                        .sourceDao()
                         .enabled()
                         .mapNotNull { row ->
                             val spec =
                                 runCatching {
-                                    com.personalos.app.core.rules.RuleSpecs
+                                    com.personalos.app.core.sources.SourceSpecs
                                         .parse(row.kind, row.specJson)
                                 }.getOrNull() ?: return@mapNotNull null
-                            // Every rule owns its source string (see RuleSources),
+                            // Every source owns its source string (see SourceKeys),
                             // so retagging resolves user RSS rows the same way it
                             // resolves search rows. Seeded RSS rows map sources
                             // that never receive items (the catalog drives those
                             // URLs), which is harmless.
                             val source =
-                                com.personalos.app.core.rules.RuleSources
+                                com.personalos.app.core.sources.SourceKeys
                                     .sourceFor(row.id, spec)
                             source to spec.tags
                         }.toMap()
@@ -195,7 +195,7 @@ class AppContainer(
             cache,
             tagWriter,
             mentionWriter,
-            loadRules = { ruleRepository.enabledRules() },
+            loadSources = { sourceRepository.enabledSources() },
         )
 
     /**

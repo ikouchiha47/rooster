@@ -18,7 +18,7 @@ import com.personalos.app.ui.theme.CategoryColors
  *
  * The section itself lives in `ui/sources/UserFeedsSection` because the Sources
  * screen shows the same content — this screen is the tile's own entrance to it,
- * so there is one implementation and two views over the same rules store.
+ * so there is one implementation and two views over the same sources store.
  */
 @Composable
 fun RssScreen(
@@ -26,7 +26,7 @@ fun RssScreen(
     onBack: (() -> Unit)? = null,
 ) {
     val container = LocalAppContainer.current
-    val rules by container.ruleRepository.observe().collectAsState(initial = emptyList())
+    val rules by container.sourceRepository.observe().collectAsState(initial = emptyList())
 
     Column(modifier.fillMaxSize()) {
         RadarHeader(

@@ -25,13 +25,13 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.personalos.app.core.feed.FeedStatus
-import com.personalos.app.core.rules.RssSpec
-import com.personalos.app.core.rules.RuleKind
-import com.personalos.app.core.rules.RuleSpecs
-import com.personalos.app.data.RuleEntity
-import com.personalos.app.data.RuleRepository.Companion.DEFAULT_USER_INTERVAL_SEC
-import com.personalos.app.data.RuleRepository.Companion.MAX_INTERVAL_SEC
-import com.personalos.app.data.RuleRepository.Companion.MIN_INTERVAL_SEC
+import com.personalos.app.core.sources.RssSpec
+import com.personalos.app.core.sources.SourceKind
+import com.personalos.app.core.sources.SourceSpecs
+import com.personalos.app.data.SourceEntity
+import com.personalos.app.data.SourceRepository.Companion.DEFAULT_USER_INTERVAL_SEC
+import com.personalos.app.data.SourceRepository.Companion.MAX_INTERVAL_SEC
+import com.personalos.app.data.SourceRepository.Companion.MIN_INTERVAL_SEC
 import com.personalos.app.data.remote.FeedCheck
 import com.personalos.app.data.remote.FeedVerifier
 import com.personalos.app.data.work.SyncScheduler
@@ -50,10 +50,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * My feeds: the user-managed RSS rules.
+ * My feeds: the user-managed RSS sources.
  *
- * A view over the rules store (ADR 0002) — rows, validation and writes all go
- * through [com.personalos.app.data.RuleRepository], the single owner, so this
+ * A view over the sources store (ADR 0003) — rows, validation and writes all go
+ * through [com.personalos.app.data.SourceRepository], the single owner, so this
  * section never holds a second copy. User rows get a disable toggle and a
  * delete button; locked seeded rows get neither (the repository would reject
  * the write; the UI does not offer it).
@@ -64,27 +64,27 @@ import kotlinx.serialization.json.JsonPrimitive
  * the next sync automatically.
  */
 @Composable
-fun UserFeedsSection(rules: List<RuleEntity>) {
+fun UserFeedsSection(rules: List<SourceEntity>) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
     val rssRules =
         remember(rules) {
             rules
-                .filter { RuleKind.from(it.kind) == RuleKind.RSS }
+                .filter { SourceKind.from(it.kind) == SourceKind.RSS }
                 .sortedWith(compareBy({ it.seeded }, { it.name.lowercase() }))
         }
     val urlIndex = remember(rssRules) { rssUrlIndex(rssRules) }
     val userCount = rssRules.count { !it.seeded }
     val seedCount = rssRules.size - userCount
 
-    // Per-rule health from the ingestor: the dot, the last sync and the HTTP
+    // Per-source health from the ingestor: the dot, the last sync and the HTTP
     // code the row reports. Same source the catalog feeds' status comes from.
-    val ruleStatuses by container.feeds.ruleStatuses.collectAsState()
-    val ruleStatusById = remember(ruleStatuses) { ruleStatuses.associateBy { it.id } }
+    val sourceStatuses by container.feeds.sourceStatuses.collectAsState()
+    val ruleStatusById = remember(sourceStatuses) { sourceStatuses.associateBy { it.id } }
 
-    // Seeded rows are never polled *as rules* — the catalog pass fetches those
-    // same URLs — so their health lives under the catalog feed, not the rule.
+    // Seeded rows are never polled *as sources* — the catalog pass fetches those
+    // same URLs — so their health lives under the catalog feed, not the source.
     // Matching on the URL is what keeps the two views over one fact.
     val catalogStatuses by container.feeds.statuses.collectAsState()
     val catalogByUrl = remember(catalogStatuses) { catalogStatuses.associateBy { normalizeFeedUrl(it.url) } }
@@ -97,21 +97,21 @@ fun UserFeedsSection(rules: List<RuleEntity>) {
     var busyId by remember { mutableStateOf<String?>(null) }
     var rowError by remember { mutableStateOf<Pair<String, String>?>(null) }
 
-    fun toggle(rule: RuleEntity) {
+    fun toggle(rule: SourceEntity) {
         busyId = rule.id
         rowError = null
         scope.launch {
-            runCatching { container.ruleRepository.setEnabled(rule.id, !rule.enabled) }
+            runCatching { container.sourceRepository.setEnabled(rule.id, !rule.enabled) }
                 .onFailure { rowError = rule.id to (it.message ?: "Update failed.") }
             busyId = null
         }
     }
 
-    fun delete(rule: RuleEntity) {
+    fun delete(rule: SourceEntity) {
         busyId = rule.id
         rowError = null
         scope.launch {
-            runCatching { container.ruleRepository.delete(rule.id) }
+            runCatching { container.sourceRepository.delete(rule.id) }
                 .onFailure { rowError = rule.id to (it.message ?: "Delete failed.") }
             busyId = null
         }
@@ -129,9 +129,9 @@ fun UserFeedsSection(rules: List<RuleEntity>) {
                 val result =
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            container.ruleRepository.addUserRule(
+                            container.sourceRepository.addUserSource(
                                 name.trim(),
-                                RuleKind.RSS.serialName,
+                                SourceKind.RSS.serialName,
                                 rssSpecJson(url.trim()),
                                 intervalSec = seconds,
                             )
@@ -235,7 +235,7 @@ private sealed interface AddPhase {
 
 @Composable
 private fun UserFeedRow(
-    rule: RuleEntity,
+    rule: SourceEntity,
     url: String?,
     status: FeedStatus?,
     busy: Boolean,
@@ -428,7 +428,7 @@ private fun FieldBox(
  * feed schedule. Read-only on the row — the scheduler runs one periodic job,
  * so the interval paces the rule's cache, not a separate timer.
  */
-internal fun intervalLabel(rule: RuleEntity): String {
+internal fun intervalLabel(rule: SourceEntity): String {
     val secs = rule.intervalSec ?: DEFAULT_USER_INTERVAL_SEC
     return when {
         secs % 3600L == 0L -> "every ${secs / 3600}h"
@@ -449,12 +449,12 @@ internal fun intervalSecondsOrNull(raw: String): Long? {
 }
 
 /** Normalised URL to rule name, for the duplicate guard. Unparseable rows are skipped. */
-internal fun rssUrlIndex(rules: List<RuleEntity>): Map<String, String> =
+internal fun rssUrlIndex(rules: List<SourceEntity>): Map<String, String> =
     rules
         .mapNotNull { row ->
-            if (RuleKind.from(row.kind) != RuleKind.RSS) return@mapNotNull null
+            if (SourceKind.from(row.kind) != SourceKind.RSS) return@mapNotNull null
             val url =
-                runCatching { RuleSpecs.parse(RuleKind.RSS, row.specJson) as RssSpec }
+                runCatching { SourceSpecs.parse(SourceKind.RSS, row.specJson) as RssSpec }
                     .getOrNull()
                     ?.url ?: return@mapNotNull null
             normalizeFeedUrl(url) to row.name
@@ -477,8 +477,8 @@ internal fun validateUserFeed(
     return null
 }
 
-private fun rssUrlOf(rule: RuleEntity): String? =
-    runCatching { RuleSpecs.parse(RuleKind.RSS, rule.specJson) as RssSpec }
+private fun rssUrlOf(rule: SourceEntity): String? =
+    runCatching { SourceSpecs.parse(SourceKind.RSS, rule.specJson) as RssSpec }
         .getOrNull()
         ?.url
 

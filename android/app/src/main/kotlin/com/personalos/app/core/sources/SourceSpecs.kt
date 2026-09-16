@@ -1,4 +1,4 @@
-package com.personalos.app.core.rules
+package com.personalos.app.core.sources
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -7,13 +7,13 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 
 /**
- * Portable rules unit (ADR 0002): per-kind spec parsing and validation.
+ * Portable sources unit (ADR 0003): per-kind spec parsing and validation.
  *
- * Pure Kotlin, zero `android.*` imports — see [RuleKind]. Every failure throws
+ * Pure Kotlin, zero `android.*` imports — see [SourceKind]. Every failure throws
  * [IllegalArgumentException] (unknown kind, malformed JSON, missing or invalid
  * keys), so writers validate with a single call and tests assert one type.
  */
-sealed interface RuleSpec {
+sealed interface SourceSpec {
     /** Subject/nature tags applied at ingest. Never empty: writers default to `news`. */
     val tags: Set<String>
 }
@@ -22,7 +22,7 @@ sealed interface RuleSpec {
 data class RssSpec(
     val url: String,
     override val tags: Set<String>,
-) : RuleSpec
+) : SourceSpec
 
 /** `kind = "search"`: a Google News query, polled as RSS. */
 data class SearchSpec(
@@ -32,27 +32,27 @@ data class SearchSpec(
     /** Which GNews edition to hit (e.g. `en-IN`). v1 seeds are all `en-IN`. */
     val sourceLocale: String,
     override val tags: Set<String>,
-) : RuleSpec
+) : SourceSpec
 
-object RuleSpecs {
+object SourceSpecs {
     private val json = Json { ignoreUnknownKeys = false }
 
     /**
      * Parses and validates `spec_json` for [kind].
      *
-     * Required keys per ADR 0002; unknown keys are rejected so a future kind
+     * Required keys per ADR 0003; unknown keys are rejected so a future kind
      * cannot silently masquerade as a v1 kind. Missing `tags` defaults to
-     * `news` (ADR 0002 §Spec shapes).
+     * `news` (ADR 0003 §Spec shapes).
      *
      * @throws IllegalArgumentException on any invalid input.
      */
     fun parse(
-        kind: RuleKind,
+        kind: SourceKind,
         specJson: String,
-    ): RuleSpec =
+    ): SourceSpec =
         when (kind) {
-            RuleKind.RSS -> parseRss(obj(specJson, "rss"))
-            RuleKind.SEARCH -> parseSearch(obj(specJson, "search"))
+            SourceKind.RSS -> parseRss(obj(specJson, "rss"))
+            SourceKind.SEARCH -> parseSearch(obj(specJson, "search"))
         }
 
     /**
@@ -63,8 +63,8 @@ object RuleSpecs {
     fun parse(
         kindName: String,
         specJson: String,
-    ): RuleSpec {
-        val kind = RuleKind.from(kindName) ?: throw IllegalArgumentException("unknown rule kind: $kindName")
+    ): SourceSpec {
+        val kind = SourceKind.from(kindName) ?: throw IllegalArgumentException("unknown source kind: $kindName")
         return parse(kind, specJson)
     }
 

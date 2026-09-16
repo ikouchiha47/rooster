@@ -1,17 +1,17 @@
-package com.personalos.app.core.rules
+package com.personalos.app.core.sources
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
-class RuleSpecsTest {
+class SourceSpecsTest {
     // ------------------------------------------------------------------- rss
 
     @Test
     fun `rss accepts url and tags`() {
         val spec =
-            RuleSpecs.parse(
-                RuleKind.RSS,
+            SourceSpecs.parse(
+                SourceKind.RSS,
                 """{"url": "https://www.thehindu.com/feeder/default.rss", "tags": ["news"]}""",
             ) as RssSpec
 
@@ -22,8 +22,8 @@ class RuleSpecsTest {
     @Test
     fun `rss keeps multi-valued tags`() {
         val spec =
-            RuleSpecs.parse(
-                RuleKind.RSS,
+            SourceSpecs.parse(
+                SourceKind.RSS,
                 """{"url": "https://www.livemint.com/rss/markets", "tags": ["finance", "news"]}""",
             ) as RssSpec
 
@@ -33,22 +33,22 @@ class RuleSpecsTest {
     @Test
     fun `rss missing url is rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(RuleKind.RSS, """{"tags": ["news"]}""")
+            SourceSpecs.parse(SourceKind.RSS, """{"tags": ["news"]}""")
         }
     }
 
     @Test
     fun `rss non-http url is rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(RuleKind.RSS, """{"url": "ftp://example.com/feed", "tags": ["news"]}""")
+            SourceSpecs.parse(SourceKind.RSS, """{"url": "ftp://example.com/feed", "tags": ["news"]}""")
         }
     }
 
     @Test
     fun `rss unknown keys are rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(
-                RuleKind.RSS,
+            SourceSpecs.parse(
+                SourceKind.RSS,
                 """{"url": "https://example.com/feed.xml", "tags": ["news"], "query": "Kolkata"}""",
             )
         }
@@ -57,8 +57,8 @@ class RuleSpecsTest {
     @Test
     fun `rss missing tags defaults to news`() {
         val spec =
-            RuleSpecs.parse(
-                RuleKind.RSS,
+            SourceSpecs.parse(
+                SourceKind.RSS,
                 """{"url": "https://example.com/feed.xml"}""",
             ) as RssSpec
 
@@ -70,8 +70,8 @@ class RuleSpecsTest {
     @Test
     fun `search accepts the full v1 shape`() {
         val spec =
-            RuleSpecs.parse(
-                RuleKind.SEARCH,
+            SourceSpecs.parse(
+                SourceKind.SEARCH,
                 """{"query": "West Bengal", "query_lang_code": "en", "source_locale": "en-IN", "tags": ["news"]}""",
             ) as SearchSpec
 
@@ -84,8 +84,8 @@ class RuleSpecsTest {
     @Test
     fun `search missing query is rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(
-                RuleKind.SEARCH,
+            SourceSpecs.parse(
+                SourceKind.SEARCH,
                 """{"query_lang_code": "en", "source_locale": "en-IN", "tags": ["news"]}""",
             )
         }
@@ -93,13 +93,13 @@ class RuleSpecsTest {
 
     @Test
     fun `search only en and hi query languages pass`() {
-        RuleSpecs.parse(
-            RuleKind.SEARCH,
+        SourceSpecs.parse(
+            SourceKind.SEARCH,
             """{"query": "x", "query_lang_code": "hi", "source_locale": "hi-IN", "tags": ["news"]}""",
         )
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(
-                RuleKind.SEARCH,
+            SourceSpecs.parse(
+                SourceKind.SEARCH,
                 """{"query": "x", "query_lang_code": "bn", "source_locale": "en-IN", "tags": ["news"]}""",
             )
         }
@@ -108,8 +108,8 @@ class RuleSpecsTest {
     @Test
     fun `search missing locale is rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(
-                RuleKind.SEARCH,
+            SourceSpecs.parse(
+                SourceKind.SEARCH,
                 """{"query": "Kolkata", "query_lang_code": "en", "tags": ["news"]}""",
             )
         }
@@ -118,8 +118,8 @@ class RuleSpecsTest {
     @Test
     fun `search unknown keys are rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(
-                RuleKind.SEARCH,
+            SourceSpecs.parse(
+                SourceKind.SEARCH,
                 """{"query": "Kolkata", "query_lang_code": "en", "source_locale": "en-IN", "tags": ["news"], "url": "https://example.com"}""",
             )
         }
@@ -128,8 +128,8 @@ class RuleSpecsTest {
     @Test
     fun `search blank tags fall back to news`() {
         val spec =
-            RuleSpecs.parse(
-                RuleKind.SEARCH,
+            SourceSpecs.parse(
+                SourceKind.SEARCH,
                 """{"query": "Kolkata", "query_lang_code": "en", "source_locale": "en-IN", "tags": ["", "  "]}""",
             ) as SearchSpec
 
@@ -141,29 +141,29 @@ class RuleSpecsTest {
     @Test
     fun `an unknown kind is rejected, never defaulted`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse("scrape", """{"url": "https://example.com"}""")
+            SourceSpecs.parse("scrape", """{"url": "https://example.com"}""")
         }
     }
 
     @Test
     fun `a non-object spec is rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(RuleKind.RSS, """["https://example.com/feed.xml"]""")
+            SourceSpecs.parse(SourceKind.RSS, """["https://example.com/feed.xml"]""")
         }
     }
 
     @Test
     fun `malformed json is rejected`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSpecs.parse(RuleKind.RSS, """{"url": """)
+            SourceSpecs.parse(SourceKind.RSS, """{"url": """)
         }
     }
 
     @Test
     fun `kind strings resolve exactly`() {
-        assertEquals(RuleKind.RSS, RuleKind.from("rss"))
-        assertEquals(RuleKind.SEARCH, RuleKind.from("search"))
-        assertEquals(null, RuleKind.from("RSS"))
-        assertEquals(null, RuleKind.from("rapidapi"))
+        assertEquals(SourceKind.RSS, SourceKind.from("rss"))
+        assertEquals(SourceKind.SEARCH, SourceKind.from("search"))
+        assertEquals(null, SourceKind.from("RSS"))
+        assertEquals(null, SourceKind.from("rapidapi"))
     }
 }

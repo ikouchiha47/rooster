@@ -280,19 +280,27 @@ object Sql {
     const val PARTY_SOURCES_UPDATE_SYNC =
         "UPDATE party_sources SET last_sync_at = :syncedAt WHERE country = :country"
 
-    // ------------------------------------------------------------------- rules
-    // ADR 0002 v1 slice: one table, two kinds, JSON spec. The write guards
+    // ----------------------------------------------------------------- sources
+    // ADR 0003: today's `rules` table is a source registry. The write guards
     // (`AND seeded = 0`) are what make bundled seeds add-only even to a caller
     // that bypasses the repository — the UI hiding buttons is not enforcement.
-    const val RULES_COUNT = "SELECT COUNT(*) FROM rules"
+    const val SOURCES_COUNT = "SELECT COUNT(*) FROM sources"
 
+    const val SOURCES_ALL = "SELECT * FROM sources"
+
+    const val SOURCES_ENABLED = "SELECT * FROM sources WHERE enabled = 1"
+
+    const val SOURCES_UPDATE_ENABLED =
+        "UPDATE sources SET enabled = :enabled, updated_at = :updatedAt WHERE id = :id AND seeded = 0"
+
+    const val SOURCES_DELETE_USER_ONLY =
+        "DELETE FROM sources WHERE id = :id AND seeded = 0"
+
+    // ------------------------------------------------------------------- rules
+    // ADR 0003: rules are pure evaluators over stored items. Storage only here;
+    // the condition and action JSON schemas arrive with the evaluator.
     const val RULES_ALL = "SELECT * FROM rules"
 
-    const val RULES_ENABLED = "SELECT * FROM rules WHERE enabled = 1"
-
-    const val RULES_UPDATE_ENABLED =
-        "UPDATE rules SET enabled = :enabled, updated_at = :updatedAt WHERE id = :id AND seeded = 0"
-
-    const val RULES_DELETE_USER_ONLY =
-        "DELETE FROM rules WHERE id = :id AND seeded = 0"
+    // -------------------------------------------------------------- item_rules
+    const val ITEM_RULES_ALL = "SELECT * FROM item_rules"
 }

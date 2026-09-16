@@ -9,20 +9,19 @@ import com.personalos.app.core.feed.FeedParser
 import com.personalos.app.core.feed.FeedSource
 import com.personalos.app.core.feed.FeedStatus
 import com.personalos.app.core.net.Http
-import com.personalos.app.core.rules.GnewsUrl
-import com.personalos.app.core.rules.RssSpec
-import com.personalos.app.core.rules.RuleKind
-import com.personalos.app.core.rules.RuleSources
-import com.personalos.app.core.rules.RuleSpecs
-import com.personalos.app.core.rules.SearchSpec
-import com.personalos.app.core.tag.SourceKind
+import com.personalos.app.core.sources.GnewsUrl
+import com.personalos.app.core.sources.RssSpec
+import com.personalos.app.core.sources.SearchSpec
+import com.personalos.app.core.sources.SourceKeys
+import com.personalos.app.core.sources.SourceKind
+import com.personalos.app.core.sources.SourceSpecs
 import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tag.Ulid
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.MentionWriter
-import com.personalos.app.data.RuleEntity
+import com.personalos.app.data.SourceEntity
 import com.personalos.app.data.TagWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import com.personalos.app.core.tag.SourceKind as TagSourceKind
 
 /**
  * Pulls the subscribed feeds and writes their items into the same events table
@@ -53,19 +53,19 @@ class FeedIngestor(
     private val feeds: List<FeedSource> = FeedCatalog.SEEDS,
     private val refreshAfterMs: Long = DEFAULT_REFRESH_MS,
     /**
-     * Enabled rules to poll alongside the catalog. Defaults to none, so the
-     * catalog path works standalone; the app wires the rule repository here.
+     * Enabled sources to poll alongside the catalog. Defaults to none, so the
+     * catalog path works standalone; the app wires the source repository here.
      * `search` rows and *user* `rss` rows are polled — seeded `rss` rows stay
      * inert because the catalog already drives those same URLs.
      */
-    private val loadRules: suspend () -> List<RuleEntity> = { emptyList() },
+    private val loadSources: suspend () -> List<SourceEntity> = { emptyList() },
     /**
-     * The single fetch behind every poll, catalog or rule — same client, same
+     * The single fetch behind every poll, catalog or source — same client, same
      * User-Agent ([Http.getText]). Injectable in tests.
      */
     private val fetch: (String) -> String = { url -> Http.getText(url) },
     /**
-     * Raw fetch for rule polling, where the HTTP status is part of the health
+     * Raw fetch for source polling, where the HTTP status is part of the health
      * the RSS list shows. Same client, same User-Agent. Injectable in tests.
      */
     private val fetchRaw: (String) -> Http.RawResponse = { url -> Http.getRaw(url) },
@@ -82,14 +82,14 @@ class FeedIngestor(
     /** Health of each configured feed, newest attempt last. */
     val statuses: StateFlow<List<FeedStatus>> = _statuses.asStateFlow()
 
-    private val _ruleStatuses = MutableStateFlow(loadRuleStatuses())
+    private val _sourceStatuses = MutableStateFlow(loadSourceStatuses())
 
     /**
-     * Health of each *user* rule, keyed by rule id — the RSS list's per-row
+     * Health of each *user* source, keyed by source id — the RSS list's per-row
      * status dot, last sync time and HTTP code. Separate from [statuses] so the
      * Sources "Feeds" section keeps showing catalog feeds only.
      */
-    val ruleStatuses: StateFlow<List<FeedStatus>> = _ruleStatuses.asStateFlow()
+    val sourceStatuses: StateFlow<List<FeedStatus>> = _sourceStatuses.asStateFlow()
 
     suspend fun refresh(): Int =
         withContext(Dispatchers.IO) {
@@ -160,8 +160,8 @@ class FeedIngestor(
             _statuses.value = ordered
             persistStatuses(ordered)
 
-            added += refreshSearchRules(now)
-            added += refreshRssRules(now)
+            added += refreshSearchSources(now)
+            added += refreshRssSources(now)
 
             _lastSyncAt.value = System.currentTimeMillis()
             Log.i(TAG, "refresh: +$added items from ${feeds.size} feeds")
@@ -169,25 +169,25 @@ class FeedIngestor(
         }
 
     /**
-     * Polls enabled `search` rules as Google News RSS, through the same
+     * Polls enabled `search` sources as Google News RSS, through the same
      * fetch/parse/store path as catalog feeds (same cache discipline, stale
-     * fallback included). Deliberately outside [statuses]: rule health is not a
-     * status-screen concern in v1, so no screen changes.
+     * fallback included). Deliberately outside [statuses]: source health is not
+     * a status-screen concern in v1, so no screen changes.
      *
      * Returns items added.
      */
-    private suspend fun refreshSearchRules(now: Long): Int {
+    private suspend fun refreshSearchSources(now: Long): Int {
         val rules =
-            runCatching { loadRules() }
-                .onFailure { Log.w(TAG, "rules load failed", it) }
+            runCatching { loadSources() }
+                .onFailure { Log.w(TAG, "sources load failed", it) }
                 .getOrElse { emptyList() }
-                .filter { it.enabled && RuleKind.from(it.kind) == RuleKind.SEARCH }
+                .filter { it.enabled && SourceKind.from(it.kind) == SourceKind.SEARCH }
 
         var added = 0
         for (rule in rules) {
             val spec =
-                runCatching { RuleSpecs.parse(RuleKind.SEARCH, rule.specJson) as SearchSpec }
-                    .onFailure { Log.w(TAG, "bad search spec for rule ${rule.id}", it) }
+                runCatching { SourceSpecs.parse(SourceKind.SEARCH, rule.specJson) as SearchSpec }
+                    .onFailure { Log.w(TAG, "bad search spec for source ${rule.id}", it) }
                     .getOrNull() ?: continue
 
             val key = "rule:${rule.id}"
@@ -198,7 +198,7 @@ class FeedIngestor(
                 } else {
                     val body =
                         runCatching { fetch(GnewsUrl.build(spec.query)) }
-                            .onFailure { Log.w(TAG, "rule fetch failed: ${rule.name}", it) }
+                            .onFailure { Log.w(TAG, "source fetch failed: ${rule.name}", it) }
                             .getOrNull()
                     if (body != null) {
                         cache.write(key, body, now)
@@ -211,16 +211,16 @@ class FeedIngestor(
 
             if (raw != null) {
                 val items = runCatching { FeedParser.parse(raw) }.getOrElse { emptyList() }
-                if (items.isNotEmpty()) added += ingestRule(rule, spec, items, now)
+                if (items.isNotEmpty()) added += ingestSource(rule, spec, items, now)
             }
         }
         return added
     }
 
     /**
-     * Polls enabled user `rss` rules through the same fetch/parse/store path as
+     * Polls enabled user `rss` sources through the same fetch/parse/store path as
      * catalog feeds (same cache discipline, stale fallback included).
-     * Deliberately outside [statuses]: rule health is not a status-screen
+     * Deliberately outside [statuses]: source health is not a status-screen
      * concern in v1, so no screen changes.
      *
      * Seeded `rss` rows are skipped: they mirror the catalog's URLs, which the
@@ -229,20 +229,20 @@ class FeedIngestor(
      *
      * Returns items added.
      */
-    private suspend fun refreshRssRules(now: Long): Int {
+    private suspend fun refreshRssSources(now: Long): Int {
         val rules =
-            runCatching { loadRules() }
-                .onFailure { Log.w(TAG, "rules load failed", it) }
+            runCatching { loadSources() }
+                .onFailure { Log.w(TAG, "sources load failed", it) }
                 .getOrElse { emptyList() }
-                .filter { it.enabled && !it.seeded && RuleKind.from(it.kind) == RuleKind.RSS }
+                .filter { it.enabled && !it.seeded && SourceKind.from(it.kind) == SourceKind.RSS }
 
         val health = LinkedHashMap<String, FeedStatus>()
-        _ruleStatuses.value.forEach { health[it.id] = it }
+        _sourceStatuses.value.forEach { health[it.id] = it }
 
         var added = 0
         for (rule in rules) {
             val spec =
-                runCatching { RuleSpecs.parse(RuleKind.RSS, rule.specJson) as RssSpec }
+                runCatching { SourceSpecs.parse(SourceKind.RSS, rule.specJson) as RssSpec }
                     .onFailure { Log.w(TAG, "bad rss spec for rule ${rule.id}", it) }
                     .getOrNull() ?: continue
 
@@ -284,7 +284,7 @@ class FeedIngestor(
             if (body != null) {
                 val items = runCatching { FeedParser.parse(body) }.getOrElse { emptyList() }
                 if (items.isNotEmpty()) {
-                    addedForRule = ingestUserRss(rule, spec, items, now)
+                    addedForRule = ingestUserFeed(rule, spec, items, now)
                     added += addedForRule
                 }
             }
@@ -303,10 +303,10 @@ class FeedIngestor(
                 )
         }
 
-        // Only live rules, so a deleted feed's dot does not outlive it.
+        // Only live sources, so a deleted feed's dot does not outlive it.
         val ordered = rules.mapNotNull { health[it.id] }
-        _ruleStatuses.value = ordered
-        persist(RULE_STATUS_KEY, ordered)
+        _sourceStatuses.value = ordered
+        persist(SOURCE_STATUS_KEY, ordered)
 
         return added
     }
@@ -328,23 +328,23 @@ class FeedIngestor(
         )
 
     /**
-     * Inserts one search rule's items through the same store path as feeds:
-     * dedupe by link on the existing `dedupe_key`, the rule's tags declared,
+     * Inserts one search source's items through the same store path as feeds:
+     * dedupe by link on the existing `dedupe_key`, the source's tags declared,
      * and the same items handed to the tag and mention writers.
      *
      * Google News RSS carries its outlet in the item's `<source>` element, but
      * [FeedParser] does not expose it and is deliberately not forked for v1 —
-     * attribution stays the item's own title/summary, and the RULE name is what
+     * attribution stays the item's own title/summary, and the SOURCE name is what
      * the tagger sees as sender and the label path shows.
      */
-    private suspend fun ingestRule(
-        rule: RuleEntity,
+    private suspend fun ingestSource(
+        rule: SourceEntity,
         spec: SearchSpec,
         items: List<FeedItem>,
         now: Long,
     ): Int =
         storeItems(
-            source = RuleSources.sourceFor(rule.id, spec),
+            source = SourceKeys.sourceFor(rule.id, spec),
             category = if (Tags.INCIDENT in spec.tags) FeedCategories.INCIDENT else FeedCategories.NEWS,
             sender = rule.name,
             language = spec.queryLangCode,
@@ -354,20 +354,20 @@ class FeedIngestor(
         )
 
     /**
-     * Inserts one user RSS rule's items through the same store path as feeds:
-     * dedupe by link on the existing `dedupe_key`, the rule's tags declared,
-     * and the rule name as sender. The feed declares no language, so the
+     * Inserts one user RSS source's items through the same store path as feeds:
+     * dedupe by link on the existing `dedupe_key`, the source's tags declared,
+     * and the source name as sender. The feed declares no language, so the
      * catalog default (`en`) applies — the tagger currently ignores language
      * anyway, and this keeps one ingest code path.
      */
-    private suspend fun ingestUserRss(
-        rule: RuleEntity,
+    private suspend fun ingestUserFeed(
+        rule: SourceEntity,
         spec: RssSpec,
         items: List<FeedItem>,
         now: Long,
     ): Int =
         storeItems(
-            source = RuleSources.sourceFor(rule.id, spec),
+            source = SourceKeys.sourceFor(rule.id, spec),
             category = if (Tags.INCIDENT in spec.tags) FeedCategories.INCIDENT else FeedCategories.NEWS,
             sender = rule.name,
             language = DEFAULT_LANGUAGE,
@@ -418,7 +418,7 @@ class FeedIngestor(
                 record.ulid to
                 TagInput(
                     text = "${record.title}\n${record.content}",
-                    source = SourceKind.RSS,
+                    source = TagSourceKind.RSS,
                     sender = sender,
                     language = language,
                     // The rule declares its own tags; the tagger must not
@@ -444,9 +444,9 @@ class FeedIngestor(
         persist(STATUS_KEY, list)
     }
 
-    private fun loadRuleStatuses(): List<FeedStatus> =
+    private fun loadSourceStatuses(): List<FeedStatus> =
         cache
-            .read(RULE_STATUS_KEY)
+            .read(SOURCE_STATUS_KEY)
             ?.let { entry ->
                 runCatching { json.decodeFromString<List<FeedStatus>>(entry.value) }.getOrNull()
             }.orEmpty()
@@ -464,7 +464,7 @@ class FeedIngestor(
         const val DEFAULT_REFRESH_MS = 60L * 60 * 1000
 
         private const val STATUS_KEY = "feed:status"
-        private const val RULE_STATUS_KEY = "feed:rule-status"
+        private const val SOURCE_STATUS_KEY = "feed:rule-status"
 
         /** What a feed declares when it says nothing: mirrors `FeedSource`. */
         private const val DEFAULT_LANGUAGE = "en"

@@ -5,39 +5,31 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * One v1 rule (ADR 0002): either a plain feed URL (`rss`) or a Google News
- * query (`search`). The spec is an opaque per-kind JSON string, validated at
- * write by [com.personalos.app.core.rules.RuleSpecs] — never by the schema, so
- * a future kind is a parser + adapter, never a migration.
+ * A rule (ADR 0003): a named condition and action, stored as opaque JSON.
  *
- * `seeded = 1` rows are bundled coverage and **locked, add-only**: the only
- * operation is inserting new rows. Enforcement lives in [RuleRepository] (the
- * single owner) with a `seeded = 0` guard in the DAO's own SQL, not in the UI.
+ * Storage only in this slice — nothing evaluates a rule yet, so `condition_json`
+ * and `action_json` are carried verbatim. The predicate language, its
+ * validation and the evaluator arrive without a schema change.
+ *
+ * `seeded = 1` rows are bundled and locked, add-only, exactly as
+ * [SourceEntity] seeds are. `position` is ordering-for-surfacing, not a fetch
+ * interval.
  */
 @Entity(tableName = "rules")
 data class RuleEntity(
     /** ULID string (cf. ARCHITECTURE.md §11.1). */
     @PrimaryKey @ColumnInfo(name = "id") val id: String,
-    /** User-visible label, e.g. `West Bengal`. Shown in the UI label path. */
+    /** User-visible label. */
     @ColumnInfo(name = "name") val name: String,
-    /** `rss` | `search` — the v1 closed set (see `RuleKind`). */
-    @ColumnInfo(name = "kind") val kind: String,
-    /** Opaque per-kind JSON; required keys per kind, unknown keys rejected. */
-    @ColumnInfo(name = "spec_json") val specJson: String,
+    @ColumnInfo(name = "enabled") val enabled: Boolean,
     /** True for bundled seeds (locked); false for user rules (editable). */
     @ColumnInfo(name = "seeded") val seeded: Boolean,
-    @ColumnInfo(name = "enabled") val enabled: Boolean,
+    /** Opaque condition JSON; the predicate language lands in slice 2. */
+    @ColumnInfo(name = "condition_json") val conditionJson: String,
+    /** Opaque action JSON; delivery semantics land later. */
+    @ColumnInfo(name = "action_json") val actionJson: String,
+    @ColumnInfo(name = "position") val position: Long,
     /** Epoch ms the row was written. */
     @ColumnInfo(name = "created_at") val createdAt: Long,
-    /**
-     * Epoch ms the row was last edited (user enable/disable). Null for rows
-     * written before v9; seeds and new user rules write both stamps.
-     */
     @ColumnInfo(name = "updated_at") val updatedAt: Long? = null,
-    /**
-     * Re-poll interval in seconds. Null follows the shared feed schedule; user
-     * rows default to it at insert (the same cadence the catalog feeds use).
-     * Seeds stay null — the catalog pass already paces those URLs.
-     */
-    @ColumnInfo(name = "interval_sec") val intervalSec: Long? = null,
 )

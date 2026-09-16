@@ -1,7 +1,7 @@
 package com.personalos.app.ui.sources
 
-import com.personalos.app.core.rules.RuleKind
-import com.personalos.app.data.RuleEntity
+import com.personalos.app.core.sources.SourceKind
+import com.personalos.app.data.SourceEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -16,10 +16,10 @@ class UserFeedsSectionTest {
         name: String,
         url: String,
         seeded: Boolean = false,
-    ) = RuleEntity(
+    ) = SourceEntity(
         id = "id-$name",
         name = name,
-        kind = RuleKind.RSS.serialName,
+        kind = SourceKind.RSS.serialName,
         specJson = """{"url": "$url", "tags": ["news"]}""",
         seeded = seeded,
         enabled = true,

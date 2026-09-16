@@ -7,6 +7,33 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## refactor(data): the rules table becomes sources, and rules becomes real
+
+_2026-09-16_
+
+The table called `rules` was a source registry - 13 seeded rows of fetch specs,
+with no condition, action or delivery anywhere in it. It is renamed `sources`,
+and `rules` becomes the real thing: condition_json, action_json, position.
+Matches get their own append-only table, `item_rules`, modelled on `item_tags`,
+so a match is written once and read wherever a view asks for it.
+
+The rename is thorough rather than table-only. `RuleEntity` could not mean both
+a source and a rule, and a `SourceEntity` holding a `RuleKind` would be a lie,
+so the concept is renamed through the data layer (`SourceEntity`, `SourceDao`,
+`SourceRepository`, `SourceSeeder`) and the portable core moves from
+`core/rules/` to `core/sources/` (`SourceKind`, `SourceSpecs`, `SourceKeys`).
+That leaves `core/rules/` free for the evaluator, which is where the ADR puts it.
+
+No behaviour change: same seeds, same locked-seed enforcement, same ingest path,
+no evaluator and no rule matching yet. Condition/action validation arrives with
+the predicate language, not here.
+
+Verified: 250 tests green. The +1 is the new v10 to v11 case, which seeds a row
+into the old `rules` table, migrates, and asserts it survives the rename with
+`updated_at` and `interval_sec` intact, plus both `item_rules` indexes. The
+schema was exported as 11.json and the five `DEFAULT` grep hits are all doc
+comments explaining why defaults are deliberately omitted.
+
 ## design: off-theme font options, and the mockups actually parse again
 
 _2026-09-16_

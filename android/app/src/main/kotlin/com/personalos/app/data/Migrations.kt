@@ -189,8 +189,8 @@ val MIGRATION_6_7_STATEMENTS: List<String> =
  * survive in the migrated schema where Room expects none, failing validation
  * on open), and no `CHECK(kind ...)` (Room does not model CHECK, so a migrated
  * database would enforce what a fresh install does not). The kind closed set
- * is enforced at write by `RuleSpecs` instead — same guarantee, identical
- * schemas either way. Column order and affinities mirror `RuleEntity`.
+ * is enforced at write by `SourceSpecs` instead — same guarantee, identical
+ * schemas either way. Column order and affinities mirror `SourceEntity`.
  */
 val MIGRATION_7_8_STATEMENTS: List<String> =
     listOf(
@@ -238,6 +238,48 @@ val MIGRATION_9_10_STATEMENTS: List<String> =
     listOf("ALTER TABLE rules ADD COLUMN interval_sec INTEGER")
 
 /**
+ * v10 -> v11: sources and rules split (ADR 0003).
+ *
+ * The old `rules` table held a source registry, not rules, so it is renamed in
+ * place — data untouched, a plain `ALTER TABLE ... RENAME TO`, which is also
+ * what carries its `updated_at` and `interval_sec` columns across. `rules` is
+ * then free for the real thing, and matches are materialised like tags.
+ *
+ * New tables only after the rename: no rebuild, no defaults to trip Room's
+ * schema validation (see the note above). Column order and affinities mirror
+ * `RuleEntity` and `ItemRuleEntity`, and the index names are the ones Room
+ * generates for their `Index` annotations.
+ */
+val MIGRATION_10_11_STATEMENTS: List<String> =
+    listOf(
+        "ALTER TABLE rules RENAME TO sources",
+        """
+        CREATE TABLE IF NOT EXISTS rules (
+            id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            enabled INTEGER NOT NULL,
+            seeded INTEGER NOT NULL,
+            condition_json TEXT NOT NULL,
+            action_json TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS item_rules (
+            item_id TEXT NOT NULL,
+            rule_id TEXT NOT NULL,
+            matched_at INTEGER NOT NULL,
+            PRIMARY KEY(item_id, rule_id)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_item_rules_rule_id_item_id ON item_rules (rule_id, item_id)",
+        "CREATE INDEX IF NOT EXISTS index_item_rules_item_id ON item_rules (item_id)",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -254,6 +296,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         8 to MIGRATION_7_8_STATEMENTS,
         9 to MIGRATION_8_9_STATEMENTS,
         10 to MIGRATION_9_10_STATEMENTS,
+        11 to MIGRATION_10_11_STATEMENTS,
     )
 
 /** The newest version this build can migrate to. */

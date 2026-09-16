@@ -19,8 +19,8 @@ import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PlaceEntity
 import com.personalos.app.data.RetagCandidate
-import com.personalos.app.data.RuleEntity
 import com.personalos.app.data.SourceCount
+import com.personalos.app.data.SourceEntity
 import com.personalos.app.data.TagCount
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.TaggedEvent
@@ -33,13 +33,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * One hand fixture proves the whole rule path: an enabled `search` rule is
+ * One hand fixture proves the whole source path: an enabled `search` source is
  * fetched as Google News RSS, its item lands with a `gnews:<slug>` source and
- * the rule's tags, and the same item reaches the tag and mention writers.
+ * the source's tags, and the same item reaches the tag and mention writers.
  * Dedupe rides the existing `dedupe_key`: a second poll of the same link adds
  * nothing.
  */
-class FeedIngestorRulesTest {
+class FeedIngestorSourcesTest {
     private class FakeEventDao : EventDao {
         val rows = mutableListOf<EventEntity>()
         private val keys = mutableSetOf<String>()
@@ -239,7 +239,7 @@ class FeedIngestorRulesTest {
         )
 
     private val rule =
-        RuleEntity(
+        SourceEntity(
             id = "rule-1",
             name = "West Bengal",
             kind = "search",
@@ -271,7 +271,7 @@ class FeedIngestorRulesTest {
         tags: FakeItemTagDao,
         mentions: FakeMentionDao,
         tagger: FakeTagger,
-        rules: List<RuleEntity>,
+        rules: List<SourceEntity>,
         fetched: MutableList<String>,
         places: List<PlaceEntity> = listOf(kolkata),
     ): FeedIngestor =
@@ -286,7 +286,7 @@ class FeedIngestorRulesTest {
                     loadParties = { emptyList() },
                 ),
             feeds = emptyList<FeedSource>(),
-            loadRules = { rules },
+            loadSources = { rules },
             fetch = { url ->
                 fetched += url
                 fixture
@@ -349,7 +349,7 @@ class FeedIngestorRulesTest {
         }
 
     @Test
-    fun `disabled and non-search rules are never polled`() =
+    fun `disabled and non-search sources are never polled`() =
         runBlocking {
             val fetched = mutableListOf<String>()
             val ingestor =

@@ -14,7 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.personalos.app.core.rules.GnewsUrl
+import com.personalos.app.core.sources.GnewsUrl
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.ui.theme.CategoryColors

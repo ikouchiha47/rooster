@@ -2,7 +2,7 @@ package com.personalos.app.data
 
 import android.util.Log
 import com.personalos.app.core.feed.FeedCatalog
-import com.personalos.app.core.rules.RuleSpecs
+import com.personalos.app.core.sources.SourceSpecs
 import com.personalos.app.core.tag.Ulid
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,7 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Seeds the `rules` table with the day-one set (ADR 0002) on first launch.
+ * Seeds the `sources` table with the day-one set (ADR 0003) on first launch.
  * Mirrors [PlacesSeeder]/[PartySeeder]:
  *
  * Runs once: when the table is non-empty this is a single `COUNT(*)` and
@@ -21,12 +21,12 @@ import kotlinx.serialization.json.JsonPrimitive
  * failure returns 0 — ingest falls back to the feed catalog, it never crashes
  * launch.
  *
- * 13 locked rows: 4 `search` rules (Bangalore, Kolkata, Karnataka, West Bengal)
+ * 13 locked rows: 4 `search` sources (Bangalore, Kolkata, Karnataka, West Bengal)
  * plus 9 `rss` imports mirroring the bundled [FeedCatalog] ids, urls and tags
  * exactly.
  */
-class RuleSeeder(
-    private val dao: RuleDao,
+class SourceSeeder(
+    private val dao: SourceDao,
 ) {
     suspend fun seed(now: Long = System.currentTimeMillis()): Int =
         // Owns its dispatcher (see Retagger.run).
@@ -34,23 +34,23 @@ class RuleSeeder(
             runCatching {
                 if (dao.count() > 0) return@runCatching 0
                 val rows = searchSeeds(now) + rssSeeds(now)
-                rows.forEach { RuleSpecs.parse(it.kind, it.specJson) }
+                rows.forEach { SourceSpecs.parse(it.kind, it.specJson) }
                 dao.insertAll(rows)
-                Log.i(TAG, "seeded ${rows.size} rules")
+                Log.i(TAG, "seeded ${rows.size} sources")
                 rows.size
-            }.onFailure { Log.w(TAG, "rules seed failed", it) }
+            }.onFailure { Log.w(TAG, "sources seed failed", it) }
                 .getOrDefault(0)
         }
 
     private companion object {
-        const val TAG = "Rules"
+        const val TAG = "Sources"
 
-        /** City/state coverage; the country-top edition is deliberately dropped (ADR 0002). */
+        /** City/state coverage; the country-top edition is deliberately dropped (ADR 0003). */
         val SEARCH_QUERIES = listOf("Bangalore", "Kolkata", "Karnataka", "West Bengal")
 
-        fun searchSeeds(now: Long): List<RuleEntity> =
+        fun searchSeeds(now: Long): List<SourceEntity> =
             SEARCH_QUERIES.map { query ->
-                RuleEntity(
+                SourceEntity(
                     id = Ulid.next(),
                     name = query,
                     kind = "search",
@@ -70,9 +70,9 @@ class RuleSeeder(
                 )
             }
 
-        fun rssSeeds(now: Long): List<RuleEntity> =
+        fun rssSeeds(now: Long): List<SourceEntity> =
             FeedCatalog.SEEDS.map { source ->
-                RuleEntity(
+                SourceEntity(
                     id = Ulid.next(),
                     name = source.name,
                     kind = "rss",

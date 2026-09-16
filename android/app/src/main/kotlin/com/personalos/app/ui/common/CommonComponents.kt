@@ -41,8 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowInsetsControllerCompat
 import com.personalos.app.core.feed.FeedCatalog
-import com.personalos.app.core.rules.GnewsUrl
-import com.personalos.app.core.rules.RuleSources
+import com.personalos.app.core.sources.GnewsUrl
+import com.personalos.app.core.sources.SourceKeys
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import kotlin.math.pow
@@ -137,26 +137,26 @@ fun CategorySpine(
  * "THEHINDU TOP" - a feed id leaking into the UI, and a different-looking label in
  * each of the three places that derived it. One name per source, derived once.
  *
- * Rule rows (`gnews:<slug>`) resolve through [ruleNames] — source string to the
- * rule's user-visible name — so an item shows its RULE name. Anything neither
- * the catalog nor the rules know - an SMS sender, a removed feed, an unknown
- * rule - falls back to a de-slugged id, so a label is never blank.
+ * Source rows (`gnews:<slug>`) resolve through [sourceNames] — source string to
+ * the source's user-visible name — so an item shows its SOURCE name. Anything
+ * neither the catalog nor the sources know - an SMS sender, a removed feed, an
+ * unknown source - falls back to a de-slugged id, so a label is never blank.
  */
 fun sourceDisplayName(
     source: String,
-    ruleNames: Map<String, String> = emptyMap(),
+    sourceNames: Map<String, String> = emptyMap(),
 ): String {
-    // A search-rule row is named by its query slug, which reads as a place
+    // A search-source row is named by its query slug, which reads as a place
     // ("KOLKATA") rather than a provenance. The outlet already rides in the
     // headline ("... - NDTV"), so the label says where the row came from.
-    if (source.startsWith(GnewsUrl.SOURCE_PREFIX)) return ruleNames[source] ?: "Google News"
-    if (source.startsWith(RuleSources.USER_RSS_PREFIX)) return ruleNames[source] ?: "Feed"
-    return ruleNames[source]
+    if (source.startsWith(GnewsUrl.SOURCE_PREFIX)) return sourceNames[source] ?: "Google News"
+    if (source.startsWith(SourceKeys.USER_RSS_PREFIX)) return sourceNames[source] ?: "Feed"
+    return sourceNames[source]
         ?: FeedCatalog.bySource(source)?.name
         ?: source
             .removePrefix(FeedCatalog.SOURCE_PREFIX)
             .removePrefix(GnewsUrl.SOURCE_PREFIX)
-            .removePrefix(RuleSources.USER_RSS_PREFIX)
+            .removePrefix(SourceKeys.USER_RSS_PREFIX)
             .replace('-', ' ')
 }
 

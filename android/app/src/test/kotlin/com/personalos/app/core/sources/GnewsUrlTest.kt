@@ -1,4 +1,4 @@
-package com.personalos.app.core.rules
+package com.personalos.app.core.sources
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

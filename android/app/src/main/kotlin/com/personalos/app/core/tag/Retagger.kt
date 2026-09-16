@@ -33,10 +33,10 @@ class Retagger(
     private val tagger: Tagger,
     /**
      * Declared tags by source for rows the catalog does not know (search
-     * rules). Loaded once per run; defaults to none so the catalog-only path
-     * needs no rules dependency.
+     * sources). Loaded once per run; defaults to none so the catalog-only path
+     * needs no sources dependency.
      */
-    private val ruleTags: suspend () -> Map<String, Set<String>> = { emptyMap() },
+    private val sourceTags: suspend () -> Map<String, Set<String>> = { emptyMap() },
 ) {
     /**
      * Tags up to `batchSize * maxBatches` items. Returns how many items gained
@@ -53,7 +53,7 @@ class Retagger(
             var cursor = cache.read(cursorKey())?.value?.toLongOrNull() ?: 0L
             var tagged = 0
             var batches = 0
-            val extras = runCatching { ruleTags() }.getOrDefault(emptyMap())
+            val extras = runCatching { sourceTags() }.getOrDefault(emptyMap())
 
             while (batches < maxBatches) {
                 val batch = dao.itemsAfter(cursor, batchSize)
@@ -75,7 +75,7 @@ class Retagger(
 
     private fun cursorKey() = "retag:cursor:${tagger.id}:r$RECOVERY_VERSION"
 
-    private fun RetagCandidate.toTagInput(ruleTags: Map<String, Set<String>>): Pair<String, TagInput> {
+    private fun RetagCandidate.toTagInput(sourceTags: Map<String, Set<String>>): Pair<String, TagInput> {
         val isSms = source == SMS_SOURCE
 
         return ulid to
@@ -87,14 +87,14 @@ class Retagger(
                 sender = title.takeIf { isSms },
                 // Recover the source's full tag set from the catalog rather than
                 // the single `category` column, so a re-tag restores *all* of a
-                // source's tags. Rules the catalog never heard of fall back to
-                // the rule table. SMS rows store an SmsClass name in `category`,
+                // source's tags. Sources the catalog never heard of fall back to
+                // the source table. SMS rows store an SmsClass name in `category`,
                 // which is not a tag, so they declare nothing.
                 declaredTags =
                     if (isSms) {
                         emptySet()
                     } else {
-                        FeedCatalog.bySource(source)?.tags ?: ruleTags[source].orEmpty()
+                        FeedCatalog.bySource(source)?.tags ?: sourceTags[source].orEmpty()
                     },
             )
     }
@@ -107,7 +107,7 @@ class Retagger(
 
         /**
          * Bump when what a re-tag *recovers* changes without a tagger version
-         * bump (r1: rule-table fallback for non-catalog sources). A new cursor
+         * bump (r1: source-table fallback for non-catalog sources). A new cursor
          * starts a fresh walk; the orphaned old cursor is one tiny prefs row.
          */
         const val RECOVERY_VERSION = 1

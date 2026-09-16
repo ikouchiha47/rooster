@@ -68,7 +68,7 @@ class MigrationSchemaTest {
 
     @Test
     fun `the exported schema describes exactly what we expect`() {
-        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "rules"), tables.keys)
+        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules"), tables.keys)
         assertEquals(setOf("item_tags_current"), views.keys)
     }
 
@@ -170,7 +170,7 @@ class MigrationSchemaTest {
     }
 
     @Test
-    fun `v8 to v9 backfills ingested_at from timestamp and adds rules updated_at`() {
+    fun `v8 to v9 backfills ingested_at from timestamp and adds sources updated_at`() {
         withMigratedV2Database { db ->
             // True ingest time is unknowable for old rows: publish time is the
             // honest fallback, backfilled in the same migration.
@@ -185,14 +185,14 @@ class MigrationSchemaTest {
                     }
                     assertEquals(2, rows)
                 }
-            // Nullable: pre-v9 rule rows have no edit to stamp.
+            // Nullable: pre-v9 registry rows have no edit to stamp.
             db
                 .createStatement()
-                .executeQuery("PRAGMA table_info(`rules`)")
+                .executeQuery("PRAGMA table_info(`sources`)")
                 .use { rs ->
                     val columns = buildMap { while (rs.next()) put(rs.getString("name"), rs.getInt("notnull")) }
-                    assertTrue("rules.updated_at", columns.containsKey("updated_at"))
-                    assertEquals("rules.updated_at is nullable", 0, columns.getValue("updated_at"))
+                    assertTrue("sources.updated_at", columns.containsKey("updated_at"))
+                    assertEquals("sources.updated_at is nullable", 0, columns.getValue("updated_at"))
                 }
             db
                 .createStatement()
@@ -205,7 +205,97 @@ class MigrationSchemaTest {
         }
     }
 
+    @Test
+    fun `v10 to v11 renames rules to sources and creates rules and item_rules`() {
+        withMigratedToV10 { db ->
+            // The old registry row survives the rename, and so do the columns
+            // the rename is meant to carry: `updated_at` and `interval_sec`.
+            val sources =
+                db
+                    .createStatement()
+                    .executeQuery("SELECT id, updated_at, interval_sec FROM `sources`")
+                    .use { rs ->
+                        buildList { while (rs.next()) add(Triple(rs.getString(1), rs.getLong(2), rs.getLong(3))) }
+                    }
+            assertEquals(listOf(Triple("seed-1", 2L, 3600L)), sources)
+            assertEquals(
+                "sources columns",
+                setOf("id", "name", "kind", "spec_json", "seeded", "enabled", "created_at", "updated_at", "interval_sec"),
+                columnsOf(db, "sources").keys,
+            )
+            assertEquals(
+                "rules columns",
+                setOf("id", "name", "enabled", "seeded", "condition_json", "action_json", "position", "created_at", "updated_at"),
+                columnsOf(db, "rules").keys,
+            )
+            assertEquals(
+                "item_rules columns",
+                setOf("item_id", "rule_id", "matched_at"),
+                columnsOf(db, "item_rules").keys,
+            )
+            assertEquals(
+                "item_rules indices",
+                setOf(listOf("rule_id", "item_id"), listOf("item_id")),
+                indexColumnsOf(db, "item_rules"),
+            )
+        }
+    }
+
     // ----------------------------------------------------------------- helpers
+
+    /**
+     * Replays the chain to v10, inserts one row in the old `rules` registry,
+     * then applies v11 — so the rename's data retention can be asserted, which
+     * the whole-chain replay (with its empty tables) cannot show.
+     */
+    private fun withMigratedToV10(block: (Connection) -> Unit) {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
+            V2_STATEMENTS.forEach { db.createStatement().executeUpdate(it) }
+            MIGRATION_STATEMENTS.entries
+                .sortedBy { it.key }
+                .filter { it.key <= 10 }
+                .forEach { (_, statements) -> statements.forEach { db.createStatement().executeUpdate(it) } }
+            db
+                .createStatement()
+                .executeUpdate(
+                    """
+                    INSERT INTO rules (id, name, kind, spec_json, seeded, enabled, created_at, updated_at, interval_sec)
+                    VALUES ('seed-1', 'West Bengal', 'search', '{"query": "West Bengal"}', 1, 1, 1, 2, 3600)
+                    """.trimIndent(),
+                )
+            MIGRATION_STATEMENTS
+                .getValue(11)
+                .forEach { db.createStatement().executeUpdate(it) }
+            block(db)
+        }
+    }
+
+    private fun columnsOf(
+        db: Connection,
+        table: String,
+    ): Map<String, Int> =
+        db.createStatement().executeQuery("PRAGMA table_info(`$table`)").use { rs ->
+            buildMap { while (rs.next()) put(rs.getString("name"), rs.getInt("notnull")) }
+        }
+
+    private fun indexColumnsOf(
+        db: Connection,
+        table: String,
+    ): Set<List<String>> {
+        val names = mutableListOf<String>()
+        db.createStatement().executeQuery("PRAGMA index_list(`$table`)").use { rs ->
+            while (rs.next()) {
+                val name = rs.getString("name")
+                if (!name.startsWith("sqlite_autoindex")) names += name
+            }
+        }
+        return names
+            .map { name ->
+                db.createStatement().executeQuery("PRAGMA index_info(`$name`)").use { rs ->
+                    buildList { while (rs.next()) add(rs.getString("name")) }
+                }
+            }.toSet()
+    }
 
     private fun withMigratedV2Database(block: (Connection) -> Unit) {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->

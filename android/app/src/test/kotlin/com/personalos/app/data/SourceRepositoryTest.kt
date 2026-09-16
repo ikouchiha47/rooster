@@ -14,22 +14,22 @@ import org.junit.Test
  * works. The fake mirrors the DAO's `seeded = 0` SQL guards, so these tests
  * prove the contract, not just the fake.
  */
-class RuleRepositoryTest {
-    private class FakeRuleDao(
-        val rows: MutableList<RuleEntity> = mutableListOf(),
-    ) : RuleDao {
-        override fun observeAll(): Flow<List<RuleEntity>> = flowOf(rows.toList())
+class SourceRepositoryTest {
+    private class FakeSourceDao(
+        val rows: MutableList<SourceEntity> = mutableListOf(),
+    ) : SourceDao {
+        override fun observeAll(): Flow<List<SourceEntity>> = flowOf(rows.toList())
 
-        override suspend fun all(): List<RuleEntity> = rows.toList()
+        override suspend fun all(): List<SourceEntity> = rows.toList()
 
-        override suspend fun enabled(): List<RuleEntity> = rows.filter { it.enabled }
+        override suspend fun enabled(): List<SourceEntity> = rows.filter { it.enabled }
 
         override suspend fun count(): Int = rows.size
 
-        override suspend fun insertAll(rules: List<RuleEntity>): List<Long> =
-            rules.map { rule ->
-                if (rows.none { it.id == rule.id }) {
-                    rows += rule
+        override suspend fun insertAll(sources: List<SourceEntity>): List<Long> =
+            sources.map { source ->
+                if (rows.none { it.id == source.id }) {
+                    rows += source
                     1L
                 } else {
                     -1L
@@ -51,10 +51,10 @@ class RuleRepositoryTest {
     }
 
     private fun dao() =
-        FakeRuleDao(
+        FakeSourceDao(
             mutableListOf(
-                RuleEntity("seed-1", "West Bengal", "search", SEARCH_SPEC, true, true, 1L),
-                RuleEntity("user-1", "Mine", "rss", RSS_SPEC, false, true, 1L),
+                SourceEntity("seed-1", "West Bengal", "search", SEARCH_SPEC, true, true, 1L),
+                SourceEntity("user-1", "Mine", "rss", RSS_SPEC, false, true, 1L),
             ),
         )
 
@@ -63,7 +63,7 @@ class RuleRepositoryTest {
         runBlocking {
             val dao = dao()
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { RuleRepository(dao).setEnabled("seed-1", false) }
+                runBlocking { SourceRepository(dao).setEnabled("seed-1", false) }
             }
             assertTrue(dao.rows.first { it.id == "seed-1" }.enabled)
         }
@@ -73,7 +73,7 @@ class RuleRepositoryTest {
         runBlocking {
             val dao = dao()
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { RuleRepository(dao).delete("seed-1") }
+                runBlocking { SourceRepository(dao).delete("seed-1") }
             }
             assertEquals(2, dao.rows.size)
         }
@@ -82,7 +82,7 @@ class RuleRepositoryTest {
     fun `a user rule disables and deletes`() =
         runBlocking {
             val dao = dao()
-            val repository = RuleRepository(dao)
+            val repository = SourceRepository(dao)
             repository.setEnabled("user-1", false)
             assertTrue(dao.rows.none { it.enabled && it.id == "user-1" })
             repository.delete("user-1")
@@ -94,10 +94,10 @@ class RuleRepositoryTest {
         runBlocking {
             val dao = dao()
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { RuleRepository(dao).setEnabled("missing", false) }
+                runBlocking { SourceRepository(dao).setEnabled("missing", false) }
             }
             assertThrows(IllegalStateException::class.java) {
-                runBlocking { RuleRepository(dao).delete("missing") }
+                runBlocking { SourceRepository(dao).delete("missing") }
             }
         }
     }
@@ -106,21 +106,21 @@ class RuleRepositoryTest {
     fun `adding a user rule validates the spec before insert`() =
         runBlocking {
             val dao = dao()
-            val repository = RuleRepository(dao)
+            val repository = SourceRepository(dao)
 
-            val row = repository.addUserRule("Express", "rss", RSS_SPEC, now = 2L)
+            val row = repository.addUserSource("Express", "rss", RSS_SPEC, now = 2L)
             assertEquals(false, row.seeded)
             assertEquals(true, row.enabled)
             assertEquals(3, dao.rows.size)
 
             assertThrows(IllegalArgumentException::class.java) {
-                runBlocking { repository.addUserRule("Bad", "rss", """{"tags": ["news"]}""") }
+                runBlocking { repository.addUserSource("Bad", "rss", """{"tags": ["news"]}""") }
             }
             assertThrows(IllegalArgumentException::class.java) {
-                runBlocking { repository.addUserRule("  ", "rss", RSS_SPEC) }
+                runBlocking { repository.addUserSource("  ", "rss", RSS_SPEC) }
             }
             assertThrows(IllegalArgumentException::class.java) {
-                runBlocking { repository.addUserRule("Future", "scrape", """{"url": "https://x"}""") }
+                runBlocking { repository.addUserSource("Future", "scrape", """{"url": "https://x"}""") }
             }
             assertEquals("nothing invalid was stored", 3, dao.rows.size)
         }
@@ -129,7 +129,7 @@ class RuleRepositoryTest {
     fun `disabling a user rule stamps updated_at`() =
         runBlocking {
             val dao = dao()
-            RuleRepository(dao).setEnabled("user-1", false, now = 9L)
+            SourceRepository(dao).setEnabled("user-1", false, now = 9L)
             assertEquals(9L, dao.rows.first { it.id == "user-1" }.updatedAt)
         }
 
@@ -137,7 +137,7 @@ class RuleRepositoryTest {
     fun `adding a user rule writes both stamps`() =
         runBlocking {
             val dao = dao()
-            val row = RuleRepository(dao).addUserRule("Express", "rss", RSS_SPEC, now = 2L)
+            val row = SourceRepository(dao).addUserSource("Express", "rss", RSS_SPEC, now = 2L)
             assertEquals(2L, row.createdAt)
             assertEquals(2L, row.updatedAt)
         }

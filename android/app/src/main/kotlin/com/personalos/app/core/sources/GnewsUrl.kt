@@ -1,12 +1,12 @@
-package com.personalos.app.core.rules
+package com.personalos.app.core.sources
 
 import java.net.URLEncoder
 import java.util.Locale
 
 /**
- * Portable rules unit (ADR 0002): the Google News RSS query shape.
+ * Portable sources unit (ADR 0003): the Google News RSS query shape.
  *
- * Pure Kotlin, zero `android.*` imports — see [RuleKind]. `java.net` is JDK,
+ * Pure Kotlin, zero `android.*` imports — see [SourceKind]. `java.net` is JDK,
  * available to both the app and the unit tests.
  */
 object GnewsUrl {
