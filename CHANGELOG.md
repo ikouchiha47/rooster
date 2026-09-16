@@ -7,6 +7,28 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): slice 3 done — the engine evaluates and materialises
+
+_2026-09-16_
+
+Records slice 3 (947a222, merged 4ac256e): the evaluator over a RuleItem view,
+RuleWriter writing matches append-only, hooks into ingest and enrichment, and a
+dry run that persists nothing.
+
+Records why the series boundary is loud rather than silent: crossing, delta and
+min/max need a window slice 5 supplies, so evaluate rejects them before it
+evaluates anything, and an all with a series child cannot short-circuit past it
+behind a false sibling. RuleWriter then catches it per rule, so ingest survives
+but an unimplemented predicate can never masquerade as no match - the Liskov rule
+made structural instead of remembered.
+
+Also records the merge conflict this threw up: main had advanced with a docs
+commit while the branch was open, and the changelog hook prepends an entry in
+both, so CHANGELOG.md conflicted and was resolved newest-first by hand. Any
+parallel worktree will do this.
+
+Next is slice 6: seeded rules and a RuleRepository, then the UI.
+
 ## feat(rules): evaluate rules over landed items, and materialise matches
 
 _2026-09-16_

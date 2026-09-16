@@ -1,6 +1,6 @@
 # Plan 0002 — Sources, Items and Rules
 
-- **Status:** Slices 1 and 2 complete and merged (`43517af`, `90ff28c`, `4efc8be`), device-verified; slice 3 next
+- **Status:** Slices 1–3 complete and merged; the engine evaluates and materialises matches. Next: slice 6 (authoring) — seeded rules, then the UI.
 - **Date:** 2026-09-15
 - **Depends on:** ADR 0003 (sources/items/rules interfaces), ADR 0001 (zero-cost policy)
 - **Companion:** ADR 0002 (the superseded `rules`-as-sources model)
@@ -19,8 +19,8 @@ This file is the state that survives context loss. On resume:
 
 Rules of the loop: one slice at a time; never leave the tree non-building; commit only when asked; never edit application code without explicit permission.
 
-**Current state:** slices 1 and 2 are on `main` — `43517af` (the rename and schema v11), `90ff28c` (its review cleanup), `4efc8be` (the predicate language and the taxonomy owner). 291 tests green in-tree *and* from a fresh clone; migration v10→v11 verified on the device with `room_master_table.identity_hash` matching `11.json`. Nothing evaluates a rule yet, and the `rules` table has no rows — see the authoring gap under Known gaps.
-**Next action:** slice 3 — the evaluator and materialisation. A pure evaluator over item + tags + mentions + fields; ingest evaluation of new items; `RuleWriter` writing `item_rules` append-only; enrichment-triggered re-evaluation scoped to text-predicate rules and the enriched items; and a dry run that persists nothing.
+**Current state:** slices 1–3 are on `main` — `43517af` (rename + schema v11), `90ff28c` (its cleanup), `4efc8be` (predicate language + taxonomy owner), `947a222` (evaluator, `RuleWriter`, ingest and enrichment hooks, dry run; merged as `4ac256e`). 317 tests green in-tree *and* from a fresh clone; migration v10→v11 verified on the device with `room_master_table.identity_hash` matching `11.json`. The engine is complete, but the `rules` table is still empty — nothing authors a rule yet, which is slice 6.
+**Next action:** slice 6 — T6.1 `RuleSeeder` (locked seeded rules, mirroring `SourceSeeder`) and T6.2 `RuleRepository` with the locked-seed guard, then the UI. Seeding comes first because it is what makes the engine checkable on device.
 
 ---
 
@@ -155,12 +155,29 @@ a word boundary means.
 RE2/J would remove the class but is **not** a drop-in: it does not support lookaround, which is exactly
 what the word-boundary pattern is built from. Revisit only if a real stall appears.
 
-### Slice 3 — evaluator and materialisation
+### Slice 3 — evaluator and materialisation (complete, `947a222`)
 
-- [ ] T3.1 Pure evaluator over a supplied item + tags + mentions + fields. (R1, R7)
-- [ ] T3.2 Ingest evaluation of new items; `RuleWriter` writing `item_rules` append-only. (R2, R5)
-- [ ] T3.3 Enrichment-triggered re-evaluation, scoped to text-predicate rules and the enriched items. (R3)
-- [ ] T3.4 Dry run: evaluate over history, persist nothing. (R4)
+- [x] T3.1 Pure evaluator over a supplied item + tags + mentions + fields. (R1, R7)
+- [x] T3.2 Ingest evaluation of new items; `RuleWriter` writing `item_rules` append-only. (R2, R5)
+- [x] T3.3 Enrichment-triggered re-evaluation, scoped to text-predicate rules and the enriched items. (R3)
+- [x] T3.4 Dry run: evaluate over history, persist nothing. (R4)
+
+The evaluator's input is `RuleItem` — a plain view of one item, not a Room entity — so `core/rules` stays
+portable and the data layer owns storage. Ingest evaluates only rows whose insert was not deduped, so a
+re-fetched item does not re-trigger evaluation. Enrichment re-evaluates only enrichment-sensitive rules
+against only the items whose text grew.
+
+**Series predicates fail loudly, by design.** `crossing` / `delta` / `min` / `max` need a window that
+slice 5 supplies, so `evaluate` walks the tree and throws `SeriesPredicateUnsupportedException` *before*
+evaluating — an `all` with a series child cannot short-circuit past it behind a `false` sibling and
+quietly read as "never matches". `RuleWriter` catches it per rule, logs, and skips, so ingest survives
+while an unimplemented predicate can never masquerade as no match. This is the Liskov requirement from
+`CODE-DESIGN-GUIDELINES.md` made structural rather than remembered.
+
+**Known limit at this slice:** the dry run takes caller-supplied seeds; its bounded history query
+(ADR §12 — tag / source / date / mention, "last 7 days") is slice 5's, so nothing yet feeds it from the
+store. Typed `fields` are fully supported by the evaluator, but `events` has no column for them, so the
+data layer supplies none until slice 4.
 
 ### Slice 4 — source spec
 
@@ -248,6 +265,9 @@ Append-only. One line per landed change.
 - 2026-09-16 — **Slice 2 complete** as `4efc8be` (worktree `feat/rules-engine`, ff-merged, removed). `core/rules/` now holds the pure language: a sealed `Condition` over `all`/`any` with the item predicates (subject, nature, marker, mention, source, field, text) and the series predicates (crossing, delta, min/max over a window), plus `RuleAction` carrying delivery and position. Item predicates are single-key objects, so the JSON is `{"all":[{"subject":"games"},{"text":{"pattern":"bandh","target":"any"}}]}`; actions are `{"delivery":"push","position":10}`. Unknown keys are rejected in both, `isEnrichmentSensitive` recurses through nested composition, and text matching bounds pattern and input length with `(?u)` and the shared Unicode boundary definition.
 - 2026-09-16 — Authoring decided (slice 6): **seed it first, then build the UI.** Seeding before the UI because seeding makes slice 3 verifiable on device — a real match lands in `item_rules`, and that is the only way to check `matched_at` and the `@Insert(onConflict)` behaviour, which no JVM test in this project can reach. The UI follows the `design-rules/` mockups and goes to @designer rather than a plain implementer, because a rule builder is condition/action composition with a live dry-run preview, which is interaction design work. Slice 3 was already in flight when this was decided, so it lands as engine-only either way.
 - 2026-09-16 — Slice 2 also delivered the taxonomy owner it needed: `TagGroups` now owns subjects / natures / marker and `HeuristicTagger` reads it instead of its own `SUBJECTS` copy; a test proves the groups partition `Tags.ALL` exactly once. `WordBoundary` became a single owner too (two callers: the gazetteers and the text predicate). Notably `ARCHITECTURE.md` §10.5 claims `announcement` and `maintenance` natures that **do not exist as `Tags` constants** — they were not invented, and the discrepancy lives in `TagGroups`' KDoc. Evidence: 291 tests (40 new) in-tree and from a fresh clone, 53 tasks executed.
+
+- 2026-09-16 — **Slice 3 complete** as `947a222` (merged as `4ac256e`; worktree removed). `RuleEvaluator` walks a `RuleItem` (id, source, title, content, tags, mentions, typed fields — a plain view, not a Room entity) and answers every item predicate. `RuleWriter` writes matches append-only with `OnConflictStrategy.IGNORE`, is hooked into `FeedIngestor.storeItems` so only rows that actually landed are evaluated, and into `ArticleEnricher` so enrichment re-evaluates only enrichment-sensitive rules against only the items whose text grew. The dry run returns matches and never touches the match DAO — proved by a test that first shows the writer does persist, then asserts rows and insert-call counts are unchanged. 317 tests (26 new) in-tree and from a fresh clone.
+- 2026-09-16 — The merge of slice 3 hit a real `CHANGELOG.md` conflict, because `main` had advanced with a docs commit while the branch was open and the hook prepends an entry in both. Resolved by keeping both entries with the newer first, per the file's own newest-first convention. Worth remembering: **any parallel worktree will conflict on `CHANGELOG.md`**, so merges need that resolution by hand.
 
 ### Known gaps
 
