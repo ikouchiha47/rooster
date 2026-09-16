@@ -352,10 +352,12 @@ class FeedIngestorSourcesTest {
         rules: RuleDao = FakeRuleDao(),
         matches: FakeItemRuleDao = FakeItemRuleDao(),
         fields: ItemFieldDao = FakeItemFieldDao(),
+        cache: FakeCache = FakeCache(),
+        feeds: List<FeedSource> = emptyList(),
     ): FeedIngestor =
         FeedIngestor(
             dao = events,
-            cache = FakeCache(),
+            cache = cache,
             tagWriter = TagWriter(tags, tagger),
             mentionWriter =
                 MentionWriter(
@@ -364,7 +366,7 @@ class FeedIngestorSourcesTest {
                     loadParties = { emptyList() },
                 ),
             ruleWriter = RuleWriter(rules, matches, tags, mentions, fields),
-            feeds = emptyList<FeedSource>(),
+            feeds = feeds,
             loadSources = { sources },
             fetch = { url ->
                 fetched += url
@@ -508,4 +510,100 @@ class FeedIngestorSourcesTest {
         position = 0,
         createdAt = 1L,
     )
+
+    /** A plain catalog feed, so the `feed:<id>` cache key is exercised too. */
+    private val catalogFeed =
+        FeedSource(
+            id = "catalog-1",
+            name = "Catalog",
+            url = "https://example.com/feed",
+            primaryTag = "news",
+        )
+
+    @Test
+    fun `a fresh cached source payload is served without a fetch`() =
+        runBlocking {
+            val cache = FakeCache()
+            cache.write("rule:${source.id}", fixture, System.currentTimeMillis())
+            val events = FakeEventDao()
+            val fetched = mutableListOf<String>()
+
+            val ingestor =
+                ingestor(
+                    events,
+                    FakeItemTagDao(),
+                    FakeMentionDao(),
+                    FakeTagger(),
+                    listOf(source),
+                    fetched,
+                    cache = cache,
+                    places = emptyList(),
+                )
+
+            assertEquals(1, ingestor.refresh())
+
+            assertTrue("the cached body is ingested without a fetch", fetched.isEmpty())
+            assertEquals(1, events.rows.size)
+        }
+
+    @Test
+    fun `a forced refresh fetches despite a fresh cache entry`() =
+        runBlocking {
+            val cache = FakeCache()
+            cache.write("rule:${source.id}", fixture, System.currentTimeMillis())
+            val fetched = mutableListOf<String>()
+
+            val ingestor =
+                ingestor(
+                    FakeEventDao(),
+                    FakeItemTagDao(),
+                    FakeMentionDao(),
+                    FakeTagger(),
+                    listOf(source),
+                    fetched,
+                    cache = cache,
+                    places = emptyList(),
+                )
+
+            assertEquals(1, ingestor.refresh(force = true))
+
+            assertEquals(
+                listOf("https://news.google.com/rss/search?q=West+Bengal&hl=en-IN&gl=IN&ceid=IN:en"),
+                fetched,
+            )
+        }
+
+    @Test
+    fun `the catalog feed gate still applies and force bypasses it`() =
+        runBlocking {
+            val cache = FakeCache()
+            cache.write("feed:${catalogFeed.id}", fixture, System.currentTimeMillis())
+            val fetched = mutableListOf<String>()
+
+            ingestor(
+                FakeEventDao(),
+                FakeItemTagDao(),
+                FakeMentionDao(),
+                FakeTagger(),
+                emptyList(),
+                fetched,
+                cache = cache,
+                feeds = listOf(catalogFeed),
+                places = emptyList(),
+            ).refresh()
+            assertTrue("a fresh catalog payload is not refetched", fetched.isEmpty())
+
+            ingestor(
+                FakeEventDao(),
+                FakeItemTagDao(),
+                FakeMentionDao(),
+                FakeTagger(),
+                emptyList(),
+                fetched,
+                cache = cache,
+                feeds = listOf(catalogFeed),
+                places = emptyList(),
+            ).refresh(force = true)
+            assertEquals("force fetches the still-fresh catalog payload", listOf(catalogFeed.url), fetched)
+        }
 }

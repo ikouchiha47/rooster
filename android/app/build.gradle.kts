@@ -50,6 +50,11 @@ android {
         getByName("test") {
             kotlin.directories += "src/test/kotlin"
         }
+        // The FORCE_SYNC trigger is debug-only, so its sources live here and a
+        // release APK cannot contain them.
+        getByName("debug") {
+            kotlin.directories += "src/debug/kotlin"
+        }
     }
 }
 

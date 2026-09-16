@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only trigger surface. Merged into the debug variant's manifest only, so
+  a release build has no `com.personalos.app.FORCE_SYNC` receiver at all.
+
+  Invoke with:
+    adb shell am broadcast -a com.personalos.app.FORCE_SYNC \
+        -n com.personalos.app/.debug.ForceSyncReceiver
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name=".debug.ForceSyncReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.FORCE_SYNC" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

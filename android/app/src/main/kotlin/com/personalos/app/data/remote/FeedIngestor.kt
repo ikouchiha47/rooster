@@ -99,7 +99,16 @@ class FeedIngestor(
      */
     val sourceStatuses: StateFlow<List<FeedStatus>> = _sourceStatuses.asStateFlow()
 
-    suspend fun refresh(): Int =
+    /**
+     * Polls every catalog feed and enabled source, ingesting what lands.
+     *
+     * @param force bypass the payload cache for this call only, so feeds and
+     *   sources are fetched even when their cached body is still fresh.
+     *   Defaults to `false`: [DEFAULT_REFRESH_MS] is the normal gate, and a
+     *   forced sync is an explicit act (the debug-only `FORCE_SYNC`
+     *   broadcast), never the new normal.
+     */
+    suspend fun refresh(force: Boolean = false): Int =
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             var added = 0
@@ -119,7 +128,7 @@ class FeedIngestor(
                 val attemptAt = System.currentTimeMillis()
                 val key = "feed:${feed.id}"
                 val entry = cache.read(key)
-                val fresh = entry != null && now - entry.at < refreshAfterMs
+                val fresh = !force && entry != null && now - entry.at < refreshAfterMs
 
                 var ok = false
                 var error: String? = null
@@ -168,8 +177,8 @@ class FeedIngestor(
             _statuses.value = ordered
             persistStatuses(ordered)
 
-            added += refreshSearchSources(now)
-            added += refreshRssSources(now)
+            added += refreshSearchSources(now, force)
+            added += refreshRssSources(now, force)
 
             _lastSyncAt.value = System.currentTimeMillis()
             Log.i(TAG, "refresh: +$added items from ${feeds.size} feeds")
@@ -184,7 +193,10 @@ class FeedIngestor(
      *
      * Returns items added.
      */
-    private suspend fun refreshSearchSources(now: Long): Int {
+    private suspend fun refreshSearchSources(
+        now: Long,
+        force: Boolean,
+    ): Int {
         val sources =
             runCatching { loadSources() }
                 .onFailure { Log.w(TAG, "sources load failed", it) }
@@ -202,7 +214,7 @@ class FeedIngestor(
             val key = "rule:${source.id}"
             val entry = cache.read(key)
             val raw =
-                if (entry != null && now - entry.at < refreshAfterMs) {
+                if (!force && entry != null && now - entry.at < refreshAfterMs) {
                     entry.value
                 } else {
                     val body =
@@ -238,7 +250,10 @@ class FeedIngestor(
      *
      * Returns items added.
      */
-    private suspend fun refreshRssSources(now: Long): Int {
+    private suspend fun refreshRssSources(
+        now: Long,
+        force: Boolean,
+    ): Int {
         val sources =
             runCatching { loadSources() }
                 .onFailure { Log.w(TAG, "sources load failed", it) }
@@ -266,7 +281,7 @@ class FeedIngestor(
             var code: Int? = null
             var error: String? = null
             val body =
-                if (entry != null && now - entry.at < intervalMs) {
+                if (!force && entry != null && now - entry.at < intervalMs) {
                     ok = true
                     entry.value
                 } else {
