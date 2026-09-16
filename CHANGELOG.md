@@ -7,6 +7,39 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(adr): kinds, instances and declared keys — and why services are not providers
+
+_2026-09-17_
+
+Records the shape agreed while settling how a rule picks a source.
+
+A source has a kind, and most kinds have instances: an rss source is a feed, a
+weather source is a place, an fx source is a pair. Instances are rows in sources with
+kind and spec_json, which is already how the table works, so the authoring UI is
+two-level - pick the kind, then the instance - and a rule may name several instances,
+several kinds, or none at all. Empty means every source, which is what makes a
+cross-source rule possible.
+
+A kind declares its keys. That is what makes the builder honest rather than
+permissive: the field picker offers the keys of the kinds actually selected, so temp_c
+appears because a weather source is in play, and a field no selected kind supplies is
+never offered. FieldNames.SUPPLIED is a global {sender, amount} today, which is
+precisely why the builder cannot suggest a temperature - it has no idea weather
+exists.
+
+HistoryProvider is not a separate concept; it is the series shape from section 2.
+Observations are canonical items with their keys in item_fields (v12 exists for this)
+and a place as a mention, so a monitor's window is just stored rows, as section 8
+already requires.
+
+Services are not providers and must not become them: a tile is a view plus config and
+can aggregate several sources, while a provider produces one stream. But every service
+whose numbers come from outside must be backed by a source, or a temp > 40 rule is not
+unimplemented but impossible and no monitor can ever watch a rate. Consequence for
+Weather and M&M: their providers render a cache and write no events; they become
+series sources and the tiles read the store - with an empty state that says so, since
+a tile whose source has not fetched yet must not render blank.
+
 ## feat(sms): poll for new messages in the background, so classification stops waiting for the app
 
 _2026-09-17_

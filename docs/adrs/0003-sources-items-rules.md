@@ -320,8 +320,55 @@ ever specified — so nothing could supply a `field` predicate, and a rule using
 would have evaluated to false forever while looking like a broken engine. The
 omission is fixed here; the storage lands as its own schema slice.
 
-## Consequences
+### 14. Kinds, instances and declared keys (decided 2026-09-16)
 
+A source has a **kind**, and most kinds have **instances**:
+
+| kind | instance | declares keys |
+|---|---|---|
+| `rss` | one feed — The Hindu, Mint Money, … | — |
+| `gnews` | one query — "Kolkata" | — |
+| `sms` | the device's messages | `sender`, `amount` |
+| `weather` | one place — Kolkata | `temp_c`, `feels_like_c`, `humidity`, `wind_kph` |
+| `fx` | one pair — USD/INR | `rate` |
+| `fares` (later) | one route | `price`, `stops` |
+
+Instances are rows in `sources` with `kind` + `spec_json` (a url, a place, a pair) +
+an interval — which is already how the table works. So the authoring UI is
+**two-level: pick the kind, then the instance**, and a rule's source filter may name
+several instances across several kinds, or none at all (empty = every source, which
+is what makes a cross-source rule possible).
+
+**A kind declares its keys.** This is what makes the rule builder honest rather than
+permissive: the Match-when field picker offers the keys of the kinds actually
+selected, so `temp_c` appears because a weather source is in play, and a field no
+selected kind supplies simply isn't offered. Today `FieldNames.SUPPLIED` is a global
+`{sender, amount}`, which is why the builder cannot suggest a temperature — it has no
+idea weather exists.
+
+**`HistoryProvider` is not a separate concept.** It is the **series** shape from §2
+("fares, prices, any repeating measurement"). Its observations are canonical items:
+`source` = the instance, `timestamp` = when it is valid, keys in `item_fields` (v12
+exists for exactly this), and a place as a **mention** so place handling stays
+unified. A monitor's window is then just stored rows, as §8 already requires.
+
+**Services (tiles) are not providers, and must not become them.** A tile is a view
+plus config (§ "one fact, one owner"), and a tile can aggregate several sources —
+News shows many feeds, Radar shows everything — whereas a provider produces one
+stream. Collapsing them would break aggregation and put transport concerns in the
+view layer.
+
+**But every service whose numbers come from outside must be backed by a source**, so
+the number lands in the store rather than in a provider cache the tile reads. Without
+that, a `temp > 40` rule is not unimplemented but *impossible*, and no monitor can
+ever watch a rate — there is nothing stored to match or trend.
+
+Consequence for Weather and M&M: their providers currently render a cache and write
+no events. They become series sources — one instance per place, one per pair — and
+the tiles then read the store. That rewiring is the real cost, and the empty state
+matters: a tile whose source has not fetched yet must say so rather than show nothing.
+
+## Consequences
 **Positive**
 
 - Adding a producer is a spec plus one adapter; adding an interest is a row.
