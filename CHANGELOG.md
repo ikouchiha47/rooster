@@ -7,6 +7,32 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): materialisation is unobserved on device, and why that is starvation
+
+_2026-09-16_
+
+Records what slice 6.1/6.2 does and does not prove on device. It does prove the
+seeder: rules holds the four seeded rules with seeded = 1, enabled = 1 and
+positions 10 to 40, and ingest is still alive. It does not prove match
+materialisation, because item_rules is empty and the engine has never been handed
+an item.
+
+The mechanism is verified rather than guessed: DEFAULT_REFRESH_MS is 60 minutes and
+every news feed's cached payload was 34 minutes old, so a refresh call skips them
+as still fresh; SYNC_GROUP_MINUTES is 60, so the periodic sync is hourly; and the
+app starts on Home, not Radar, so the launch-time refresh never runs. Relaunching
+therefore cannot produce a poll, and the last poll predates the install. One real
+fetch - the next hourly sync, or a manual refresh once the cache is stale - should
+fill item_rules for any landed item that satisfies a seed. Until that is seen, the
+evaluator is not claimed to work on device.
+
+Also records a mistake of mine, because it nearly produced a false conclusion:
+several rss:status-cloudflare rows carry ingested_at about two days ahead of the
+host clock, so MAX(ingested_at) is not the newest ingest and comparing against it
+proves nothing. I drew exactly that wrong conclusion before checking. The
+per-feed lastAttempt timestamps in prefs are the reliable signal, and why those
+status rows are dated ahead is unexplained.
+
 ## feat(rules): four starter rules, and a repository that respects them
 
 _2026-09-16_
