@@ -19,7 +19,7 @@ Source (adapter)  ->  Event (multi-tagged)  ->  Store (Room)  ->  Views (tiles /
 - **Multi-valued tags, in three groups** (§10.5): a **subject** (what it is about - `finance`, `tech`, `travel`; declared by a specialist source, otherwise inferred per item), a **nature** (what kind of thing it is - `incident`, `announcement`; inferred by the tagger, ≤3-4 per item), and the structural marker `news`. Classification is never exclusive: a flood is `news` + `weather` + `incident`, and a Mint markets story is `news` + `finance`.
 - **Tiles compose.** Each tile is a query (tags + place + time) plus its own config. Tiles never fetch.
 - **Shared shell.** Search + a context action bar sit on most pages; the actions change per tile. Each tile owns a **config model**; the global Settings page is the aggregate of all tile configs (one table, one store).
-- **Rules are tile-scoped.** A rule created inside Weather is a weather rule. Delivery `timeline only` makes it appear as a **tab**; delivery `push` makes it an alert. Tab = saved filter; rule = saved filter + delivery.
+- **Sources fetch; rules never do.** A source polls on its own interval straight into the store; a rule is a pure evaluator over what is already stored, so N rules on one source cost no extra fetch. Delivery is the *interruption* (a push, or nothing); *surfacing* is a read-time projection, so Radar is a query over the store rather than a destination. Rules contribute emphasis (`position`) and membership (a tab defined as "matches of rules X"), and a match is written once into `item_rules` and read wherever a view asks for it. A rule is therefore not tile-scoped. See ADR 0003.
 - **Places are global.** Home places + a radius slider ∪ explicitly picked states/places. Every event tries to carry a place (gazetteer match; feed default as fallback).
 - **Bookmarks are global.** Any event can be pinned/saved and is preserved for export regardless of retention.
 
@@ -33,8 +33,9 @@ Source (adapter)  ->  Event (multi-tagged)  ->  Store (Room)  ->  Views (tiles /
 | `places` | bundled gazetteer (GeoNames IN + LGD): name, aliases, parent chain, population, lat/lon, bbox |
 | `home_places` | places the user cares about |
 | `locality_prefs` | radius km, explicitly picked state/place ids |
-| `sources` | your subscriptions: feed URL, status-page URL, kind, added_at, last_ok_at |
-| `rules` | name, tile scope, condition, delivery (`timeline`/`push`), position, builtin, enabled |
+| `sources` | your subscriptions — was the misnamed `rules` table before schema v11: `kind` (`rss`/`search`/…), `spec_json` (fetch, page, map), `seeded`, `enabled`, `interval_sec` |
+| `rules` | a condition, not a subscription: `condition_json`, `action_json`, `position`, `seeded`, `enabled` — a pure evaluator over stored items (ADR 0003) |
+| `item_rules` | materialised matches, like `item_tags`: `(item_id, rule_id, matched_at)`, written once at ingest and re-read wherever a view asks |
 | `watchers` | tracked values: kind (fx/fare/status/…), params, target, alert state |
 | `settings` | per-tile config blobs (single store; Settings page aggregates) |
 | `retention` | per-tag retention windows |
@@ -196,7 +197,7 @@ Sources (all keyless):
 
 ## 5. Radar horizontal tabs (proposed built-ins)
 
-Tabs are saved filters over tags. Built-ins are seeded rows; user-created rules add more.
+Tabs are saved filters: over tags, or over the matches of a rule. Built-ins are seeded rows; user-created tabs and rules add more (ADR 0003).
 
 | Tab | Filter | Research |
 |---|---|---|
@@ -236,7 +237,7 @@ Two useful axes: **scope** (national / state / city / store) and **validity wind
 
 ## 7. Architecture work still unowned
 
-- Timeline model: tab = saved filter, rule = saved filter + delivery.
+- ~~Timeline model: tab = saved filter, rule = saved filter + delivery.~~ **Settled by ADR 0003** — a tab is a saved filter, a rule is a condition with an optional delivery, and the two are independent axes: delivery is the interruption, surfacing is a read-time projection.
 - Dedupe key fix `(source, url ?: title)` + re-ingest.
 - Cross-source classification so news items land in Money / Promo / Travel / News / Incident.
 - Place extraction per item + home-place config + radius ∪ picked.
@@ -373,6 +374,8 @@ val tagger: Tagger by lazy { HeuristicTagger() }   // swap: CascadeTagger(...)
 ```
 
 ### 10.4 Rules
+
+This section is about the **tagger's** rules — how classification behaves. The user-facing rules engine (conditions over stored items, matches materialised into `item_rules`) is ADR 0003, not this.
 
 - Deterministic and fast (runs per item at ingest, on device, no network).
 - **Never blocks ingest** - a tagger failure stores the item with a `news`-only or source-default tag and a flag, rather than dropping it.

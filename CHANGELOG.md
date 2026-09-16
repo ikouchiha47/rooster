@@ -7,6 +7,21 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs: point the architecture at ADR 0003 for rules
+
+_2026-09-16_
+
+ARCHITECTURE.md is binding reading for agents, and it still described the world
+before ADR 0003: rules as tile-scoped, and a `rules` table holding tile scope,
+condition, delivery, position and builtin.
+
+Corrects the core model (sources fetch, rules never do; delivery is the
+interruption and surfacing is the read; a rule is not tile-scoped), the data
+model rows for `sources` and `rules` to what schema v11 actually created plus
+`item_rules`, the Radar tab line, and the now-settled "timeline model" item in
+section 7. Section 10.4 now says plainly that it describes the tagger's rules,
+not the user-facing rules engine - two different things that had one name.
+
 ## refactor(data): finish the sources rename, and drop tests that tested fakes
 
 _2026-09-16_
