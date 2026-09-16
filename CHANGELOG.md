@@ -7,6 +7,37 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(adr): specify item_fields — the storage fields were assumed to have
+
+_2026-09-16_
+
+ADR 0003 was internally inconsistent. Section 3 defined fields as part of the
+canonical item, and section 8 asserted that a monitor's price points are rows in
+events with their fields - but section 13's DDL specified only sources, rules and
+item_rules. No column, no table, no migration. So nothing could ever supply a field
+predicate, and a rule such as amount > 10000 would have evaluated false forever
+while looking like a broken engine.
+
+This was not a registration fault. sources, rules and item_rules all exist, 11.json
+is exported, and the device's room_master_table.identity_hash matches it - Room
+structurally validated that migration. The gap was in the design, and it was mine
+for writing the assumption without the storage.
+
+Section 13 now specifies item_fields: one row per item and field name, primary key
+on (item_id, name), indices on (name, item_id) and (item_id), and three typed
+columns that mirror the language's FieldValue exactly (Num, Str, Flag) so nothing
+needs widening on either side.
+
+A JSON blob on events was the tempting alternative and is wrong here: section 8's
+monitors need a series key that can be indexed, and a JSON column cannot be indexed
+by key without expression indices that SQLite would still scan. Materialising
+fields also matches how tags, mentions and matches already work in this store.
+
+The plan gains slice 7 for the migration and the writer, ordered before the
+authoring UI and before monitors, and records the clarification that the slices are
+not a linear chain: 1-2-3 is the engine's dependency chain, 6 depends only on 3,
+and 4 and 5 are separate features.
+
 ## docs(plan): slice 3 done — the engine evaluates and materialises
 
 _2026-09-16_

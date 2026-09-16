@@ -85,7 +85,8 @@ additive-change guarantee we want.
 - **optional** — `url`, `summary`, `authors`, `image`, `attachments` (a scraped PDF
   lands here), `language`, `tags` (declared by the source).
 - **`fields`** — kind-specific typed extras: `amount`, `sender`, `doi`,
-  `citation_count`, `price`, `stops`, `handle`, `thread_id`.
+  `citation_count`, `price`, `stops`, `handle`, `thread_id`. Persisted as rows in
+  **`item_fields`** (§13), not as a JSON blob on `events`.
 
 Identity and source identity are mechanism-independent. Today's
 `rss:thehindu-top` bakes transport into identity: move that feed to a scraper and
@@ -184,8 +185,8 @@ Consequences, all of them simplifications:
 ### 8. Monitors and history
 
 A monitor is a rule whose condition contains a series predicate. Its **history is
-our stored items** — the price points are rows in `events` with their `fields`, and
-the series is those rows ordered by date. So monitors are offline, deterministic
+our stored items** — the price points are `item_fields` rows joined to `events`, and
+the series is those items ordered by date. So monitors are offline, deterministic
 and replayable, which is what lets the dry run replay a window exactly.
 
 Three consequences to design for, not discover:
@@ -290,7 +291,34 @@ CREATE TABLE item_rules (
     matched_at INTEGER NOT NULL,
     PRIMARY KEY(item_id, rule_id)
 );
+
+CREATE TABLE item_fields (
+    item_id TEXT NOT NULL,   -- events.ulid
+    name TEXT NOT NULL,      -- "amount", "sender", "doi", "price", ...
+    value_num REAL,          -- exactly one of the three is set
+    value_text TEXT,
+    value_flag INTEGER,
+    PRIMARY KEY(item_id, name)
+);
+CREATE INDEX index_item_fields_name_item_id ON item_fields (name, item_id);
+CREATE INDEX index_item_fields_item_id ON item_fields (item_id);
 ```
+
+**Why `item_fields` is a table and not a JSON column on `events`.** A typed extra is
+sparse and kind-specific, which makes a JSON blob on the item the tempting shape —
+and it is wrong here. §8's monitors need a *series key* that can be indexed, and a
+JSON column cannot be indexed by key without expression indices that SQLite would
+still scan. So fields are materialised like tags and matches: one row per
+(item, name), indexed by `(name, item_id)` for window queries and by `item_id` for
+reading one item's extras. The three typed columns mirror the language's
+`FieldValue` (`Num` / `Str` / `Flag`) exactly, so no widening or parsing is needed on
+either side.
+
+**A defect this ADR carried until now:** §3 defined `fields` and §8 asserted that
+series points are "rows in `events` with their `fields`", but no storage for them was
+ever specified — so nothing could supply a `field` predicate, and a rule using one
+would have evaluated to false forever while looking like a broken engine. The
+omission is fixed here; the storage lands as its own schema slice.
 
 ## Consequences
 

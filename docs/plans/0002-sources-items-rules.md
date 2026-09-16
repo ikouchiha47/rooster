@@ -1,6 +1,6 @@
 # Plan 0002 — Sources, Items and Rules
 
-- **Status:** Slices 1–3 complete and merged; the engine evaluates and materialises matches. Next: slice 6 (authoring) — seeded rules, then the UI.
+- **Status:** Slices 1–3 complete and merged; the engine evaluates and materialises matches. Slice 6.1/6.2 (seed rules + repository) in flight. Slice 7 (typed fields storage) decided, and it fixes an ADR defect.
 - **Date:** 2026-09-15
 - **Depends on:** ADR 0003 (sources/items/rules interfaces), ADR 0001 (zero-cost policy)
 - **Companion:** ADR 0002 (the superseded `rules`-as-sources model)
@@ -20,7 +20,7 @@ This file is the state that survives context loss. On resume:
 Rules of the loop: one slice at a time; never leave the tree non-building; commit only when asked; never edit application code without explicit permission.
 
 **Current state:** slices 1–3 are on `main` — `43517af` (rename + schema v11), `90ff28c` (its cleanup), `4efc8be` (predicate language + taxonomy owner), `947a222` (evaluator, `RuleWriter`, ingest and enrichment hooks, dry run; merged as `4ac256e`). 317 tests green in-tree *and* from a fresh clone; migration v10→v11 verified on the device with `room_master_table.identity_hash` matching `11.json`. The engine is complete, but the `rules` table is still empty — nothing authors a rule yet, which is slice 6.
-**Next action:** slice 6 — T6.1 `RuleSeeder` (locked seeded rules, mirroring `SourceSeeder`) and T6.2 `RuleRepository` with the locked-seed guard, then the UI. Seeding comes first because it is what makes the engine checkable on device.
+**Next action:** finish slice 6.1/6.2 (in flight), then **slice 7 (typed fields storage)** — a small schema slice that fixes the ADR defect and must precede monitors — and only then the authoring UI (6.3/6.4), so the builder can offer field predicates against real storage instead of shipping without them. Schema work stays contiguous this way instead of being revisited.
 
 ---
 
@@ -203,6 +203,24 @@ Depends on slice 3: the repository and the dry run have to exist before a screen
 - [ ] T6.3 **Authoring UI** — list, builder (condition + action), and the dry-run preview the mockups show ("6 events would match · last 7 days · live"). Build from `design-rules/` (`list.html`, `flow.html`, `recipe.html`, `form.html`). This is visual and interaction work, so it goes to @designer, not a plain implementer.
 - [ ] T6.4 **Entry point** — where rules are reached from, consistent with the mockups' navigation rather than a new tab invented ad hoc.
 
+### Slice 7 — typed fields storage (decided 2026-09-16)
+
+This is a **defect fix, not a new feature**. ADR §3 defined `fields` as part of the canonical item and
+§8 asserted that series points are "rows in `events` with their `fields`" — but no storage was ever
+specified, so nothing could supply a `field` predicate. A rule using `amount > 10000` would have
+evaluated to false forever and read as a broken engine rather than a missing column. ADR §13 now
+specifies `item_fields`. Nothing was mis-registered: `sources`, `rules` and `item_rules` all exist and
+the device's `room_master_table.identity_hash` matches `11.json`, which means Room validated that
+migration structurally. The gap was in the design, and it is mine.
+
+- [ ] T7.1 Migration v12: `item_fields(item_id, name, value_num, value_text, value_flag)`, PK `(item_id, name)`, indices on `(name, item_id)` and `(item_id)`.
+- [ ] T7.2 `ItemFieldEntity` / `ItemFieldDao`, all SQL as consts in `Sql.kt`, modelled on how tags, mentions and matches are materialised.
+- [ ] T7.3 A writer on the ingest path, and have the data layer populate `RuleItemSeed.fields` from the store, so `field` predicates can actually match. Three typed columns mirror the language's `FieldValue` (`Num`/`Str`/`Flag`) exactly — no widening on either side.
+- [ ] T7.4 Export `12.json`, add the v11→v12 case to `MigrationSchemaTest`, and assert the composite PK and both indices against real SQLite (the existing helpers already compare primary keys and indices, so this is mostly a case to write).
+- [ ] T7.5 Only once T7.3 lands may seeded rules use `field`. Until then they must not — see the constraint recorded in the seeding lane below.
+
+**Ordering note.** This unblocks nothing the authoring UI needs — a builder can ship without field predicates — but it **must** land before slices 5's monitors, because §8 requires a series key that can be indexed and a JSON column on `events` could not provide one. That is why the shape was chosen now rather than when monitors started.
+
 ---
 
 ## Verification
@@ -268,6 +286,9 @@ Append-only. One line per landed change.
 
 - 2026-09-16 — **Slice 3 complete** as `947a222` (merged as `4ac256e`; worktree removed). `RuleEvaluator` walks a `RuleItem` (id, source, title, content, tags, mentions, typed fields — a plain view, not a Room entity) and answers every item predicate. `RuleWriter` writes matches append-only with `OnConflictStrategy.IGNORE`, is hooked into `FeedIngestor.storeItems` so only rows that actually landed are evaluated, and into `ArticleEnricher` so enrichment re-evaluates only enrichment-sensitive rules against only the items whose text grew. The dry run returns matches and never touches the match DAO — proved by a test that first shows the writer does persist, then asserts rows and insert-call counts are unchanged. 317 tests (26 new) in-tree and from a fresh clone.
 - 2026-09-16 — The merge of slice 3 hit a real `CHANGELOG.md` conflict, because `main` had advanced with a docs commit while the branch was open and the hook prepends an entry in both. Resolved by keeping both entries with the newer first, per the file's own newest-first convention. Worth remembering: **any parallel worktree will conflict on `CHANGELOG.md`**, so merges need that resolution by hand.
+
+- 2026-09-16 — **ADR defect found and fixed: typed `fields` had no storage.** §3 defined `fields` as part of the canonical item, and §8 asserted that series points are "rows in `events` with their `fields`" — but §13 never specified a column or table for them, and no migration created one. Consequence: a rule like `amount > 10000` could never match, and would look like a broken engine rather than a missing column. Not a registration fault — `sources`/`rules`/`item_rules` all exist and the device's identity hash matches `11.json`, so Room validated that migration structurally. Resolved by specifying **`item_fields`** in §13 (one row per item+name, PK `(item_id, name)`, indices `(name, item_id)` and `(item_id)`, three typed columns mirroring `FieldValue`'s `Num`/`Str`/`Flag`), chosen over a JSON column on `events` because §8's monitors need an indexable series key. Work lands as slice 7.
+- 2026-09-16 — Sequencing clarified while answering for it: the slices are not a linear chain. 1→2→3 is the engine's dependency chain and 6 depends only on 3, which is why authoring could follow the engine while slice 4 (source spec) and slice 5 (delivery/monitors) remain separate features. `fields` population happens to ride on slice 4's `map`, which is why the gap surfaced now: nothing earlier would have filled them. **Slice 7 now precedes the UI and slice 5**, so the builder can offer field predicates against real storage and monitors get the index they need.
 
 ### Known gaps
 
