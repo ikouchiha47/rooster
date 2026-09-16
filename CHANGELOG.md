@@ -7,6 +7,33 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): queue Cloudflare removal, a force-sync trigger, and push-driven SMS
+
+_2026-09-16_
+
+Three things asked for while testing, recorded so they survive the conversation.
+
+Drop the Cloudflare incident source: status-cloudflare is a status feed the owner
+does not care about. Remove it from FeedCatalog.SEEDS so it stops polling, and
+purge its seeded source row plus its events and their dependent tag, mention and
+match rows - which also removes the future-dated ingested_at rows that made one of
+my own checks invalid.
+
+A reliable force-sync trigger. The 60-minute payload gate makes device testing
+painful and it was never faster: SyncScheduler has been 60 minutes since bootstrap
+and 475d142 only renamed the constant, while FeedIngestor's payload gate was 60
+minutes from its first commit. Tapping the on-screen Sync control does not refetch
+and ageing provider_cache timestamps by hand does not either - both verified, not
+assumed - so add a debug-only adb-triggerable trigger that bypasses the cache gate,
+without weakening it in release.
+
+Make SMS push-driven rather than polled. The owner's point is right: SMS arrival
+time is not something the app knows. A ContentObserver on the SMS provider delivers
+messages as they land. No ADR change is needed - section 1 makes producer internals
+opaque and section 2 already calls SMS a message stream. Feeds cannot be pushed the
+same way, so their honest equivalent is conditional GET plus letting app-open and
+network-change trigger a refresh.
+
 ## docs(plan): materialisation is unobserved on device, and why that is starvation
 
 _2026-09-16_
