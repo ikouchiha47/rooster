@@ -63,12 +63,6 @@ object FeedCatalog {
             // Deliberately NOT tagged `news`: these are outages, and that tag is the
             // whole reason this field is explicit.
             FeedSource(
-                id = "status-cloudflare",
-                name = "Cloudflare Status",
-                url = "https://www.cloudflarestatus.com/history.rss",
-                primaryTag = Tags.INCIDENT,
-            ),
-            FeedSource(
                 id = "status-aws",
                 name = "AWS Status",
                 url = "https://status.aws.amazon.com/rss/all.rss",

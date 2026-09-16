@@ -48,18 +48,18 @@ class SourceSeederTest {
     }
 
     @Test
-    fun `an empty table seeds thirteen locked rows`() =
+    fun `an empty table seeds twelve locked rows`() =
         runBlocking {
             val dao = FakeSourceDao()
-            assertEquals(13, SourceSeeder(dao).seed(now = 1L))
-            assertEquals(13, dao.rows.size)
+            assertEquals(12, SourceSeeder(dao).seed(now = 1L))
+            assertEquals(12, dao.rows.size)
             assertTrue("every seed is locked", dao.rows.all { it.seeded })
             assertTrue("every seed is enabled", dao.rows.all { it.enabled })
             assertEquals(4, dao.rows.count { it.kind == "search" })
-            assertEquals(9, dao.rows.count { it.kind == "rss" })
+            assertEquals(8, dao.rows.count { it.kind == "rss" })
             assertEquals(
                 "ids are unique",
-                13,
+                12,
                 dao.rows
                     .map { it.id }
                     .toSet()

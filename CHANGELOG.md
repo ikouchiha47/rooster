@@ -7,6 +7,26 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## chore(feeds): drop the Cloudflare status feed
+
+_2026-09-16_
+
+The owner does not care about Cloudflare, and it was never an India-relevant
+signal: like the AWS feed beside it, it is a foreign cloud provider's status page.
+Removed from FeedCatalog, so it stops polling and stops appearing as a source.
+
+The pinned counts in SourceSeederTest moved with it - twelve locked rows rather
+than thirteen, and eight rss seeds rather than nine - which is the test doing its
+job rather than an unrelated break.
+
+Left in place: the ~51 events it already ingested, and its seeded sources row. Those
+are purged by the migration queued as T8.1, which matters beyond tidiness because
+those rows are the ones carrying the future-dated ingested_at that made one of my
+own earlier checks invalid. AWS is the same category and is still there; say the
+word and it goes the same way.
+
+Verified: 334 tests, 0 failures, ktlint clean.
+
 ## docs(plan): queue Cloudflare removal, a force-sync trigger, and push-driven SMS
 
 _2026-09-16_

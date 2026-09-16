@@ -15,7 +15,7 @@ class SourceDisplayNameTest {
         assertEquals("The Hindu", sourceDisplayName("rss:thehindu-top"))
         assertEquals("Indian Express", sourceDisplayName("rss:indianexpress"))
         assertEquals("The Hindu Kolkata", sourceDisplayName("rss:thehindu-kolkata"))
-        assertEquals("Cloudflare Status", sourceDisplayName("rss:status-cloudflare"))
+        assertEquals("AWS Status", sourceDisplayName("rss:status-aws"))
     }
 
     @Test
