@@ -24,14 +24,14 @@ data class SourceEntity(
     @ColumnInfo(name = "kind") val kind: String,
     /** Opaque per-kind JSON; required keys per kind, unknown keys rejected. */
     @ColumnInfo(name = "spec_json") val specJson: String,
-    /** True for bundled seeds (locked); false for user rules (editable). */
+    /** True for bundled seeds (locked); false for user sources (editable). */
     @ColumnInfo(name = "seeded") val seeded: Boolean,
     @ColumnInfo(name = "enabled") val enabled: Boolean,
     /** Epoch ms the row was written. */
     @ColumnInfo(name = "created_at") val createdAt: Long,
     /**
      * Epoch ms the row was last edited (user enable/disable). Null for rows
-     * written before v9; seeds and new user rules write both stamps.
+     * written before v9; seeds and new user sources write both stamps.
      */
     @ColumnInfo(name = "updated_at") val updatedAt: Long? = null,
     /**

@@ -11,7 +11,7 @@ class HeuristicTaggerTest {
 
     private fun tags(
         text: String,
-        source: SourceKind = SourceKind.RSS,
+        source: Transport = Transport.RSS,
         sender: String? = null,
         declaredTags: Set<String> = emptySet(),
     ): Set<String> =
@@ -44,7 +44,7 @@ class HeuristicTaggerTest {
 
     @Test
     fun `sms is not news by default`() {
-        assertFalse(tags("Rs 1,214 debited from A/c", source = SourceKind.SMS).contains(Tags.NEWS))
+        assertFalse(tags("Rs 1,214 debited from A/c", source = Transport.SMS).contains(Tags.NEWS))
     }
 
     @Test
@@ -52,7 +52,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Are you coming home for dinner?",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "+919876543210",
             )
         assertTrue(result.contains(Tags.PERSONAL))
@@ -63,7 +63,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Rs 1,214 debited from A/c XX4021",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "VM-HDFCBK-S",
             )
         assertFalse(result.contains(Tags.PERSONAL))
@@ -71,7 +71,7 @@ class HeuristicTaggerTest {
 
     @Test
     fun `sms from a short code is not personal`() {
-        val result = tags("Your OTP is 123456", source = SourceKind.SMS, sender = "57575")
+        val result = tags("Your OTP is 123456", source = Transport.SMS, sender = "57575")
         assertFalse(result.contains(Tags.PERSONAL))
     }
 
@@ -105,7 +105,7 @@ class HeuristicTaggerTest {
 
     @Test
     fun `expense lexicon matches a debit message`() {
-        val result = tags("Rs 1,214 debited from A/c XX4021", source = SourceKind.SMS)
+        val result = tags("Rs 1,214 debited from A/c XX4021", source = Transport.SMS)
         assertTrue(result.contains(Tags.EXPENSE))
     }
 
@@ -114,7 +114,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Get 50 percent off on your next order",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "VM-ABCDEF-P",
             )
         assertTrue(result.contains(Tags.PROMO))
@@ -125,7 +125,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Your order has been shipped",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "VM-ABCDEF-S",
             )
         assertFalse(result.contains(Tags.PROMO))
@@ -148,8 +148,8 @@ class HeuristicTaggerTest {
 
     @Test
     fun `confidence is lower when nothing matched`() {
-        val bare = runBlocking { tagger.tag(TagInput("qwerty zxcvb", SourceKind.WEB)) }
-        val matched = runBlocking { tagger.tag(TagInput("flood warning", SourceKind.WEB)) }
+        val bare = runBlocking { tagger.tag(TagInput("qwerty zxcvb", Transport.WEB)) }
+        val matched = runBlocking { tagger.tag(TagInput("flood warning", Transport.WEB)) }
         assertTrue(bare.confidence < matched.confidence)
         assertTrue(bare.tags.isEmpty())
     }
@@ -281,7 +281,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Diwali Dhamaka Sale! Flat 50 percent off on electronics",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "VM-SHOPPY-P",
             )
         assertFalse("advert must not claim the festival subject", result.contains(Tags.FESTIVAL))
@@ -297,7 +297,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "GameLoot Monsoon Sale is here! Get Mega Discounts on Consoles, Games, PCs",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "VA-GAMELT-P",
             )
         assertTrue("still classified as a promo", result.contains(Tags.PROMO))
@@ -310,7 +310,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Rs 1,214 debited from A/c XX4021",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "VM-HDFCBK-P",
             )
         assertTrue(result.contains(Tags.EXPENSE))
@@ -323,7 +323,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Heavy rain warning: flooding expected in low lying areas",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "JZ-NDMAEW-G",
             )
         assertTrue(result.contains(Tags.WEATHER))
@@ -371,7 +371,7 @@ class HeuristicTaggerTest {
         val result =
             tags(
                 text = "Cricket Bat Sale! Flat 40 percent off all gear",
-                source = SourceKind.SMS,
+                source = Transport.SMS,
                 sender = "VM-SPORTY-P",
             )
         assertFalse("advert must not claim games", result.contains(Tags.GAMES))

@@ -12,8 +12,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import com.personalos.app.core.SmsClassifier
-import com.personalos.app.core.tag.SourceKind
 import com.personalos.app.core.tag.TagInput
+import com.personalos.app.core.tag.Transport
 import com.personalos.app.core.tag.Ulid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -149,7 +149,7 @@ class SmsSource(
                             ingestedAt = ingestedAt,
                         ),
                     )
-                    tagInputs.add(TagInput(text = body, source = SourceKind.SMS, sender = address))
+                    tagInputs.add(TagInput(text = body, source = Transport.SMS, sender = address))
                 }
 
                 if (events.isEmpty()) {

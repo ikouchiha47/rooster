@@ -85,7 +85,7 @@ class SourceSeederTest {
                 assertEquals(setOf("news"), spec.tags)
                 assertEquals("en", spec.queryLangCode)
                 assertEquals("en-IN", spec.sourceLocale)
-                assertEquals("the rule name is its query", spec.query, row.name)
+                assertEquals("the source name is its query", spec.query, row.name)
             }
         }
 

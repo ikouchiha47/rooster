@@ -192,9 +192,9 @@ internal fun metaTokens(
 }
 
 /**
- * The query a search-rule row already names in its source label ("GOOGLE
+ * The query a search-source row already names in its source label ("GOOGLE
  * NEWS" over `gnews:kolkata`), so a mention spelling the same word spends no
- * slot. Returns null for anything that is not a search-rule source.
+ * slot. Returns null for anything that is not a search source.
  */
 internal fun queryEcho(source: String?): String? =
     source

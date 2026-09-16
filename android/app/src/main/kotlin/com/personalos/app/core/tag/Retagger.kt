@@ -81,7 +81,7 @@ class Retagger(
         return ulid to
             TagInput(
                 text = "$title\n$content",
-                source = if (isSms) SourceKind.SMS else SourceKind.RSS,
+                source = if (isSms) Transport.SMS else Transport.RSS,
                 // For SMS the title column holds the sender, which drives the
                 // personal/promotional priors.
                 sender = title.takeIf { isSms },

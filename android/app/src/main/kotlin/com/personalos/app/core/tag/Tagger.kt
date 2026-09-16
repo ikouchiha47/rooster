@@ -37,15 +37,12 @@ object Tags {
         )
 }
 
-/** Where the text came from - drives the source priors in a tagger. */
-enum class SourceKind { SMS, RSS, JSON, WEB }
-
 /** Strategy family of a tagger; stored alongside its version (docs §11.3). */
 enum class TaggerKind { REGEX, HEURISTIC, ML, CASCADE, LLM }
 
 data class TagInput(
     val text: String,
-    val source: SourceKind,
+    val source: Transport,
     val sender: String? = null,
     val language: String? = null,
     /**

@@ -11,9 +11,9 @@ import androidx.room.PrimaryKey
  * and `action_json` are carried verbatim. The predicate language, its
  * validation and the evaluator arrive without a schema change.
  *
- * `seeded = 1` rows are bundled and locked, add-only, exactly as
- * [SourceEntity] seeds are. `position` is ordering-for-surfacing, not a fetch
- * interval.
+ * `seeded = 1` rows are intended to be bundled and locked, add-only, mirroring
+ * [SourceEntity] seeds. That is intent, not fact yet — no seeder, write guard or
+ * test exists. `position` is ordering-for-surfacing, not a fetch interval.
  */
 @Entity(tableName = "rules")
 data class RuleEntity(

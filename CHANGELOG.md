@@ -7,6 +7,50 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## refactor(data): finish the sources rename, and drop tests that tested fakes
+
+_2026-09-16_
+
+Follow-up to 43517af, from a review of it. The migration was sound; the problems
+were honesty debt, two premature classes, and one name collision worth fixing at
+the root rather than papering over.
+
+The rename left identifiers holding a SourceEntity still called `rule`, which
+became actively wrong the moment RuleEntity existed as a distinct type. Those are
+now `source` throughout - FeedIngestor, the UserFeedsSection composable API and
+its callers, and the tests. The persisted string *values* are deliberately kept
+and now say so: `"rule:$id"` and `"feed:rule-status"` are frozen, because
+renaming them would drop cached article bodies and reset every status dot.
+
+The TagSourceKind alias is gone, and so is the collision behind it: core.tag's
+SourceKind was never a source kind, it was where the text came from (SMS/RSS/
+JSON/WEB), so it is now Transport and FeedIngestor uses both names plainly.
+
+Deleted rather than kept: RuleRepository (no caller, and slice 3 names RuleWriter
+for writing matches, so its job was undefined) and Migrations.CURRENT_VERSION
+(unused, and wrong by its own comment - keys are target versions, so the newest
+migratable version is max(keys), which disagreed with AppDatabase.version even
+before this slice). A test now pins that invariant instead.
+
+Two tests written for the rule DAOs were deleted as tautologies. They defined
+fakes that reimplemented INSERT OR IGNORE in Kotlin and then asserted the fakes,
+so they would have kept passing if the composite primary key were removed or
+onConflict changed to REPLACE. The fact they pretended to check is already
+checked for real: MigrationSchemaTest compares every exported table's primary
+key against PRAGMA table_info over SQLite, and now also compares dflt_value, so
+the DEFAULT trap that half the migration comments warn about is asserted rather
+than described.
+
+Also corrected stale wording: SourceRepository promised a rule engine, a
+brand-new SourceEntity said "user rules", Sql.kt described the pre-v11 table in
+the present tense, SourceSeeder hardcoded "rss"/"search" where the enum owns
+the closed set, and SourceSpecs cited an ADR section that does not exist.
+
+Verified: 251 tests green, ktlint clean. Section 8's DEFAULT check and the
+composite key it relies on are asserted against real SQLite; Room's
+@Insert(onConflict) mode itself is not verifiable at JVM level and is left as a
+device check when slice 3 first writes matches.
+
 ## docs(adr): the sources, items and rules model, and the plan that lands it
 
 _2026-09-16_

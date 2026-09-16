@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SourceDao {
-    /** The repository's read surface: one `Flow<List<Source>>` (ADR 0003). */
+    /** The repository's read surface: one `Flow<List<SourceEntity>>` (ADR 0003). */
     @Query(Sql.SOURCES_ALL)
     fun observeAll(): Flow<List<SourceEntity>>
 

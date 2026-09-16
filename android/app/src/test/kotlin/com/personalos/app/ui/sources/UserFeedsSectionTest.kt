@@ -12,7 +12,7 @@ import org.junit.Test
  * reaches the network, and the duplicate check ignores a trailing slash.
  */
 class UserFeedsSectionTest {
-    private fun rule(
+    private fun source(
         name: String,
         url: String,
         seeded: Boolean = false,
@@ -57,16 +57,16 @@ class UserFeedsSectionTest {
 
     @Test
     fun `the URL index maps normalised urls to names and skips bad specs`() {
-        val index = rssUrlIndex(listOf(rule("Express", "https://example.com/feed/"), rule("Broken", "")))
+        val index = rssUrlIndex(listOf(source("Express", "https://example.com/feed/"), source("Broken", "")))
 
         assertEquals("Express", index[normalizeFeedUrl("https://example.com/feed")])
         assertEquals(1, index.size)
     }
 
     @Test
-    fun `interval reads the rule's own value and falls back to the shared schedule`() {
-        assertEquals("every 1h", intervalLabel(rule("A", "https://x/f")))
-        assertEquals("every 4h", intervalLabel(rule("B", "https://x/f").copy(intervalSec = 14400)))
-        assertEquals("every 30m", intervalLabel(rule("C", "https://x/f").copy(intervalSec = 1800)))
+    fun `interval reads the source's own value and falls back to the shared schedule`() {
+        assertEquals("every 1h", intervalLabel(source("A", "https://x/f")))
+        assertEquals("every 4h", intervalLabel(source("B", "https://x/f").copy(intervalSec = 14400)))
+        assertEquals("every 30m", intervalLabel(source("C", "https://x/f").copy(intervalSec = 1800)))
     }
 }

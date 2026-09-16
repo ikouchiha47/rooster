@@ -111,7 +111,7 @@ class TagLineMentionsTest {
     }
 
     @Test
-    fun `a mention echoing the rule query spends no slot`() {
+    fun `a mention echoing the source query spends no slot`() {
         // A gnews:kolkata row already names Kolkata in its source label; the
         // chip would say the same thing twice.
         val (visible, hidden) = metaTokens(listOf("finance"), listOf("Kolkata", "BJP"), false, echo = "kolkata")
@@ -123,7 +123,7 @@ class TagLineMentionsTest {
     }
 
     @Test
-    fun `queryEcho reads the rule query and nothing else`() {
+    fun `queryEcho reads the source query and nothing else`() {
         assertEquals("kolkata", queryEcho("gnews:kolkata"))
         assertEquals("west bengal", queryEcho("gnews:west-bengal"))
         assertEquals(null, queryEcho("rss:thehindu-top"))

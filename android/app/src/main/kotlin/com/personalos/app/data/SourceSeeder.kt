@@ -2,6 +2,7 @@ package com.personalos.app.data
 
 import android.util.Log
 import com.personalos.app.core.feed.FeedCatalog
+import com.personalos.app.core.sources.SourceKind
 import com.personalos.app.core.sources.SourceSpecs
 import com.personalos.app.core.tag.Ulid
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +54,7 @@ class SourceSeeder(
                 SourceEntity(
                     id = Ulid.next(),
                     name = query,
-                    kind = "search",
+                    kind = SourceKind.SEARCH.serialName,
                     specJson =
                         JsonObject(
                             mapOf(
@@ -75,7 +76,7 @@ class SourceSeeder(
                 SourceEntity(
                     id = Ulid.next(),
                     name = source.name,
-                    kind = "rss",
+                    kind = SourceKind.RSS.serialName,
                     specJson =
                         JsonObject(
                             mapOf(

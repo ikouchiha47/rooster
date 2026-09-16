@@ -2,11 +2,11 @@ package com.personalos.app.data.remote
 
 import com.personalos.app.core.cache.StringCache
 import com.personalos.app.core.feed.FeedSource
-import com.personalos.app.core.tag.SourceKind
 import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.TagResult
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TaggerKind
+import com.personalos.app.core.tag.Transport
 import com.personalos.app.data.DayHeader
 import com.personalos.app.data.EnrichmentCandidate
 import com.personalos.app.data.EventDao
@@ -238,9 +238,9 @@ class FeedIngestorSourcesTest {
             alternates = "Calcutta|Kalkata",
         )
 
-    private val rule =
+    private val source =
         SourceEntity(
-            id = "rule-1",
+            id = "source-1",
             name = "West Bengal",
             kind = "search",
             specJson =
@@ -271,7 +271,7 @@ class FeedIngestorSourcesTest {
         tags: FakeItemTagDao,
         mentions: FakeMentionDao,
         tagger: FakeTagger,
-        rules: List<SourceEntity>,
+        sources: List<SourceEntity>,
         fetched: MutableList<String>,
         places: List<PlaceEntity> = listOf(kolkata),
     ): FeedIngestor =
@@ -286,7 +286,7 @@ class FeedIngestorSourcesTest {
                     loadParties = { emptyList() },
                 ),
             feeds = emptyList<FeedSource>(),
-            loadSources = { rules },
+            loadSources = { sources },
             fetch = { url ->
                 fetched += url
                 fixture
@@ -294,14 +294,14 @@ class FeedIngestorSourcesTest {
         )
 
     @Test
-    fun `a gnews item lands tagged with the rule source and tags`() =
+    fun `a gnews item lands tagged with the source and its tags`() =
         runBlocking {
             val events = FakeEventDao()
             val tags = FakeItemTagDao()
             val mentions = FakeMentionDao()
             val tagger = FakeTagger()
             val fetched = mutableListOf<String>()
-            val ingestor = ingestor(events, tags, mentions, tagger, listOf(rule), fetched)
+            val ingestor = ingestor(events, tags, mentions, tagger, listOf(source), fetched)
 
             assertEquals(1, ingestor.refresh())
 
@@ -311,15 +311,15 @@ class FeedIngestorSourcesTest {
             assertEquals("NEWS", event.category)
 
             assertEquals(
-                "the rule query hits the exact GNews template",
+                "the source query hits the exact GNews template",
                 listOf("https://news.google.com/rss/search?q=West+Bengal&hl=en-IN&gl=IN&ceid=IN:en"),
                 fetched,
             )
 
-            assertEquals("the rule tags are what the tagger declares", 1, tagger.inputs.size)
+            assertEquals("the source tags are what the tagger declares", 1, tagger.inputs.size)
             assertEquals(setOf("news"), tagger.inputs.single().declaredTags)
             assertEquals("West Bengal", tagger.inputs.single().sender)
-            assertEquals(SourceKind.RSS, tagger.inputs.single().source)
+            assertEquals(Transport.RSS, tagger.inputs.single().source)
             assertEquals(setOf("news"), tags.rows.map { it.tag }.toSet())
 
             assertTrue(
@@ -338,7 +338,7 @@ class FeedIngestorSourcesTest {
                     FakeItemTagDao(),
                     FakeMentionDao(),
                     FakeTagger(),
-                    listOf(rule),
+                    listOf(source),
                     mutableListOf(),
                     places = emptyList(),
                 )
@@ -358,7 +358,7 @@ class FeedIngestorSourcesTest {
                     FakeItemTagDao(),
                     FakeMentionDao(),
                     FakeTagger(),
-                    listOf(rule.copy(id = "off", enabled = false), rule.copy(id = "rss-1", kind = "rss")),
+                    listOf(source.copy(id = "off", enabled = false), source.copy(id = "rss-1", kind = "rss")),
                     fetched,
                     places = emptyList(),
                 )

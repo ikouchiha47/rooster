@@ -58,7 +58,7 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
     val totalItems by database.eventDao().observeCount().collectAsState(initial = 0)
     val tagCounts by database.itemTagDao().observeTagCounts().collectAsState(initial = emptyList())
     val sourceCounts by database.eventDao().observeSourceCounts().collectAsState(initial = emptyList())
-    val rules by container.sourceRepository.observe().collectAsState(initial = emptyList())
+    val sources by container.sourceRepository.observe().collectAsState(initial = emptyList())
 
     var syncing by remember { mutableStateOf(false) }
 
@@ -125,7 +125,7 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
             item { SectionGap() }
             // The sources store's own view: user feeds (add/verify/disable/delete)
             // and the locked seeds. One owner — writes go through SourceRepository.
-            item { UserFeedsSection(rules = rules) }
+            item { UserFeedsSection(sources = sources) }
 
             item { SectionGap() }
             item { WidgetHeader(title = "By tag", note = "${tagCounts.size}") }

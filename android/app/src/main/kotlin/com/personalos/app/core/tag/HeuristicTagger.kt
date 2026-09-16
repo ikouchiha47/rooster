@@ -30,9 +30,9 @@ class HeuristicTagger(
         // "RSS means news" is what put a status page's outage rows under news.
         tags += input.declaredTags
 
-        val fromAdvert = input.source == SourceKind.SMS && isDltPromo(input.sender)
+        val fromAdvert = input.source == Transport.SMS && isDltPromo(input.sender)
 
-        if (input.source == SourceKind.SMS) {
+        if (input.source == Transport.SMS) {
             if (fromAdvert) tags += Tags.PROMO
             if (isPersonalSender(input.sender)) tags += Tags.PERSONAL
         }

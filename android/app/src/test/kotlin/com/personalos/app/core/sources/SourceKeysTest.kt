@@ -18,7 +18,7 @@ class SourceKeysTest {
     }
 
     @Test
-    fun `user rss rows are keyed by stable rule id, not the editable name`() {
+    fun `user rss rows are keyed by stable source id, not the editable name`() {
         val spec = RssSpec(url = "https://example.com/feed", tags = setOf("news"))
         val first = SourceKeys.sourceFor("ulid-1", spec)
         assertTrue(first.startsWith(SourceKeys.USER_RSS_PREFIX))

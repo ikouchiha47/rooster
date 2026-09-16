@@ -17,6 +17,7 @@ import com.personalos.app.core.sources.SourceKind
 import com.personalos.app.core.sources.SourceSpecs
 import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.Tags
+import com.personalos.app.core.tag.Transport
 import com.personalos.app.core.tag.Ulid
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
@@ -29,7 +30,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import com.personalos.app.core.tag.SourceKind as TagSourceKind
 
 /**
  * Pulls the subscribed feeds and writes their items into the same events table
@@ -177,20 +177,21 @@ class FeedIngestor(
      * Returns items added.
      */
     private suspend fun refreshSearchSources(now: Long): Int {
-        val rules =
+        val sources =
             runCatching { loadSources() }
                 .onFailure { Log.w(TAG, "sources load failed", it) }
                 .getOrElse { emptyList() }
                 .filter { it.enabled && SourceKind.from(it.kind) == SourceKind.SEARCH }
 
         var added = 0
-        for (rule in rules) {
+        for (source in sources) {
             val spec =
-                runCatching { SourceSpecs.parse(SourceKind.SEARCH, rule.specJson) as SearchSpec }
-                    .onFailure { Log.w(TAG, "bad search spec for source ${rule.id}", it) }
+                runCatching { SourceSpecs.parse(SourceKind.SEARCH, source.specJson) as SearchSpec }
+                    .onFailure { Log.w(TAG, "bad search spec for source ${source.id}", it) }
                     .getOrNull() ?: continue
 
-            val key = "rule:${rule.id}"
+            // Frozen across the v11 rename: changing this key drops cached bodies.
+            val key = "rule:${source.id}"
             val entry = cache.read(key)
             val raw =
                 if (entry != null && now - entry.at < refreshAfterMs) {
@@ -198,7 +199,7 @@ class FeedIngestor(
                 } else {
                     val body =
                         runCatching { fetch(GnewsUrl.build(spec.query)) }
-                            .onFailure { Log.w(TAG, "source fetch failed: ${rule.name}", it) }
+                            .onFailure { Log.w(TAG, "source fetch failed: ${source.name}", it) }
                             .getOrNull()
                     if (body != null) {
                         cache.write(key, body, now)
@@ -211,7 +212,7 @@ class FeedIngestor(
 
             if (raw != null) {
                 val items = runCatching { FeedParser.parse(raw) }.getOrElse { emptyList() }
-                if (items.isNotEmpty()) added += ingestSource(rule, spec, items, now)
+                if (items.isNotEmpty()) added += ingestSource(source, spec, items, now)
             }
         }
         return added
@@ -230,7 +231,7 @@ class FeedIngestor(
      * Returns items added.
      */
     private suspend fun refreshRssSources(now: Long): Int {
-        val rules =
+        val sources =
             runCatching { loadSources() }
                 .onFailure { Log.w(TAG, "sources load failed", it) }
                 .getOrElse { emptyList() }
@@ -240,16 +241,17 @@ class FeedIngestor(
         _sourceStatuses.value.forEach { health[it.id] = it }
 
         var added = 0
-        for (rule in rules) {
+        for (source in sources) {
             val spec =
-                runCatching { SourceSpecs.parse(SourceKind.RSS, rule.specJson) as RssSpec }
-                    .onFailure { Log.w(TAG, "bad rss spec for rule ${rule.id}", it) }
+                runCatching { SourceSpecs.parse(SourceKind.RSS, source.specJson) as RssSpec }
+                    .onFailure { Log.w(TAG, "bad rss spec for source ${source.id}", it) }
                     .getOrNull() ?: continue
 
             val attemptAt = System.currentTimeMillis()
-            // The rule's own interval when set, else the shared feed schedule.
-            val intervalMs = rule.intervalSec?.times(1000L) ?: refreshAfterMs
-            val key = "rule:${rule.id}"
+            // The source's own interval when set, else the shared feed schedule.
+            val intervalMs = source.intervalSec?.times(1000L) ?: refreshAfterMs
+            // Frozen across the v11 rename: changing this key drops cached bodies.
+            val key = "rule:${source.id}"
             val entry = cache.read(key)
 
             var ok = false
@@ -280,31 +282,31 @@ class FeedIngestor(
                     }
                 }
 
-            var addedForRule = 0
+            var addedForSource = 0
             if (body != null) {
                 val items = runCatching { FeedParser.parse(body) }.getOrElse { emptyList() }
                 if (items.isNotEmpty()) {
-                    addedForRule = ingestUserFeed(rule, spec, items, now)
-                    added += addedForRule
+                    addedForSource = ingestUserFeed(source, spec, items, now)
+                    added += addedForSource
                 }
             }
 
-            health[rule.id] =
+            health[source.id] =
                 FeedStatus(
-                    id = rule.id,
-                    name = rule.name,
+                    id = source.id,
+                    name = source.name,
                     url = spec.url,
                     lastAttemptAt = attemptAt,
-                    lastOkAt = if (ok) attemptAt else (health[rule.id]?.lastOkAt ?: 0L),
+                    lastOkAt = if (ok) attemptAt else (health[source.id]?.lastOkAt ?: 0L),
                     ok = ok,
                     lastError = error,
-                    itemCount = addedForRule,
+                    itemCount = addedForSource,
                     statusCode = code,
                 )
         }
 
         // Only live sources, so a deleted feed's dot does not outlive it.
-        val ordered = rules.mapNotNull { health[it.id] }
+        val ordered = sources.mapNotNull { health[it.id] }
         _sourceStatuses.value = ordered
         persist(SOURCE_STATUS_KEY, ordered)
 
@@ -338,15 +340,15 @@ class FeedIngestor(
      * the tagger sees as sender and the label path shows.
      */
     private suspend fun ingestSource(
-        rule: SourceEntity,
+        source: SourceEntity,
         spec: SearchSpec,
         items: List<FeedItem>,
         now: Long,
     ): Int =
         storeItems(
-            source = SourceKeys.sourceFor(rule.id, spec),
+            source = SourceKeys.sourceFor(source.id, spec),
             category = if (Tags.INCIDENT in spec.tags) FeedCategories.INCIDENT else FeedCategories.NEWS,
-            sender = rule.name,
+            sender = source.name,
             language = spec.queryLangCode,
             declaredTags = spec.tags,
             items = items,
@@ -361,15 +363,15 @@ class FeedIngestor(
      * anyway, and this keeps one ingest code path.
      */
     private suspend fun ingestUserFeed(
-        rule: SourceEntity,
+        source: SourceEntity,
         spec: RssSpec,
         items: List<FeedItem>,
         now: Long,
     ): Int =
         storeItems(
-            source = SourceKeys.sourceFor(rule.id, spec),
+            source = SourceKeys.sourceFor(source.id, spec),
             category = if (Tags.INCIDENT in spec.tags) FeedCategories.INCIDENT else FeedCategories.NEWS,
-            sender = rule.name,
+            sender = source.name,
             language = DEFAULT_LANGUAGE,
             declaredTags = spec.tags,
             items = items,
@@ -418,10 +420,10 @@ class FeedIngestor(
                 record.ulid to
                 TagInput(
                     text = "${record.title}\n${record.content}",
-                    source = TagSourceKind.RSS,
+                    source = Transport.RSS,
                     sender = sender,
                     language = language,
-                    // The rule declares its own tags; the tagger must not
+                    // The source declares its own tags; the tagger must not
                     // infer them from "this came over RSS".
                     declaredTags = declaredTags,
                 )
@@ -464,6 +466,8 @@ class FeedIngestor(
         const val DEFAULT_REFRESH_MS = 60L * 60 * 1000
 
         private const val STATUS_KEY = "feed:status"
+
+        /** Value frozen across the v11 rename; changing it resets every status dot. */
         private const val SOURCE_STATUS_KEY = "feed:rule-status"
 
         /** What a feed declares when it says nothing: mirrors `FeedSource`. */

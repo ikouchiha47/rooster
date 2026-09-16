@@ -58,30 +58,30 @@ import kotlinx.serialization.json.JsonPrimitive
  * delete button; locked seeded rows get neither (the repository would reject
  * the write; the UI does not offer it).
  *
- * The refresh interval is a read-only fact: one shared schedule
- * ([SyncScheduler.DEFAULT_INTERVAL_MINUTES]) drives every feed, so there is
- * no per-feed interval to set. New rows default to the `news` tag and join
- * the next sync automatically.
+ * New rows re-poll on the shared schedule
+ * ([SyncScheduler.DEFAULT_INTERVAL_MINUTES]) unless the form sets a per-feed
+ * interval; each row shows its own cadence. New rows default to the `news` tag
+ * and join the next sync automatically.
  */
 @Composable
-fun UserFeedsSection(rules: List<SourceEntity>) {
+fun UserFeedsSection(sources: List<SourceEntity>) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
-    val rssRules =
-        remember(rules) {
-            rules
+    val rssSources =
+        remember(sources) {
+            sources
                 .filter { SourceKind.from(it.kind) == SourceKind.RSS }
                 .sortedWith(compareBy({ it.seeded }, { it.name.lowercase() }))
         }
-    val urlIndex = remember(rssRules) { rssUrlIndex(rssRules) }
-    val userCount = rssRules.count { !it.seeded }
-    val seedCount = rssRules.size - userCount
+    val urlIndex = remember(rssSources) { rssUrlIndex(rssSources) }
+    val userCount = rssSources.count { !it.seeded }
+    val seedCount = rssSources.size - userCount
 
     // Per-source health from the ingestor: the dot, the last sync and the HTTP
     // code the row reports. Same source the catalog feeds' status comes from.
     val sourceStatuses by container.feeds.sourceStatuses.collectAsState()
-    val ruleStatusById = remember(sourceStatuses) { sourceStatuses.associateBy { it.id } }
+    val sourceStatusById = remember(sourceStatuses) { sourceStatuses.associateBy { it.id } }
 
     // Seeded rows are never polled *as sources* — the catalog pass fetches those
     // same URLs — so their health lives under the catalog feed, not the source.
@@ -97,22 +97,22 @@ fun UserFeedsSection(rules: List<SourceEntity>) {
     var busyId by remember { mutableStateOf<String?>(null) }
     var rowError by remember { mutableStateOf<Pair<String, String>?>(null) }
 
-    fun toggle(rule: SourceEntity) {
-        busyId = rule.id
+    fun toggle(source: SourceEntity) {
+        busyId = source.id
         rowError = null
         scope.launch {
-            runCatching { container.sourceRepository.setEnabled(rule.id, !rule.enabled) }
-                .onFailure { rowError = rule.id to (it.message ?: "Update failed.") }
+            runCatching { container.sourceRepository.setEnabled(source.id, !source.enabled) }
+                .onFailure { rowError = source.id to (it.message ?: "Update failed.") }
             busyId = null
         }
     }
 
-    fun delete(rule: SourceEntity) {
-        busyId = rule.id
+    fun delete(source: SourceEntity) {
+        busyId = source.id
         rowError = null
         scope.launch {
-            runCatching { container.sourceRepository.delete(rule.id) }
-                .onFailure { rowError = rule.id to (it.message ?: "Delete failed.") }
+            runCatching { container.sourceRepository.delete(source.id) }
+                .onFailure { rowError = source.id to (it.message ?: "Delete failed.") }
             busyId = null
         }
     }
@@ -202,16 +202,16 @@ fun UserFeedsSection(rules: List<SourceEntity>) {
         if (userCount > 0) {
             WidgetHeader(title = "Subscribed", note = "$userCount")
         }
-        rssRules.forEach { rule ->
-            val feedUrl = rssUrlOf(rule)
+        rssSources.forEach { source ->
+            val feedUrl = rssUrlOf(source)
             UserFeedRow(
-                rule = rule,
+                source = source,
                 url = feedUrl,
-                status = ruleStatusById[rule.id] ?: feedUrl?.let { catalogByUrl[normalizeFeedUrl(it)] },
+                status = sourceStatusById[source.id] ?: feedUrl?.let { catalogByUrl[normalizeFeedUrl(it)] },
                 busy = busyId != null,
-                error = rowError?.takeIf { it.first == rule.id }?.second,
-                onToggle = { toggle(rule) },
-                onDelete = { delete(rule) },
+                error = rowError?.takeIf { it.first == source.id }?.second,
+                onToggle = { toggle(source) },
+                onDelete = { delete(source) },
             )
         }
     }
@@ -235,7 +235,7 @@ private sealed interface AddPhase {
 
 @Composable
 private fun UserFeedRow(
-    rule: SourceEntity,
+    source: SourceEntity,
     url: String?,
     status: FeedStatus?,
     busy: Boolean,
@@ -255,10 +255,10 @@ private fun UserFeedRow(
     val meta =
         listOfNotNull(
             url?.let(::hostOf),
-            intervalLabel(rule),
+            intervalLabel(source),
             health,
-            "DISABLED".takeIf { !rule.enabled },
-            "SEED".takeIf { rule.seeded },
+            "DISABLED".takeIf { !source.enabled },
+            "SEED".takeIf { source.seeded },
         ).joinToString(" · ")
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -272,7 +272,7 @@ private fun UserFeedRow(
             Spacer(Modifier.width(7.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = rule.name,
+                    text = source.name,
                     style = RadarType.serifTitle,
                     color = RadarColors.ink,
                     maxLines = 1,
@@ -281,14 +281,14 @@ private fun UserFeedRow(
                 Text(
                     text = meta,
                     style = RadarType.microPlain,
-                    color = if (!rule.enabled || error != null || status?.lastError != null) CategoryColors.Vermilion else RadarColors.ink3,
+                    color = if (!source.enabled || error != null || status?.lastError != null) CategoryColors.Vermilion else RadarColors.ink3,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!rule.seeded) {
+            if (!source.seeded) {
                 FlatButton(
-                    text = if (rule.enabled) "DISABLE" else "ENABLE",
+                    text = if (source.enabled) "DISABLE" else "ENABLE",
                     onClick = onToggle,
                     enabled = !busy,
                 )
@@ -424,12 +424,12 @@ private fun FieldBox(
 }
 
 /**
- * How often this rule re-polls: its own interval when set, else the shared
+ * How often this source re-polls: its own interval when set, else the shared
  * feed schedule. Read-only on the row — the scheduler runs one periodic job,
- * so the interval paces the rule's cache, not a separate timer.
+ * so the interval paces the source's cache, not a separate timer.
  */
-internal fun intervalLabel(rule: SourceEntity): String {
-    val secs = rule.intervalSec ?: DEFAULT_USER_INTERVAL_SEC
+internal fun intervalLabel(source: SourceEntity): String {
+    val secs = source.intervalSec ?: DEFAULT_USER_INTERVAL_SEC
     return when {
         secs % 3600L == 0L -> "every ${secs / 3600}h"
         secs % 60L == 0L -> "every ${secs / 60}m"
@@ -448,9 +448,9 @@ internal fun intervalSecondsOrNull(raw: String): Long? {
     return secs.takeIf { it in MIN_INTERVAL_SEC..MAX_INTERVAL_SEC }
 }
 
-/** Normalised URL to rule name, for the duplicate guard. Unparseable rows are skipped. */
-internal fun rssUrlIndex(rules: List<SourceEntity>): Map<String, String> =
-    rules
+/** Normalised URL to source name, for the duplicate guard. Unparseable rows are skipped. */
+internal fun rssUrlIndex(sources: List<SourceEntity>): Map<String, String> =
+    sources
         .mapNotNull { row ->
             if (SourceKind.from(row.kind) != SourceKind.RSS) return@mapNotNull null
             val url =
@@ -477,8 +477,8 @@ internal fun validateUserFeed(
     return null
 }
 
-private fun rssUrlOf(rule: SourceEntity): String? =
-    runCatching { SourceSpecs.parse(SourceKind.RSS, rule.specJson) as RssSpec }
+private fun rssUrlOf(source: SourceEntity): String? =
+    runCatching { SourceSpecs.parse(SourceKind.RSS, source.specJson) as RssSpec }
         .getOrNull()
         ?.url
 

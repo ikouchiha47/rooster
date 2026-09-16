@@ -299,9 +299,6 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         11 to MIGRATION_10_11_STATEMENTS,
     )
 
-/** The newest version this build can migrate to. */
-val CURRENT_VERSION: Int = MIGRATION_STATEMENTS.keys.max() + 1
-
 val MIGRATIONS: Array<Migration> =
     MIGRATION_STATEMENTS
         .entries

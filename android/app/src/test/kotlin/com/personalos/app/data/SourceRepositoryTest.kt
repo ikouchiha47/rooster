@@ -79,7 +79,7 @@ class SourceRepositoryTest {
         }
 
     @Test
-    fun `a user rule disables and deletes`() =
+    fun `a user source disables and deletes`() =
         runBlocking {
             val dao = dao()
             val repository = SourceRepository(dao)
@@ -103,7 +103,7 @@ class SourceRepositoryTest {
     }
 
     @Test
-    fun `adding a user rule validates the spec before insert`() =
+    fun `adding a user source validates the spec before insert`() =
         runBlocking {
             val dao = dao()
             val repository = SourceRepository(dao)
@@ -126,7 +126,7 @@ class SourceRepositoryTest {
         }
 
     @Test
-    fun `disabling a user rule stamps updated_at`() =
+    fun `disabling a user source stamps updated_at`() =
         runBlocking {
             val dao = dao()
             SourceRepository(dao).setEnabled("user-1", false, now = 9L)
@@ -134,7 +134,7 @@ class SourceRepositoryTest {
         }
 
     @Test
-    fun `adding a user rule writes both stamps`() =
+    fun `adding a user source writes both stamps`() =
         runBlocking {
             val dao = dao()
             val row = SourceRepository(dao).addUserSource("Express", "rss", RSS_SPEC, now = 2L)

@@ -15,14 +15,14 @@ import kotlinx.coroutines.flow.Flow
  * this class. Affected-row counting (rather than a read-then-write) keeps the
  * rejection race-free.
  *
- * v1 has no edit path: a user source changes by delete + re-add. The full engine
- * (tile scope, delivery, position) arrives later without touching this class's
- * contract.
+ * v1 has no edit path: a user source changes by delete + re-add. The spec's
+ * `page`, `map` and `session` keys arrive in slice 4 (ADR 0003 §5) without
+ * touching this class's contract.
  */
 class SourceRepository(
     private val dao: SourceDao,
 ) {
-    /** One `Flow<List<Source>>`: the read surface every consumer observes. */
+    /** One `Flow<List<SourceEntity>>`: the read surface every consumer observes. */
     fun observe(): Flow<List<SourceEntity>> = dao.observeAll()
 
     /** Enabled rows of any kind — what the ingestor polls. */

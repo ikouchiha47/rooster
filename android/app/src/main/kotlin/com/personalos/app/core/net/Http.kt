@@ -11,7 +11,7 @@ import java.net.URL
 object Http {
     val json: Json = Json { ignoreUnknownKeys = true }
 
-    /** The single fetch identity behind every poll, catalog or rule. */
+    /** The single fetch identity behind every poll, catalog or source. */
     const val USER_AGENT = "PersonalRadar/0.1 (personal use)"
 
     fun getText(
@@ -33,7 +33,7 @@ object Http {
     /**
      * Raw status code plus body (the error stream past 299), for callers that
      * must report *what happened* instead of throwing: the feed verifier, and
-     * the rule poller's per-rule health.
+     * the source poller's per-source health.
      */
     fun getRaw(
         url: String,

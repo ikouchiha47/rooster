@@ -2,6 +2,8 @@ package com.personalos.app.data
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -70,6 +72,15 @@ class MigrationSchemaTest {
     fun `the exported schema describes exactly what we expect`() {
         assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules"), tables.keys)
         assertEquals(setOf("item_tags_current"), views.keys)
+    }
+
+    @Test
+    fun `the database version equals the newest migration target`() {
+        // Keys are target versions, so the newest migratable version is
+        // max(keys), not one past it. A migration added without a version bump
+        // (or vice versa) makes the declared version drift from its own chain.
+        val declaredVersion = exportedDatabase().getValue("version").jsonPrimitive.int
+        assertEquals(MIGRATION_STATEMENTS.keys.max(), declaredVersion)
     }
 
     @Test
@@ -331,7 +342,13 @@ class MigrationSchemaTest {
         db.createStatement().executeQuery("PRAGMA table_info(`$table`)").use { rs ->
             while (rs.next()) {
                 actualColumns[rs.getString("name")] =
-                    Column(rs.getString("type").uppercase(), rs.getInt("notnull") == 1)
+                    Column(
+                        affinity = rs.getString("type").uppercase(),
+                        notNull = rs.getInt("notnull") == 1,
+                        // A declared DEFAULT survives the migration and then fails
+                        // Room's validation on open, so the trap has to be asserted.
+                        defaultValue = rs.getString("dflt_value"),
+                    )
                 if (rs.getInt("pk") > 0) pk += rs.getString("name")
             }
         }
@@ -382,6 +399,7 @@ class MigrationSchemaTest {
                                     .jsonPrimitive.content
                                     .uppercase(),
                             notNull = f["notNull"]?.jsonPrimitive?.booleanOrNull ?: false,
+                            defaultValue = f["defaultValue"]?.jsonPrimitive?.contentOrNull,
                         )
                 },
             primaryKey =
@@ -420,6 +438,7 @@ class MigrationSchemaTest {
     private data class Column(
         val affinity: String,
         val notNull: Boolean,
+        val defaultValue: String?,
     )
 
     private data class Index(

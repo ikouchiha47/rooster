@@ -26,7 +26,7 @@ fun RssScreen(
     onBack: (() -> Unit)? = null,
 ) {
     val container = LocalAppContainer.current
-    val rules by container.sourceRepository.observe().collectAsState(initial = emptyList())
+    val sources by container.sourceRepository.observe().collectAsState(initial = emptyList())
 
     Column(modifier.fillMaxSize()) {
         RadarHeader(
@@ -35,7 +35,7 @@ fun RssScreen(
             onBack = onBack,
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            UserFeedsSection(rules = rules)
+            UserFeedsSection(sources = sources)
         }
     }
 }

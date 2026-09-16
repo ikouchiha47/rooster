@@ -40,9 +40,10 @@ object SourceSpecs {
     /**
      * Parses and validates `spec_json` for [kind].
      *
-     * Required keys per ADR 0003; unknown keys are rejected so a future kind
-     * cannot silently masquerade as a v1 kind. Missing `tags` defaults to
-     * `news` (ADR 0003 §Spec shapes).
+     * Required keys per ADR 0002 "Spec shapes (v1)" — the flat shape v1 stored,
+     * not ADR 0003 §5's `fetch`/`page`/`map`, which slice 4 introduces. Unknown
+     * keys are rejected so a future kind cannot silently masquerade as a v1
+     * kind. Missing `tags` defaults to `news`.
      *
      * @throws IllegalArgumentException on any invalid input.
      */

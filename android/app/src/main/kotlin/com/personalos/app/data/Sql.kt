@@ -281,9 +281,10 @@ object Sql {
         "UPDATE party_sources SET last_sync_at = :syncedAt WHERE country = :country"
 
     // ----------------------------------------------------------------- sources
-    // ADR 0003: today's `rules` table is a source registry. The write guards
-    // (`AND seeded = 0`) are what make bundled seeds add-only even to a caller
-    // that bypasses the repository — the UI hiding buttons is not enforcement.
+    // ADR 0003: the pre-v11 `rules` table was a source registry, now `sources`.
+    // The write guards (`AND seeded = 0`) are what make bundled seeds add-only
+    // even to a caller that bypasses the repository — the UI hiding buttons is
+    // not enforcement.
     const val SOURCES_COUNT = "SELECT COUNT(*) FROM sources"
 
     const val SOURCES_ALL = "SELECT * FROM sources"
