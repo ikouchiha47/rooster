@@ -58,6 +58,7 @@ import kotlinx.coroutines.launch
 fun RulesScreen(
     onNewRule: () -> Unit,
     onEditRule: (RuleEntity) -> Unit,
+    onInspectRule: (RuleEntity) -> Unit,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -135,9 +136,8 @@ fun RulesScreen(
                             }
                         }
                     },
-                    onEdit = {
-                        if (!rule.seeded) onEditRule(rule)
-                    },
+                    onEdit = { onEditRule(rule) },
+                    onInspect = { onInspectRule(rule) },
                     onDelete = {
                         if (!rule.seeded) {
                             scope.launch {
@@ -207,15 +207,23 @@ private fun FilterTabs(
     }
 }
 
+/**
+ * Whether a rule should open in read-only mode.
+ *
+ * Derived from [seeded], not from user action, so the decision is testable
+ * without Compose and every bundled rule is inspectable.
+ */
+fun isRuleReadOnly(seeded: Boolean): Boolean = seeded
+
 @Composable
 private fun RuleRow(
     rule: RuleEntity,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
+    onInspect: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val spineColor = remember(rule.conditionJson) { ruleSpineColor(rule.conditionJson) }
-    var showMenu by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -223,7 +231,10 @@ private fun RuleRow(
                 Modifier
                     .fillMaxWidth()
                     .height(IntrinsicSize.Min)
-                    .then(if (!rule.seeded) Modifier.clickable(onClickLabel = "Edit rule", onClick = onEdit) else Modifier),
+                    .clickable(
+                        onClickLabel = if (rule.seeded) "View rule" else "Edit rule",
+                        onClick = { if (rule.seeded) onInspect() else onEdit() },
+                    ),
             verticalAlignment = Alignment.Top,
         ) {
             CategorySpine(color = spineColor, modifier = Modifier.padding(vertical = 0.dp))

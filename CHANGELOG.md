@@ -7,6 +7,35 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(ui): bundled rules open read-only, and the builder uses the model's closed sets
+
+_2026-09-17_
+
+Two defects from actually using the app.
+
+Bundled rules could not be opened at all. The row's tap was gated on seeded, so with
+every shipped rule bundled the list was a dead end - nothing opened, nothing could be
+inspected. Locking the write path was right; locking the read path was not, and the
+repository only ever guarded writes. Every row now opens: a bundled rule goes to a
+read-only view showing its condition in words, the raw condition_json and action_json
+verbatim, its id, enabled state, delivery and position, and saying plainly that
+bundled rules ship with the app and are replaced on upgrade.
+
+The builder also only half-used the unified model. Subject and nature came from
+TagGroups and operators and targets from their enums, but source, mention kind and
+field name were free text, so a mistyped source id or field name produced a rule that
+silently never matched - the failure the seed guard exists to prevent, arriving
+through the UI. Source now comes from the source registry plus the catalog, resolved
+to the real events.source string; mention kind from MentionKind; field name from
+FieldNames.SUPPLIED. Text patterns and numeric values stay free, because they are.
+
+Mention value remains validated text rather than a picker: places and parties are not
+exposed at the composition point and adding that plumbing was out of scope here.
+Recorded so it is a known limit rather than an oversight.
+
+Verified: 411 tests, 0 failures. Not verified: the screens on a device - this project
+has no Compose test infrastructure, so the logic is unit-tested and compiled only.
+
 ## docs(plan): a text-only condition renders no summary on the rules list
 
 _2026-09-16_

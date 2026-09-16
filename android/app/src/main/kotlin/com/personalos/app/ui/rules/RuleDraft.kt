@@ -1,9 +1,11 @@
 package com.personalos.app.ui.rules
 
+import com.personalos.app.core.mention.MentionKind
 import com.personalos.app.core.rules.ActionJson
 import com.personalos.app.core.rules.Condition
 import com.personalos.app.core.rules.ConditionJson
 import com.personalos.app.core.rules.Delivery
+import com.personalos.app.core.rules.FieldNames
 import com.personalos.app.core.rules.FieldOp
 import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.TextTarget
@@ -134,7 +136,9 @@ sealed interface PredicateDraft {
         val kind: String,
         val value: String,
     ) : PredicateDraft {
-        override fun isValid(): Boolean = kind.isNotBlank() && value.isNotBlank()
+        // Kind is closed: only MentionKind constants exist today. A free-text kind
+        // would silently never match because no extractor produces it.
+        override fun isValid(): Boolean = kind.isNotBlank() && value.isNotBlank() && kind in setOf(MentionKind.PLACE, MentionKind.PARTY)
 
         override fun toJson(): JsonObject =
             buildJsonObject {
@@ -165,7 +169,9 @@ sealed interface PredicateDraft {
         val op: FieldOp,
         val value: FieldValue,
     ) : PredicateDraft {
-        override fun isValid(): Boolean = name.isNotBlank()
+        // Field name is closed: only names a producer writes can match anything.
+        // A name outside FieldNames.SUPPLIED silently never matches (ADR 0003 §13).
+        override fun isValid(): Boolean = name.isNotBlank() && name in FieldNames.SUPPLIED
 
         override fun toJson(): JsonObject =
             buildJsonObject {
