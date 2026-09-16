@@ -7,6 +7,25 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## refactor(rules): the preview reports why, not what to display
+
+_2026-09-16_
+
+Found while reviewing the new rules screen's copy. RulePreview.Unavailable carried
+a free-text sentence that the screen rendered verbatim, and the data layer was
+writing those sentences deliberately - the KDoc said the reason "is a complete
+sentence the UI states". That inverts the layering rule that formatting belongs to
+the UI, and the consequence was visible: a series rule would have shown the user
+"series predicates cannot be previewed until the monitor engine lands (ADR 0003
+section 8)", and a failed preview would have shown a raw exception message.
+
+Unavailable now carries a kind - INVALID_DRAFT, SERIES_UNSUPPORTED, UNKNOWN - and
+the underlying cause in a detail field that is for logs only. The screen maps the
+kind to its own wording, so developer-facing text cannot reach a user by
+construction rather than by discipline. The test asserts the kind instead of
+substring-matching the evaluator's message, which also stops it from breaking when
+that message is reworded.
+
 ## feat(rules): a bounded preview over stored history, for the authoring UI
 
 _2026-09-16_

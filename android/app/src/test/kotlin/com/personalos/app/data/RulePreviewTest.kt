@@ -365,9 +365,10 @@ class RulePreviewTest {
                 // No exception escapes: the boundary catches the evaluator's loud refusal.
                 val result = previewer.preview(condition, now = NOW)
                 val unavailable = result as RulePreview.Unavailable
-                assertTrue(
-                    "the reason must name what is unsupported: ${unavailable.reason}",
-                    unavailable.reason.contains("reads a window"),
+                assertEquals(
+                    "a series condition is reported as such, never as a non-match",
+                    UnavailableReason.SERIES_UNSUPPORTED,
+                    unavailable.reason,
                 )
             }
         }
