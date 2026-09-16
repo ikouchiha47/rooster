@@ -7,6 +7,30 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): slices 1 and 2 done, and the gap that nothing can create a rule yet
+
+_2026-09-16_
+
+Records slice 2 as landed (4efc8be): core/rules is now the predicate language,
+with conditions over all/any, the item and series predicates, actions carrying
+delivery and position, unknown-key rejection, and enrichment-sensitivity that
+recurses. Also records that the tag taxonomy finally has one owner (TagGroups,
+with HeuristicTagger reading it and a partition test), that WordBoundary is
+shared by the gazetteers and the text predicate, and that ARCHITECTURE section
+10.5 names two natures that do not exist as Tags constants - deliberately not
+invented, and noted in code rather than silently added.
+
+States the residual risk rather than hiding it: the text bound is input length
+plus a StackOverflowError catch, not a time sandbox, so a catastrophic pattern
+inside the bound can still burn CPU. RE2/J is not a drop-in because it has no
+lookaround, which is what the boundary pattern is built from.
+
+And records the gap that matters for what comes next: slices 1-2 built the table
+and the language, but there is no seeder, no writer and no UI, so rules is empty
+and the slice 3 evaluator will have nothing to evaluate. That is engine-first
+sequencing by design, but it is the difference between the engine working and
+rules working, and it needs a decision.
+
 ## feat(rules): the predicate language, and one owner for the tag taxonomy
 
 _2026-09-16_

@@ -1,6 +1,6 @@
 # Plan 0002 — Sources, Items and Rules
 
-- **Status:** Requirements written; slice 1 complete and merged (`43517af`), device-verified; slice 2 next
+- **Status:** Slices 1 and 2 complete and merged (`43517af`, `90ff28c`, `4efc8be`), device-verified; slice 3 next
 - **Date:** 2026-09-15
 - **Depends on:** ADR 0003 (sources/items/rules interfaces), ADR 0001 (zero-cost policy)
 - **Companion:** ADR 0002 (the superseded `rules`-as-sources model)
@@ -19,8 +19,8 @@ This file is the state that survives context loss. On resume:
 
 Rules of the loop: one slice at a time; never leave the tree non-building; commit only when asked; never edit application code without explicit permission.
 
-**Current state:** slice 1 landed as `43517af` on `main` (fast-forward from `feat/sources-rules`, worktree removed). 250 tests green in-tree *and* from a fresh clone; migration v10→v11 verified on the device with `room_master_table.identity_hash` matching `11.json`. ADR 0003 and this plan are still uncommitted in the main tree.
-**Next action:** slice 2 — the predicate language in `core/rules/` (item predicates, series predicates, `all`/`any`, unknown-key rejection, Unicode-safe text matching), pure Kotlin with unit tests and no storage or UI coupling.
+**Current state:** slices 1 and 2 are on `main` — `43517af` (the rename and schema v11), `90ff28c` (its review cleanup), `4efc8be` (the predicate language and the taxonomy owner). 291 tests green in-tree *and* from a fresh clone; migration v10→v11 verified on the device with `room_master_table.identity_hash` matching `11.json`. Nothing evaluates a rule yet, and the `rules` table has no rows — see the authoring gap under Known gaps.
+**Next action:** slice 3 — the evaluator and materialisation. A pure evaluator over item + tags + mentions + fields; ingest evaluation of new items; `RuleWriter` writing `item_rules` append-only; enrichment-triggered re-evaluation scoped to text-predicate rules and the enriched items; and a dry run that persists nothing.
 
 ---
 
@@ -129,13 +129,31 @@ the evaluator the ADR places there in slice 2.
 - [x] T1.6 Export `11.json`; `MigrationSchemaTest` green against the new chain. (S1)
 - [x] T1.7 Gates + **fresh-clone build** before calling the slice done. (250 tests, 53 tasks executed from a clean clone; device migration confirmed by matching identity hash)
 
-### Slice 2 — the predicate language (pure)
+### Slice 2 — the predicate language (complete, `4efc8be`)
 
-- [ ] T2.1 Item predicates: subject, nature, marker, mention, source, field, text. (P2)
-- [ ] T2.2 Series predicates: crossing, delta, min/max over window. (P3)
-- [ ] T2.3 `all` / `any` composition and unknown-key rejection. (P1, P7)
-- [ ] T2.4 Text matching with Unicode boundaries, `(?u)`, and a bounded input/match. (P5, P6)
-- [ ] T2.5 Enrichment-sensitivity flag derived from the condition. (P4)
+- [x] T2.1 Item predicates: subject, nature, marker, mention, source, field, text. (P2)
+- [x] T2.2 Series predicates: crossing, delta, min/max over window. (P3)
+- [x] T2.3 `all` / `any` composition and unknown-key rejection. (P1, P7)
+- [x] T2.4 Text matching with Unicode boundaries, `(?u)`, and a bounded input/match. (P5, P6)
+- [x] T2.5 Enrichment-sensitivity flag derived from the condition. (P4)
+
+The taxonomy arrived with this slice: `TagGroups` is now the single owner of subjects / natures /
+marker, and `HeuristicTagger` reads it instead of keeping its own `SUBJECTS` copy. Groups are derived
+from the tags that exist — marker `news`; subjects `finance`, `tech`, `travel`, `festival`, `games`,
+`weather`, `paper`; natures `expense`, `promo`, `incident`, `personal`, `official` — and a test proves
+they partition `Tags.ALL` exactly once. ARCHITECTURE §10.5 prose lists `announcement` and `maintenance`
+as natures but `Tags` has no such constants; they were **not** invented, and the discrepancy is
+recorded in `TagGroups`' KDoc.
+
+`WordBoundary` also became a single owner here: the Unicode boundary definition moved out of
+`PlaceIndex` and now serves the gazetteers *and* the text predicate, so there is one definition of what
+a word boundary means.
+
+**Residual risk, accepted with reasons.** The text bound is input length plus pattern length plus a
+`StackOverflowError` catch — not a time sandbox. A deliberately catastrophic pattern within
+`MAX_TEXT_LENGTH` can still burn CPU, and a match strictly beyond the bound is missed by design.
+RE2/J would remove the class but is **not** a drop-in: it does not support lookaround, which is exactly
+what the word-boundary pattern is built from. Revisit only if a real stall appears.
 
 ### Slice 3 — evaluator and materialisation
 
@@ -218,7 +236,11 @@ Append-only. One line per landed change.
 - 2026-09-16 — Two tests written for the rule DAOs were **deleted as tautologies** in that pass: they defined fakes that reimplemented `INSERT OR IGNORE` in Kotlin and asserted the fakes, so they would have kept passing if the composite primary key were removed or `onConflict` became `REPLACE`. The fact they pretended to check is genuinely covered — `MigrationSchemaTest` compares every exported table's primary key against `PRAGMA table_info` over real SQLite — so nothing was lost by removing them.
 - 2026-09-16 — Device verification of `90ff28c`: installed over the live v11 DB, app opened with no Room error, still at v11 with 13 sources. The frozen-value decision was proved rather than assumed — `PrefsStringCache` stores each logical key as `<key>.at` + `<key>.value`, and the key sets were *identical* before and after, with all four `rule:<id>` body-cache keys intact and the retag cursor the only changed value (`heuristic-v9:r1` 29887→30347). Note: a naive substring check for `feed:rule-status` reports a false negative because of that `.at`/`.value` split.
 
-### Known gaps from slice 1
+- 2026-09-16 — **Slice 2 complete** as `4efc8be` (worktree `feat/rules-engine`, ff-merged, removed). `core/rules/` now holds the pure language: a sealed `Condition` over `all`/`any` with the item predicates (subject, nature, marker, mention, source, field, text) and the series predicates (crossing, delta, min/max over a window), plus `RuleAction` carrying delivery and position. Item predicates are single-key objects, so the JSON is `{"all":[{"subject":"games"},{"text":{"pattern":"bandh","target":"any"}}]}`; actions are `{"delivery":"push","position":10}`. Unknown keys are rejected in both, `isEnrichmentSensitive` recurses through nested composition, and text matching bounds pattern and input length with `(?u)` and the shared Unicode boundary definition.
+- 2026-09-16 — Slice 2 also delivered the taxonomy owner it needed: `TagGroups` now owns subjects / natures / marker and `HeuristicTagger` reads it instead of its own `SUBJECTS` copy; a test proves the groups partition `Tags.ALL` exactly once. `WordBoundary` became a single owner too (two callers: the gazetteers and the text predicate). Notably `ARCHITECTURE.md` §10.5 claims `announcement` and `maintenance` natures that **do not exist as `Tags` constants** — they were not invented, and the discrepancy lives in `TagGroups`' KDoc. Evidence: 291 tests (40 new) in-tree and from a fresh clone, 53 tasks executed.
+
+### Known gaps
 
 - **`@Insert(onConflict)` is not verified.** The composite primary key is asserted against real SQLite, but Room's conflict mode is a one-word annotation no JVM test in this project can exercise (there is no Robolectric or in-memory Room anywhere; DAO tests would be fakes testing themselves). Confirm it on device in slice 3, when `RuleWriter` first writes matches — a `REPLACE` instead of `IGNORE` would overwrite `matched_at` and silently rewrite match history.
 - **`feed:rule-status.value` reads `[]` on device — explained, and not a defect.** There are two deliberately separate health pipelines, and the code says so in both places: `statuses` (`feed:status`) covers the seeded catalog and is what `SourcesScreen` renders (`FeedIngestor.refresh()` → `persistStatuses`), while `sourceStatuses` (`feed:rule-status`) covers *user-added* sources and is what `UserFeedsSection` renders (`persist(SOURCE_STATUS_KEY, ordered)`). It is empty because there are no user-added RSS sources for `sources.mapNotNull { health[it.id] }` to keep. An earlier revision of this note called it "unexplained"; that was wrong, and the error was mine for not reading the two paths before writing it down. The key *name* is legacy — it predates v11, when `rules` meant `sources` — and it is one of the deliberately frozen values, so renaming it would silently drop user source health.
+- **Nothing can create a rule yet.** Slices 1–2 built the table and the language, but there is no seeder, no writer and no UI, so `rules` is empty and slice 3's evaluator will have nothing to evaluate. That is deliberate sequencing — engine first — but it is the difference between "the engine works" and "rules work", and it needs a decision: seed a few example rules, build the authoring UI (the `design-rules/` mockups exist), or both. Not currently in any slice.
