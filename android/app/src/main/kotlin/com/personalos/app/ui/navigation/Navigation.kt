@@ -33,7 +33,7 @@ import com.personalos.app.ui.rules.RuleBuilderScreen
 import com.personalos.app.ui.rules.RulesScreen
 import com.personalos.app.ui.services.ServicesScreen
 import com.personalos.app.ui.settings.SettingsScreen
-import com.personalos.app.ui.sources.SourcesScreen
+import com.personalos.app.ui.sources.OverviewScreen
 import com.personalos.app.ui.wallet.WalletScreen
 import com.personalos.app.ui.weather.ForecastScreen
 import com.personalos.app.ui.weather.WeatherScreen
@@ -177,7 +177,7 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
-        composable("sources") { SourcesScreen() }
+        composable("sources") { OverviewScreen() }
         composable("settings") { SettingsScreen(onBack = backOrNull(navController)) }
         composable("wallet") { WalletScreen() }
         composable("me") { MeScreen() }

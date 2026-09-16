@@ -7,6 +7,37 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(ui): one feed list, so the same eight feeds stop appearing twice
+
+_2026-09-17_
+
+SourcesScreen rendered the feed list twice - once as the newer Feeds section and once
+as the older My feeds section - and RssScreen rendered a third, wordier variant of the
+same rows over the same sources table. Three treatments of one table, built at
+different times, which is the duplication this codebase's rules exist to prevent.
+
+There is now one FeedList with one FeedRow, used by both screens. The better treatment
+won: health dot, name, domain, and the right-hand pair of last-fetch age over the count
+of items the last pass actually added. The form was separated out as UserFeedForm, since
+a form is not a list and was the reason the old section could not be reused.
+
+OverviewScreen replaces SourcesScreen and renders the list once, followed by by-tag and
+by-source sections. Its grid entry is gone - it had exactly one entry point and did not
+belong among Settings and Account - while the destination and route remain so nothing
+breaks.
+
+Service groups now read Radar & Monitoring, Feeds, Money & Travel, Daily and App, with
+News moved into Daily and Places into Money & Travel.
+
+The counts still have one owner: FeedIngestor computes them into the catalog and
+user-source health flows, and both screens only read and concatenate. No second source
+of truth was added for the numbers.
+
+Verified: 419 tests, 0 failures, ktlint clean, and UserFeedsSection is no longer
+referenced anywhere. Not verified: appearance on a device - this project has no Compose
+test infrastructure, so the shared list compiles and is structurally correct but has not
+been rendered.
+
 ## docs(adr): kinds, instances and declared keys — and why services are not providers
 
 _2026-09-17_

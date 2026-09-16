@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.personalos.app.core.feed.FeedStatus
 import com.personalos.app.core.sources.RssSpec
 import com.personalos.app.core.sources.SourceKind
 import com.personalos.app.core.sources.SourceSpecs
@@ -50,21 +48,17 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * My feeds: the user-managed RSS sources.
+ * The add-a-feed form, separated from the list so the list can be reused.
  *
- * A view over the sources store (ADR 0003) — rows, validation and writes all go
- * through [com.personalos.app.data.SourceRepository], the single owner, so this
- * section never holds a second copy. User rows get a disable toggle and a
- * delete button; locked seeded rows get neither (the repository would reject
- * the write; the UI does not offer it).
- *
- * New rows re-poll on the shared schedule
- * ([SyncScheduler.DEFAULT_INTERVAL_MINUTES]) unless the form sets a per-feed
- * interval; each row shows its own cadence. New rows default to the `news` tag
- * and join the next sync automatically.
+ * Validation and writes go through [com.personalos.app.data.SourceRepository],
+ * the single owner. New rows default to the `news` tag and join the next sync
+ * automatically.
  */
 @Composable
-fun UserFeedsSection(sources: List<SourceEntity>) {
+fun UserFeedForm(
+    sources: List<SourceEntity>,
+    modifier: Modifier = Modifier,
+) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
@@ -78,44 +72,11 @@ fun UserFeedsSection(sources: List<SourceEntity>) {
     val userCount = rssSources.count { !it.seeded }
     val seedCount = rssSources.size - userCount
 
-    // Per-source health from the ingestor: the dot, the last sync and the HTTP
-    // code the row reports. Same source the catalog feeds' status comes from.
-    val sourceStatuses by container.feeds.sourceStatuses.collectAsState()
-    val sourceStatusById = remember(sourceStatuses) { sourceStatuses.associateBy { it.id } }
-
-    // Seeded rows are never polled *as sources* — the catalog pass fetches those
-    // same URLs — so their health lives under the catalog feed, not the source.
-    // Matching on the URL is what keeps the two views over one fact.
-    val catalogStatuses by container.feeds.statuses.collectAsState()
-    val catalogByUrl = remember(catalogStatuses) { catalogStatuses.associateBy { normalizeFeedUrl(it.url) } }
-
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var interval by remember { mutableStateOf("") }
     var phase by remember { mutableStateOf<AddPhase>(AddPhase.Editing) }
     var adding by remember { mutableStateOf(false) }
-    var busyId by remember { mutableStateOf<String?>(null) }
-    var rowError by remember { mutableStateOf<Pair<String, String>?>(null) }
-
-    fun toggle(source: SourceEntity) {
-        busyId = source.id
-        rowError = null
-        scope.launch {
-            runCatching { container.sourceRepository.setEnabled(source.id, !source.enabled) }
-                .onFailure { rowError = source.id to (it.message ?: "Update failed.") }
-            busyId = null
-        }
-    }
-
-    fun delete(source: SourceEntity) {
-        busyId = source.id
-        rowError = null
-        scope.launch {
-            runCatching { container.sourceRepository.delete(source.id) }
-                .onFailure { rowError = source.id to (it.message ?: "Delete failed.") }
-            busyId = null
-        }
-    }
 
     fun submit() {
         if (phase is AddPhase.Verified) {
@@ -172,13 +133,11 @@ fun UserFeedsSection(sources: List<SourceEntity>) {
         }
     }
 
-    Column(Modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth()) {
         WidgetHeader(
             title = "My feeds",
             note = "$userCount user · $seedCount seed · sync every ${SyncScheduler.DEFAULT_INTERVAL_MINUTES}m",
         )
-        // The form leads: adding a feed is what this section is for, and the
-        // list below grows without pushing it off screen.
         AddFeedForm(
             name = name,
             url = url,
@@ -199,21 +158,6 @@ fun UserFeedsSection(sources: List<SourceEntity>) {
             },
             onSubmit = { submit() },
         )
-        if (userCount > 0) {
-            WidgetHeader(title = "Subscribed", note = "$userCount")
-        }
-        rssSources.forEach { source ->
-            val feedUrl = rssUrlOf(source)
-            UserFeedRow(
-                source = source,
-                url = feedUrl,
-                status = sourceStatusById[source.id] ?: feedUrl?.let { catalogByUrl[normalizeFeedUrl(it)] },
-                busy = busyId != null,
-                error = rowError?.takeIf { it.first == source.id }?.second,
-                onToggle = { toggle(source) },
-                onDelete = { delete(source) },
-            )
-        }
     }
 }
 
@@ -231,88 +175,6 @@ private sealed interface AddPhase {
     data class Failed(
         val reason: String,
     ) : AddPhase
-}
-
-@Composable
-private fun UserFeedRow(
-    source: SourceEntity,
-    url: String?,
-    status: FeedStatus?,
-    busy: Boolean,
-    error: String?,
-    onToggle: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    // Host and cadence first, then what actually happened on the last poll:
-    // the HTTP code with how long ago it last succeeded, or the failure.
-    val health =
-        when {
-            status == null || status.neverSynced -> "awaiting first sync"
-            status.lastError != null -> status.lastError
-            status.statusCode != null -> "HTTP ${status.statusCode} · ${ago(status.lastOkAt)}"
-            else -> "synced ${ago(status.lastOkAt)}"
-        }
-    val meta =
-        listOfNotNull(
-            url?.let(::hostOf),
-            intervalLabel(source),
-            health,
-            "DISABLED".takeIf { !source.enabled },
-            "SEED".takeIf { source.seeded },
-        ).joinToString(" · ")
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            StatusDot(status)
-            Spacer(Modifier.width(7.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = source.name,
-                    style = RadarType.serifTitle,
-                    color = RadarColors.ink,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = meta,
-                    style = RadarType.microPlain,
-                    color = if (!source.enabled || error != null || status?.lastError != null) CategoryColors.Vermilion else RadarColors.ink3,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (!source.seeded) {
-                FlatButton(
-                    text = if (source.enabled) "DISABLE" else "ENABLE",
-                    onClick = onToggle,
-                    enabled = !busy,
-                )
-                Spacer(Modifier.width(4.dp))
-                FlatButton(
-                    text = "DELETE",
-                    onClick = onDelete,
-                    enabled = !busy,
-                    vermilion = true,
-                )
-            }
-        }
-        if (error != null) {
-            Text(
-                text = error,
-                style = RadarType.microPlain,
-                color = CategoryColors.Vermilion,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            )
-        }
-        SoftRule()
-    }
 }
 
 @Composable
@@ -477,11 +339,6 @@ internal fun validateUserFeed(
     return null
 }
 
-private fun rssUrlOf(source: SourceEntity): String? =
-    runCatching { SourceSpecs.parse(SourceKind.RSS, source.specJson) as RssSpec }
-        .getOrNull()
-        ?.url
-
 private fun rssSpecJson(url: String): String =
     JsonObject(
         mapOf(
@@ -489,5 +346,3 @@ private fun rssSpecJson(url: String): String =
             "tags" to JsonArray(listOf(JsonPrimitive("news"))),
         ),
     ).toString()
-
-private fun hostOf(url: String): String = url.substringAfter("://").substringBefore('/').removePrefix("www.")
