@@ -7,6 +7,26 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): decide authoring — seed rules, then build the UI
+
+_2026-09-16_
+
+Slices 1-2 built the table and the language, but nothing can create a rule, so
+rules is empty and slice 3's evaluator has nothing to evaluate. Engine-first
+sequencing was deliberate; the gap between the engine working and rules working
+is authoring, so it becomes slice 6 rather than an open question.
+
+Seeding comes before the UI because seeding is what makes slice 3 verifiable on
+device: a real match lands in item_rules, and that is the only way to check
+matched_at and the @Insert(onConflict) behaviour, which no JVM test in this
+project can reach. The UI follows the design-rules mockups and goes to the
+designer lane, since a rule builder is condition and action composition with a
+live dry-run preview - interaction design, not mechanical implementation.
+
+Slice 6 also records what has to exist first: a RuleRepository with the
+locked-seed guard. A storage-only version was written in slice 1 and deleted as
+premature; this is the version with a caller.
+
 ## docs(plan): slices 1 and 2 done, and the gap that nothing can create a rule yet
 
 _2026-09-16_
