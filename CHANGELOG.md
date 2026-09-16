@@ -7,6 +7,38 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): a bounded preview over stored history, for the authoring UI
+
+_2026-09-16_
+
+The dry run could evaluate a condition but only over items handed to it, and nothing
+loaded those items from the store - so the preview the mockups promise had no data
+behind it. This is the SQL half of that, which ADR section 12 divides from the
+evaluator deliberately: the coarse filter narrows in indexes, the regex and typed
+comparisons decide in Kotlin.
+
+The candidate read is always date-bounded on the indexed events.timestamp and capped,
+newest first, so it can never walk the whole store. It narrows further where the
+condition makes it cheap: source into events.source, subject and nature and marker
+into item_tags_current (the active tagger's view, since the raw table is append-only
+and would double-count), and a mention into its indexed (kind, surface) pair. Text and
+field predicates are absent on purpose - a regex cannot be indexed, and interpolating
+a user pattern into SQL is worse than slow.
+
+A series condition degrades instead of exploding. RuleEvaluator still refuses crossing,
+delta and min/max loudly, because monitors arrive in slice 5; the preview catches that
+at its own boundary and returns an outcome naming the reason, so a screen shows
+"cannot preview yet" rather than a crash. The evaluator is untouched.
+
+Most importantly it writes nothing - requirement R4 - and that is asserted rather than
+assumed: a test snapshots events, tags, mentions, fields and matches around a preview
+and compares them, with the DAO's insert count still zero. The SQL itself is tested
+against real SQLite rather than only through fakes, which is the right instinct for a
+string this load-bearing.
+
+Verified: 375 tests, 0 failures. Not verified: a fresh-clone build, and the screen
+itself, which is the next lane.
+
 ## docs(plan): the rule preview needs a history loader before the UI can show one
 
 _2026-09-16_

@@ -87,6 +87,27 @@ interface EventDao {
         limit: Int,
     ): List<EventEntity>
 
+    // ----------------------------------------------------------- rule preview
+    // One bounded read for the authoring dry run: date-windowed on the indexed
+    // timestamp, capped, newest first, and optionally narrowed per indexed column
+    // (ADR §12). The evaluator, never this query, decides a match.
+
+    /**
+     * Candidates for a rule preview. Each nullable filter is a coarse narrowing
+     * on an indexed column; passing null leaves that dimension unbounded. Callers
+     * ask for one more row than they intend to scan so truncation is observable
+     * (see [RulePreviewLoader]).
+     */
+    @Query(Sql.EVENTS_RULE_PREVIEW_CANDIDATES)
+    suspend fun rulePreviewCandidates(
+        since: Long,
+        sourceId: String?,
+        tag: String?,
+        mentionKind: String?,
+        mentionValue: String?,
+        limit: Int,
+    ): List<RulePreviewCandidate>
+
     // ----------------------------------------------------------- tag-scoped
     // What tiles read: everything carrying a tag, keyset-paged, resolved
     // against the active tagger only (docs/ARCHITECTURE.md §11.4).
