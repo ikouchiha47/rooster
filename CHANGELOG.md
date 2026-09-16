@@ -7,6 +7,27 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): a text-only condition renders no summary on the rules list
+
+_2026-09-16_
+
+Found by dumping the live screen after the UI merged. Bandh and strike watch, whose
+condition is a bare text predicate, renders its name and its delivery line but no
+condition line - while the mention rule, the all-of-two rule and the nested
+any-inside-all rule all render theirs. The lowercase pattern appears nowhere in the
+dump, so it is not truncation.
+
+ConditionSummaryTest asserts the formatter returns text(any) ~ bandh for exactly that
+shape, so the gap is between the summary function and how the row renders it, not in
+the formatter or the parser. It needs a test at the row level, which is the layer
+with none today.
+
+Correcting my own first report: I said two rows were missing their summary. Only one
+is. My dump extraction capped captured text at 60 characters and silently dropped the
+78-character finance summary, so the measurement error was mine rather than the UI's -
+the same class of mistake as the feed:rule-status false negative earlier, and worth
+noting twice in one session.
+
 ## feat(ui): the rules authoring screen
 
 _2026-09-16_
