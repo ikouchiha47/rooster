@@ -355,7 +355,9 @@ object Sql {
     /**
      * Edits a user rule in place. Every edit stamps `updated_at`; `position` is
      * written from the parsed action, so the column and `action_json` cannot
-     * disagree. Returns rows touched.
+     * disagree. `color` is carried so an edit never silently drops a rule's own
+     * colour — a null value here is an explicit "no colour", not an omission.
+     * Returns rows touched.
      */
     const val RULES_UPDATE_USER_ONLY =
         """
@@ -363,6 +365,7 @@ object Sql {
         SET name = :name,
             condition_json = :conditionJson,
             action_json = :actionJson,
+            color = :color,
             position = :position,
             updated_at = :updatedAt
         WHERE id = :id AND seeded = 0

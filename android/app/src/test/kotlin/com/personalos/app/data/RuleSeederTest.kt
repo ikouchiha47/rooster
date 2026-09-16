@@ -46,6 +46,7 @@ class RuleSeederTest {
             name: String,
             conditionJson: String,
             actionJson: String,
+            color: String?,
             position: Long,
             updatedAt: Long,
         ): Int {
@@ -56,6 +57,7 @@ class RuleSeederTest {
                     name = name,
                     conditionJson = conditionJson,
                     actionJson = actionJson,
+                    color = color,
                     position = position,
                     updatedAt = updatedAt,
                 )
@@ -195,6 +197,35 @@ class RuleSeederTest {
             val suppressed = dao.rows.filter { ActionJson.parse(it.actionJson).delivery == Delivery.NONE }
             assertEquals("exactly one rule must be delivery=none", 1, suppressed.size)
         }
+
+    @Test
+    fun `the bundled seeds each carry a distinct explicit colour`() =
+        runBlocking {
+            val dao = FakeRuleDao()
+            RuleSeeder(dao).seed(now = 1L)
+
+            val colours = dao.rows.map { it.color }
+            assertTrue("every seed names a colour", colours.all { it != null })
+            assertEquals("colours are distinct", 5, colours.toSet().size)
+            colours.forEach { colour ->
+                // Validated through the same one owner the repository uses, so a
+                // seed and a user rule cannot disagree about the accepted form.
+                assertEquals(colour, RuleColor.requireValid(colour))
+            }
+        }
+
+    @Test
+    fun `a malformed seed colour is rejected before it becomes a row`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            RuleSeed(
+                "seed:rule:bad",
+                "Bad colour",
+                """{"subject": "finance"}""",
+                """{"delivery": "push"}""",
+                "red",
+            ).toEntity(1L)
+        }
+    }
 
     @Test
     fun `seeds write both stamps`() =

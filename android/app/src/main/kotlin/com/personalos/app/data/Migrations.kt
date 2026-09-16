@@ -383,6 +383,24 @@ val MIGRATION_12_13_STATEMENTS: List<String> =
     )
 
 /**
+ * v13 -> v14: a rule's own colour.
+ *
+ * Until now the rules list took its colour from the rule's tag, so two rules
+ * about the same subject were indistinguishable. `color` makes the colour a
+ * property of the rule: an explicit `#RRGGBB`, or `NULL` for "none chosen".
+ *
+ * A plain `ALTER TABLE ... ADD COLUMN` and **nullable with no DEFAULT**, per the
+ * Room-validation rule documented above — an added column carrying a default
+ * would leave one behind that Room does not expect, failing validation on open.
+ * Existing rows keep `NULL`, which already means the right thing: the reconciler
+ * is add-only and never rewrites a stored row, so an install seeded before v14
+ * shows no colour until the UI lane chooses one, rather than being silently
+ * repainted. No backfill UPDATE.
+ */
+val MIGRATION_13_14_STATEMENTS: List<String> =
+    listOf("ALTER TABLE rules ADD COLUMN color TEXT")
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -402,6 +420,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         11 to MIGRATION_10_11_STATEMENTS,
         12 to MIGRATION_11_12_STATEMENTS,
         13 to MIGRATION_12_13_STATEMENTS,
+        14 to MIGRATION_13_14_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

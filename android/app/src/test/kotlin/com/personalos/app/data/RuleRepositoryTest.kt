@@ -40,6 +40,7 @@ class RuleRepositoryTest {
             name: String,
             conditionJson: String,
             actionJson: String,
+            color: String?,
             position: Long,
             updatedAt: Long,
         ): Int {
@@ -50,6 +51,7 @@ class RuleRepositoryTest {
                     name = name,
                     conditionJson = conditionJson,
                     actionJson = actionJson,
+                    color = color,
                     position = position,
                     updatedAt = updatedAt,
                 )
@@ -231,6 +233,82 @@ class RuleRepositoryTest {
         runBlocking {
             val observed = RuleRepository(dao()).observe().first()
             assertEquals(listOf("seed-1", "user-1"), observed.map { it.id })
+        }
+
+    @Test
+    fun `a rule's colour round-trips through create and update`() =
+        runBlocking {
+            val dao = dao()
+            val repository = RuleRepository(dao)
+
+            val created =
+                repository.create("Rates", SUBJECT_CONDITION, PUSH_ACTION, color = "#2B4C8C", now = 2L)
+            assertEquals("#2B4C8C", created.color)
+            assertEquals("#2B4C8C", dao.rows.first { it.id == created.id }.color)
+
+            repository.update(
+                id = "user-1",
+                name = "Mine",
+                conditionJson = SUBJECT_CONDITION,
+                actionJson = PUSH_ACTION,
+                color = "#D93B2B",
+                now = 3L,
+            )
+            assertEquals("#D93B2B", dao.rows.first { it.id == "user-1" }.color)
+        }
+
+    @Test
+    fun `null is an accepted colour and clears a set colour`() =
+        runBlocking {
+            val dao = dao()
+            val repository = RuleRepository(dao)
+
+            val created =
+                repository.create("Rates", SUBJECT_CONDITION, PUSH_ACTION, color = "#2B4C8C", now = 2L)
+            assertEquals("#2B4C8C", created.color)
+
+            repository.update(
+                id = "user-1",
+                name = "Mine",
+                conditionJson = SUBJECT_CONDITION,
+                actionJson = PUSH_ACTION,
+                color = null,
+                now = 3L,
+            )
+            assertEquals("null is a choice, not a rejection", null, dao.rows.first { it.id == "user-1" }.color)
+        }
+
+    @Test
+    fun `an invalid colour is rejected on both paths before any write`() =
+        runBlocking {
+            val dao = dao()
+            val repository = RuleRepository(dao)
+            val bad = listOf("red", "", "#12345", "#1234567", "#GGGGGG", "2B4C8C", "#2b4c8g")
+
+            bad.forEach { colour ->
+                assertThrows("create accepts '$colour'", IllegalArgumentException::class.java) {
+                    runBlocking { repository.create("Bad", SUBJECT_CONDITION, PUSH_ACTION, color = colour) }
+                }
+                assertThrows("update accepts '$colour'", IllegalArgumentException::class.java) {
+                    runBlocking {
+                        repository.update("user-1", "X", SUBJECT_CONDITION, PUSH_ACTION, color = colour)
+                    }
+                }
+            }
+
+            assertEquals("nothing invalid was stored", 2, dao.rows.size)
+            val row = dao.rows.first { it.id == "user-1" }
+            assertEquals("name untouched", "Mine", row.name)
+            assertEquals("no colour was written", null, row.color)
+        }
+
+    @Test
+    fun `lower and upper case hex are both accepted`() =
+        runBlocking {
+            val dao = dao()
+            val repository = RuleRepository(dao)
+            assertEquals("#2b4c8c", repository.create("Lower", SUBJECT_CONDITION, PUSH_ACTION, color = "#2b4c8c").color)
+            assertEquals("#ABCDEF", repository.create("Upper", SUBJECT_CONDITION, PUSH_ACTION, color = "#ABCDEF").color)
         }
 
     private companion object {
