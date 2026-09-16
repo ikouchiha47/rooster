@@ -3,16 +3,20 @@ package com.personalos.app.data
 import android.util.Log
 import com.personalos.app.core.rules.ActionJson
 import com.personalos.app.core.rules.ConditionJson
-import com.personalos.app.core.tag.Ulid
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * One bundled rule before it becomes a row: a name, its condition and its
- * action. Kept apart from [RuleEntity] so validation has something to run over
- * before an id or a timestamp exists.
+ * One bundled rule before it becomes a row: a stable id, a name, its condition
+ * and its action. Kept apart from [RuleEntity] so validation has something to
+ * run over before a timestamp exists.
+ *
+ * The `id` is a fixed string, not a generated ULID: it is the seed's identity
+ * across releases, so a run can tell "this bundled rule is already installed"
+ * from "this bundled rule is new" (see [RuleSeeder]).
  */
 internal data class RuleSeed(
+    val id: String,
     val name: String,
     val conditionJson: String,
     val actionJson: String,
@@ -34,7 +38,7 @@ internal fun RuleSeed.toEntity(now: Long): RuleEntity {
     ConditionJson.parse(conditionJson)
     val action = ActionJson.parse(actionJson)
     return RuleEntity(
-        id = Ulid.next(),
+        id = id,
         name = name,
         enabled = true,
         seeded = true,
@@ -47,12 +51,28 @@ internal fun RuleSeed.toEntity(now: Long): RuleEntity {
 }
 
 /**
- * Seeds the `rules` table with the day-one set (ADR 0003 §6, §9) on first
- * launch. Mirrors [SourceSeeder] exactly:
+ * Reconciles the `rules` table with the bundled day-one set (ADR 0003 §6, §9)
+ * on every launch. Mirrors [SourceSeeder] exactly:
  *
- * Runs once: when the table is non-empty this is a single `COUNT(*)` and
- * nothing else. Inserts are `IGNORE`, so an interrupted seed resumes rather
- * than duplicating. Every seed is validated before insert, so a bad seed fails
+ * **Add-only, keyed by a stable id.** Each bundled seed carries a fixed `id`
+ * (e.g. `seed:rule:bandh-and-strike-watch`), and a run inserts only the seeds
+ * whose id is absent. A row that already exists is never updated or deleted, so
+ * a user's edits and disabled state survive, and `seeded = true` stays
+ * immutable. Repeated launches are therefore no-ops.
+ *
+ * **This is a reconcile, not a first-run gate.** Gating on `count() == 0` meant
+ * a bundled seed added after a user's first launch was invisible forever — the
+ * schema v12 device held four rules because of exactly that. Inserting by id
+ * lets a later release's new seed reach an existing install.
+ *
+ * **A changed condition never silently overwrites a stored row.** Identity is
+ * the id alone, never the condition. When a later release edits a bundled
+ * seed's condition, the row already stored under that id keeps its old
+ * document — "leave existing rows alone" — and the divergence is logged so it
+ * is visible rather than silent. A bundled rule, once installed, is not
+ * retro-actively rewritten by a release.
+ *
+ * Every missing seed is validated before the first write, so a bad seed fails
  * closed (0 rows) rather than shipping a rule the engine cannot match. Any
  * failure returns 0 — nothing in ingest depends on these rows, and a bad seed
  * must never crash launch.
@@ -85,14 +105,32 @@ class RuleSeeder(
         // Owns its dispatcher (see Retagger.run).
         withContext(Dispatchers.IO) {
             runCatching {
-                if (dao.count() > 0) return@runCatching 0
-                val rows = BUNDLED.map { it.toEntity(now) }
+                val stored = dao.all().associateBy { it.id }
+                // Validate every missing seed before the first write: a bad
+                // seed fails closed rather than writing a partial set.
+                val rows = BUNDLED.filter { it.id !in stored }.map { it.toEntity(now) }
+                logDrift(stored)
+                if (rows.isEmpty()) return@runCatching 0
                 dao.insertAll(rows)
-                Log.i(TAG, "seeded ${rows.size} rules")
+                Log.i(TAG, "rules seed: +${rows.size}, ${stored.size} kept")
                 rows.size
             }.onFailure { Log.w(TAG, "rules seed failed", it) }
                 .getOrDefault(0)
         }
+
+    /**
+     * Names every bundled seed whose stored document differs from what this
+     * release ships. The stored row is kept — that is the contract — so this
+     * warning is the only signal that a release's edit did not land.
+     */
+    private fun logDrift(stored: Map<String, RuleEntity>) {
+        BUNDLED.forEach { seed ->
+            val row = stored[seed.id] ?: return@forEach
+            if (row.seeded && (row.conditionJson != seed.conditionJson || row.actionJson != seed.actionJson)) {
+                Log.w(TAG, "bundled rule '${seed.id}' changed in a later release; keeping the stored row")
+            }
+        }
+    }
 
     private companion object {
         const val TAG = "Rules"
@@ -102,10 +140,14 @@ class RuleSeeder(
          * prominent). The place watch deliberately has `delivery = none`: it
          * surfaces a match without interrupting (ADR §9), which is the case
          * that proves delivery and surfacing are separate axes.
+         *
+         * The `seed:rule:` ids are stable across releases — that is what makes
+         * reconciliation possible, so a rename or reorder must never change one.
          */
         val BUNDLED: List<RuleSeed> =
             listOf(
                 RuleSeed(
+                    id = "seed:rule:finance-and-rates-watch",
                     name = "Finance and rates watch",
                     // The finance desks that actually carry rates news: Mint
                     // Markets and Mint Money both declare the `finance` tag.
@@ -114,17 +156,20 @@ class RuleSeeder(
                     actionJson = """{"delivery":"push","position":10}""",
                 ),
                 RuleSeed(
+                    id = "seed:rule:bandh-and-strike-watch",
                     name = "Bandh and strike watch",
                     conditionJson = """{"text":{"pattern":"bandh|strike","target":"any"}}""",
                     actionJson = """{"delivery":"push","position":20}""",
                 ),
                 RuleSeed(
+                    id = "seed:rule:kolkata-place-watch",
                     name = "Kolkata place watch",
                     conditionJson = """{"mention":{"kind":"place","value":"Kolkata"}}""",
                     // `none` on purpose: surface, never interrupt (ADR §9).
                     actionJson = """{"delivery":"none","position":30}""",
                 ),
                 RuleSeed(
+                    id = "seed:rule:news-incident-watch",
                     name = "News incident watch",
                     // `marker` scopes this to editorial news. Status-page
                     // outages are tagged `incident` but deliberately *not*
@@ -133,6 +178,7 @@ class RuleSeeder(
                     actionJson = """{"delivery":"push","position":40}""",
                 ),
                 RuleSeed(
+                    id = "seed:rule:large-sms-amount-watch",
                     name = "Large SMS amount watch",
                     // The mockups' `amount > 10000` (design-rules/recipe.html),
                     // against the one producer that supplies an `amount` today:

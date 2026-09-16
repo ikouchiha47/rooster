@@ -157,10 +157,10 @@ class RuleSeederTest {
     @Test
     fun `a malformed seed is rejected before it becomes a row`() {
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSeed("Bad condition", """{"subjekt": "finance"}""", """{"delivery": "push"}""").toEntity(1L)
+            RuleSeed("seed:rule:bad", "Bad condition", """{"subjekt": "finance"}""", """{"delivery": "push"}""").toEntity(1L)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            RuleSeed("Bad action", """{"subject": "finance"}""", """{"delivery": "shout"}""").toEntity(1L)
+            RuleSeed("seed:rule:bad", "Bad action", """{"subject": "finance"}""", """{"delivery": "shout"}""").toEntity(1L)
         }
     }
 
@@ -197,34 +197,101 @@ class RuleSeederTest {
         }
 
     @Test
-    fun `a non-empty table is a no-op`() =
-        runBlocking {
-            val dao =
-                FakeRuleDao(
-                    mutableListOf(
-                        RuleEntity(
-                            id = "id-1",
-                            name = "Mine",
-                            enabled = true,
-                            seeded = false,
-                            conditionJson = """{"subject": "finance"}""",
-                            actionJson = """{"delivery": "none", "position": 0}""",
-                            position = 0,
-                            createdAt = 1L,
-                        ),
-                    ),
-                )
-            assertEquals(0, RuleSeeder(dao).seed())
-            assertEquals(1, dao.rows.size)
-            assertEquals("id-1", dao.rows.single().id)
-        }
-
-    @Test
     fun `seeds write both stamps`() =
         runBlocking {
             val dao = FakeRuleDao()
             RuleSeeder(dao).seed(now = 7L)
             assertTrue("created_at written", dao.rows.all { it.createdAt == 7L })
             assertTrue("updated_at written", dao.rows.all { it.updatedAt == 7L })
+        }
+
+    /**
+     * A fresh table carrying only a user rule must gain every bundled seed and
+     * leave the user's row exactly as it was — the reconcile replaces the old
+     * `COUNT(*) == 0` gate, which would have skipped the seeds entirely.
+     */
+    @Test
+    fun `a user-created rule is left untouched while every bundled seed is added`() =
+        runBlocking {
+            val user =
+                RuleEntity(
+                    id = "user-1",
+                    name = "Mine",
+                    enabled = false,
+                    seeded = false,
+                    conditionJson = """{"subject": "finance"}""",
+                    actionJson = """{"delivery": "none", "position": 0}""",
+                    position = 0,
+                    createdAt = 5L,
+                    updatedAt = 6L,
+                )
+            val dao = FakeRuleDao(mutableListOf(user))
+
+            assertEquals(5, RuleSeeder(dao).seed(now = 99L))
+            assertEquals(6, dao.rows.size)
+            assertEquals("the user's row is byte-identical", user, dao.rows.single { it.id == "user-1" })
+        }
+
+    /**
+     * An install seeded by an older release shipped fewer rules. The two it
+     * never had must be inserted, and the three it already has must not be
+     * touched — not even their `created_at`, which proves no re-write happened.
+     */
+    @Test
+    fun `a partial install gains the missing seeds and keeps the rest byte-identical`() =
+        runBlocking {
+            val dao = FakeRuleDao()
+            RuleSeeder(dao).seed(now = 1L)
+
+            val kept = dao.rows.take(3).toList()
+            val missingIds =
+                dao.rows
+                    .drop(3)
+                    .map { it.id }
+                    .toSet()
+            val keptIds = kept.map { it.id }.toSet()
+            dao.rows.retainAll { it.id in keptIds }
+
+            assertEquals(2, RuleSeeder(dao).seed(now = 99L))
+            assertEquals(5, dao.rows.size)
+            kept.forEach { row -> assertEquals("${row.id} was rewritten", row, dao.rows.single { it.id == row.id }) }
+            dao.rows
+                .filter { it.id in missingIds }
+                .forEach { assertEquals("${it.id} carries the new stamp", 99L, it.createdAt) }
+        }
+
+    @Test
+    fun `a second run adds nothing`() =
+        runBlocking {
+            val dao = FakeRuleDao()
+            assertEquals(5, RuleSeeder(dao).seed(now = 1L))
+            val afterFirst = dao.rows.toList()
+
+            assertEquals(0, RuleSeeder(dao).seed(now = 99L))
+            assertEquals("nothing changed on the second run", afterFirst, dao.rows)
+        }
+
+    /**
+     * Identity is the id, never the condition. A row already stored under a
+     * bundled id — whatever its document says — is kept, so a release that
+     * edits a seed's condition cannot silently overwrite what is stored.
+     */
+    @Test
+    fun `a differing document under a bundled id is not clobbered`() =
+        runBlocking {
+            val dao = FakeRuleDao()
+            RuleSeeder(dao).seed(now = 1L)
+
+            val target = dao.rows.first()
+            dao.rows[0] =
+                target.copy(
+                    conditionJson = """{"subject": "travel"}""",
+                    actionJson = """{"delivery": "none", "position": 99}""",
+                    updatedAt = 5L,
+                )
+            val stored = dao.rows.toList()
+
+            assertEquals(0, RuleSeeder(dao).seed(now = 99L))
+            assertEquals("the stored row wins over the bundled document", stored, dao.rows)
         }
 }

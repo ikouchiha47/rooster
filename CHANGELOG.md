@@ -7,6 +7,40 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(data): reconcile bundled seeds, and a debug-only force sync
+
+_2026-09-16_
+
+Two things that both existed to make this app verifiable.
+
+Bundled seeds never reached an install that already had rows, because both seeders
+gated on count() == 0. That is why the device held four rules while the release
+shipped five. They now reconcile on every launch by a stable id, inserting only
+what is missing, never updating or deleting an existing row, and leaving seeded
+untouched once written. That required the ids themselves to become stable strings -
+the old seeders generated a fresh Ulid per install, which nothing could ever
+reconcile against. Drift is logged rather than silently applied, so a seed whose
+condition changed in a later release does not overwrite a row the user may have
+customised.
+
+Consequence, stated because it bites the next install: rows seeded before this
+change carry generated ULIDs, so the stable ids look missing on that device and
+reconciliation would insert duplicates - nine rules instead of five, twenty-five
+sources instead of twelve. A one-time adoption is needed before installing this on
+the existing device, and it cannot be done by matching ids, since the whole problem
+is that the old ids are meaningless.
+
+The force sync is a debug-source-set broadcast: refresh takes a force flag that
+bypasses the payload-cache gate for that call only, while every existing caller
+keeps the sixty-minute gate. The receiver, worker and manifest entry live under
+src/debug, so release cannot contain them at all - verified rather than assumed:
+zero matches in the merged release manifest and zero ForceSync references in the
+release dex, against five and twenty in debug. No BuildConfig check to forget.
+
+Verified: 357 tests, 0 failures. Not verified: the adb trigger on a real device,
+and the reconcile against real Room - both are fakes at the JVM level, as
+everywhere else in this project.
+
 ## docs(plan): a seed added later never reaches an existing install
 
 _2026-09-16_

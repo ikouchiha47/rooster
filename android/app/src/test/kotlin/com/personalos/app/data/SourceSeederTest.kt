@@ -120,16 +120,86 @@ class SourceSeederTest {
         }
 
     @Test
-    fun `a non-empty table is a no-op`() =
+    fun `a user-created source is left untouched while every bundled seed is added`() =
         runBlocking {
-            val dao =
-                FakeSourceDao(
-                    mutableListOf(
-                        SourceEntity("id-1", "Mine", "search", """{"query": "x"}""", false, true, 1L),
-                    ),
+            val user =
+                SourceEntity(
+                    id = "user-1",
+                    name = "My feed",
+                    kind = "rss",
+                    specJson = """{"url": "https://example.com/feed", "tags": ["news"]}""",
+                    seeded = false,
+                    enabled = false,
+                    createdAt = 5L,
+                    updatedAt = 6L,
                 )
-            assertEquals(0, SourceSeeder(dao).seed())
-            assertEquals(1, dao.rows.size)
-            assertEquals("id-1", dao.rows.single().id)
+            val dao = FakeSourceDao(mutableListOf(user))
+
+            assertEquals(12, SourceSeeder(dao).seed(now = 99L))
+            assertEquals(13, dao.rows.size)
+            assertEquals("the user's row is byte-identical", user, dao.rows.single { it.id == "user-1" })
+        }
+
+    /**
+     * An install by an older release shipped fewer sources. The missing rows
+     * must be inserted, and the ones already present must not be touched — not
+     * even `created_at`, which proves there was no re-write.
+     */
+    @Test
+    fun `a partial install gains the missing sources and keeps the rest byte-identical`() =
+        runBlocking {
+            val dao = FakeSourceDao()
+            SourceSeeder(dao).seed(now = 1L)
+
+            val kept = dao.rows.take(9).toList()
+            val missingIds =
+                dao.rows
+                    .drop(9)
+                    .map { it.id }
+                    .toSet()
+            val keptIds = kept.map { it.id }.toSet()
+            dao.rows.retainAll { it.id in keptIds }
+
+            assertEquals(3, SourceSeeder(dao).seed(now = 99L))
+            assertEquals(12, dao.rows.size)
+            kept.forEach { row -> assertEquals("${row.id} was rewritten", row, dao.rows.single { it.id == row.id }) }
+            dao.rows
+                .filter { it.id in missingIds }
+                .forEach { assertEquals("${it.id} carries the new stamp", 99L, it.createdAt) }
+        }
+
+    @Test
+    fun `a second run adds nothing`() =
+        runBlocking {
+            val dao = FakeSourceDao()
+            assertEquals(12, SourceSeeder(dao).seed(now = 1L))
+            val afterFirst = dao.rows.toList()
+
+            assertEquals(0, SourceSeeder(dao).seed(now = 99L))
+            assertEquals("nothing changed on the second run", afterFirst, dao.rows)
+        }
+
+    /**
+     * Identity is the id, never the spec. A row already stored under a bundled
+     * id keeps its own document, so a release that edits a source cannot
+     * silently overwrite what is stored.
+     */
+    @Test
+    fun `a differing stored spec under a bundled id is not clobbered`() =
+        runBlocking {
+            val dao = FakeSourceDao()
+            SourceSeeder(dao).seed(now = 1L)
+
+            val target = dao.rows.first()
+            dao.rows[0] =
+                target.copy(
+                    specJson =
+                        """{"query": "Elsewhere", "query_lang_code": "en", "source_locale": "en-IN", "tags": ["news"]}""",
+                    updatedAt = 5L,
+                )
+            val stored = dao.rows.toList()
+
+            assertEquals(0, SourceSeeder(dao).seed(now = 99L))
+            assertEquals("the stored row wins over the bundled spec", stored, dao.rows)
         }
 }
