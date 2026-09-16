@@ -7,6 +7,34 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(research): RBI feeds, and why bank holidays have no single source
+
+_2026-09-16_
+
+RBI does publish official RSS - press releases, notifications, speeches, tenders
+and publications - all verified live. The trap is that each feed carries only the
+latest 10 items, so it is a window rather than an archive and needs polling at
+least daily. Listing pages are scrapeable but the WAF returns 418 to postbacks,
+so there is no deep pagination, and there is no content JSON endpoint.
+
+Bank holidays turned out to be the harder question, and two assumptions were
+wrong. Andhra Pradesh is not missing from RBI's list: RBI names cities, and AP
+appears as Vijayawada, which third-party mappers drop in favour of Hyderabad.
+What RBI actually omits is union territories - Puducherry, Ladakh, Lakshadweep,
+A&N and DNH&DD have no office at all. The root cause is that Section 25 of the
+Negotiable Instruments Act delegates holiday declaration to state governments, so
+RBI compiles rather than decides and the authoritative sources are gazette PDFs.
+
+So consistency has to be assembled: compute weekends and the 2nd/4th Saturday
+rule offline, refresh HDFC's holiday page (the only verified page covering all 37
+states and UTs) monthly, cross-check RBI's office matrix for the current month,
+and keep a small curated table for the UTs RBI omits plus moon-sighting and
+election changes. Recorded as two backlog items with the full reasoning, exact
+URLs, and a verification table marking what was confirmed, blocked or absent -
+including that NPCI 403s non-browsers, the RBI RTGS list is stale because
+electronic transfers went 24x7 in 2020, and Tallyfy's public dataset is verifiably
+wrong.
+
 ## docs(plan): correct the feed:rule-status note, and say whose error it was
 
 _2026-09-16_

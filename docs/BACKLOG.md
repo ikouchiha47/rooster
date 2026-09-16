@@ -32,6 +32,8 @@ Open items, one line each. Details live in the linked docs.
 ## Sources
 - [ ] **Place-parameterised feed discovery** — Google News `<source url>` harvesting so any place can be subscribed, not just the seeded feeds.
 - [ ] **Fares** — no free live API (Amadeus decommissioned, Kiwi invite-only, Duffel test-only). Options: manual route tracking, cached affiliate data, or the WebSessionSource route.
+- [ ] **RBI press releases + notifications** — official RSS exists and is live (`pressreleases_rss.xml`, `notifications_rss.xml`; also `speeches`, `tenders`, `Publication`). Each feed carries **only the latest 10 items**, so poll at least daily or lose them silently; dedupe on `<link>`, id from `prid=`. Plain client works, but the WAF returns 418 to postbacks, so there is no archive pagination. Details in `docs/research/rbi-and-bank-holidays.md`.
+- [ ] **Bank holidays, per state** — no consistent source exists; it has to be layered. Compute Sundays + 2nd/4th Saturdays + ~5 fixed dates offline (incl. 1 April, Annual Closing of Accounts); refresh **HDFC's `bank-holiday-list`** (the only verified page covering all 37 states/UTs) monthly; cross-check **RBI's `HolidayMatrixDisplay.aspx`** (current month only, 34 offices, postback-blocked); keep a ~50-row curated table for the five UTs RBI omits (Puducherry, Ladakh, Lakshadweep, A&N, DNH&DD), Punjab/Haryana, and late changes. Model **branch** closure — electronic transfers have been 24×7 since Dec 2020. Details in `docs/research/rbi-and-bank-holidays.md`.
 
 ## Docs
 - [ ] **`docs/ARCHITECTURE.md`** — single index: sources → adapters → Event → Room → screens, linking ADR 0001, the plan, the feed catalog and the classification doc.
