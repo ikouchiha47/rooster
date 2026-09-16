@@ -7,6 +7,23 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): the rule preview needs a history loader before the UI can show one
+
+_2026-09-16_
+
+Found while starting the authoring UI. RuleWriter.dryRun evaluates over
+caller-supplied seeds and persists nothing, which is correct as far as it goes - but
+nothing loads those seeds from the store, so the mockups' "6 events would match,
+last 7 days" has nothing to run on. The bounded history query had been assumed to be
+slice 5's; it is a hard prerequisite for the preview.
+
+Recorded as the first thing to build before T6.3: a date-bounded, scan-capped loader
+that narrows in SQL where the condition makes it cheap and indexed (source, tag,
+mention) and leaves regex and typed comparisons to the evaluator, which is the
+division ADR section 12 draws. It must also degrade on a series condition rather
+than throwing into the UI, since RuleEvaluator deliberately throws for those until
+slice 5.
+
 ## docs(plan): the rules engine is device-verified, and the onConflict question is closed
 
 _2026-09-16_
