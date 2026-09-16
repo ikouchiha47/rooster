@@ -7,6 +7,23 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): a seed added later never reaches an existing install
+
+_2026-09-16_
+
+Found by verifying schema v12 on the device rather than in tests. The migration
+itself is clean: user_version is 12, item_fields exists with both indices and its
+primary-key autoindex, and room_master_table.identity_hash matches 12.json exactly,
+so Room structurally validated it.
+
+But the database holds four rules, not the five RuleSeeder ships. The seeder runs
+only when the table is count() == 0, so any bundled seed added after a user's first
+launch is invisible forever - which is precisely why the mockups' flagship
+amount > 10000 rule cannot be exercised on the device that needs it. SourceSeeder
+has the same shape and the same flaw. Queued as T8.4: reconcile on launch instead,
+inserting only ids that are missing, leaving existing rows and user-created rules
+untouched, with seeded = 1 still immutable.
+
 ## feat(rules): store typed fields, and let SMS supply the first two
 
 _2026-09-16_
