@@ -11,7 +11,10 @@ import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
+import com.personalos.app.core.SmsAmountParser
 import com.personalos.app.core.SmsClassifier
+import com.personalos.app.core.rules.FieldNames
+import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.Transport
 import com.personalos.app.core.tag.Ulid
@@ -25,11 +28,25 @@ class SmsSource(
     private val database: AppDatabase,
     private val tagWriter: TagWriter,
     private val mentionWriter: MentionWriter,
+    /**
+     * Typed extras for the one kind that can supply them today (ADR 0003 §3,
+     * §13): `sender` from the address it already has, `amount` from the body.
+     */
+    private val fieldWriter: FieldWriter,
+    /**
+     * Evaluates enabled rules against items that actually landed, after their
+     * tags, mentions and fields are stored — so a `source = sms` + `amount`
+     * rule can match (ADR §10, R2).
+     */
+    private val ruleWriter: RuleWriter,
 ) : LifecycleObserver {
-    private companion object {
-        const val TAG = "M1"
-        const val PREFS = "sms_source"
-        const val KEY_LAST_SEEN_ID = "last_seen_id"
+    companion object {
+        /** `events.source` for every SMS row — the identity a `source` predicate reads. */
+        const val SOURCE_ID = "sms"
+
+        private const val TAG = "M1"
+        private const val PREFS = "sms_source"
+        private const val KEY_LAST_SEEN_ID = "last_seen_id"
     }
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -117,6 +134,7 @@ class SmsSource(
 
                 val events = ArrayList<EventEntity>(c.count.coerceAtLeast(0))
                 val tagInputs = ArrayList<TagInput>(c.count.coerceAtLeast(0))
+                val fieldInputs = ArrayList<Map<String, FieldValue>>(c.count.coerceAtLeast(0))
                 var maxId = since
                 val ingestedAt = System.currentTimeMillis()
 
@@ -137,7 +155,7 @@ class SmsSource(
                             // Provider row id: re-ingest is idempotent, and two
                             // messages from the same sender never collide.
                             dedupeKey = "sms:$rowId",
-                            source = "sms",
+                            source = SOURCE_ID,
                             type = typeName(c.getInt(typeIndex)),
                             category = category,
                             timestamp = c.getLong(dateIndex),
@@ -150,6 +168,7 @@ class SmsSource(
                         ),
                     )
                     tagInputs.add(TagInput(text = body, source = Transport.SMS, sender = address))
+                    fieldInputs.add(smsFields(address, body))
                 }
 
                 if (events.isEmpty()) {
@@ -161,16 +180,24 @@ class SmsSource(
 
                 // Tag only what actually landed: duplicates come back as -1.
                 val toTag = ArrayList<Pair<String, TagInput>>(events.size)
+                val toFields = ArrayList<Pair<String, Map<String, FieldValue>>>(events.size)
+                val landed = ArrayList<EventEntity>(events.size)
                 var newCount = 0
                 inserted.forEachIndexed { index, insertedId ->
                     if (insertedId == -1L) return@forEachIndexed
                     newCount++
                     toTag += events[index].ulid to tagInputs[index]
+                    toFields += events[index].ulid to fieldInputs[index]
+                    landed += events[index]
                 }
                 if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)
                 if (toTag.isNotEmpty()) {
                     mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
                 }
+                // Fields before evaluation: the writer reads them from the store
+                // (ADR §13), so they must be persisted first.
+                if (toFields.isNotEmpty()) fieldWriter.writeAll(toFields)
+                if (landed.isNotEmpty()) ruleWriter.writeAll(landed.map { it.toRuleItemSeed() })
 
                 lastSeenId = maxId
                 prefs.edit().putLong(KEY_LAST_SEEN_ID, maxId).apply()
@@ -189,6 +216,21 @@ class SmsSource(
         lastSeenId = 0
         prefs.edit().putLong(KEY_LAST_SEEN_ID, 0L).apply()
         Log.i(TAG, "SmsSource: table empty but mark was set - re-ingesting from scratch")
+    }
+
+    /**
+     * The typed extras a message can supply: its `sender` (the address it
+     * already has, never parsed) and, when the parser can attribute one safely,
+     * its transaction `amount` (ADR §13). An absent `amount` is absent — the
+     * evaluator reads a missing field as "not stored", never as zero.
+     */
+    private fun smsFields(
+        address: String,
+        body: String,
+    ): Map<String, FieldValue> {
+        val fields = mutableMapOf<String, FieldValue>(FieldNames.SENDER to FieldValue.Str(address))
+        SmsAmountParser.parse(body)?.let { fields[FieldNames.AMOUNT] = FieldValue.Num(it) }
+        return fields
     }
 
     private fun typeName(type: Int): String =

@@ -16,10 +16,10 @@ data class RuleMention(
  * `events`, the active tagger's `item_tags`, `mentions` — so the pure core never
  * sees a Room entity and keeps no dependency on the data layer.
  *
- * [fields] carries the kind-specific typed extras (`amount`, `price`, ...). The
- * schema that stores them is not yet in place (ADR §3, plan slice 4); a caller
- * supplies the map it has, and a [Condition.Field] over an absent name matches
- * nothing rather than guessing.
+ * [fields] carries the kind-specific typed extras (`amount`, `price`, ...)
+ * stored in `item_fields` (ADR 0003 §13). The data layer reads them from the
+ * store, like tags and mentions; a [Condition.Field] over a name no producer
+ * wrote matches nothing rather than guessing.
  */
 data class RuleItem(
     /** `events.ulid` — stable identity, never content-derived. */

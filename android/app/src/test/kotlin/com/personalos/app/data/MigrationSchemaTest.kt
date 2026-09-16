@@ -70,7 +70,7 @@ class MigrationSchemaTest {
 
     @Test
     fun `the exported schema describes exactly what we expect`() {
-        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules"), tables.keys)
+        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules", "item_fields"), tables.keys)
         assertEquals(setOf("item_tags_current"), views.keys)
     }
 
@@ -252,6 +252,35 @@ class MigrationSchemaTest {
         }
     }
 
+    @Test
+    fun `v11 to v12 creates item_fields with typed columns, a composite primary key and both indices`() {
+        withMigratedToV11 { db ->
+            MIGRATION_STATEMENTS.getValue(12).forEach { db.createStatement().executeUpdate(it) }
+
+            assertEquals(
+                "item_fields columns",
+                setOf("item_id", "name", "value_num", "value_text", "value_flag"),
+                columnsOf(db, "item_fields").keys,
+            )
+            assertEquals(
+                "item_fields primary key",
+                listOf("item_id", "name"),
+                primaryKeyOf(db, "item_fields"),
+            )
+            // The series-key index for window reads, and the per-item read.
+            assertEquals(
+                "item_fields indices",
+                setOf(listOf("name", "item_id"), listOf("item_id")),
+                indexColumnsOf(db, "item_fields"),
+            )
+            // All three value columns are nullable: exactly one is set per row.
+            val notNull = columnsOf(db, "item_fields")
+            assertEquals("value_num", 0, notNull.getValue("value_num"))
+            assertEquals("value_text", 0, notNull.getValue("value_text"))
+            assertEquals("value_flag", 0, notNull.getValue("value_flag"))
+        }
+    }
+
     // ----------------------------------------------------------------- helpers
 
     /**
@@ -281,6 +310,18 @@ class MigrationSchemaTest {
         }
     }
 
+    /** Replays the chain to v11 only, so the v11 -> v12 statements can be applied alone. */
+    private fun withMigratedToV11(block: (Connection) -> Unit) {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
+            V2_STATEMENTS.forEach { db.createStatement().executeUpdate(it) }
+            MIGRATION_STATEMENTS.entries
+                .sortedBy { it.key }
+                .filter { it.key <= 11 }
+                .forEach { (_, statements) -> statements.forEach { db.createStatement().executeUpdate(it) } }
+            block(db)
+        }
+    }
+
     private fun columnsOf(
         db: Connection,
         table: String,
@@ -288,6 +329,21 @@ class MigrationSchemaTest {
         db.createStatement().executeQuery("PRAGMA table_info(`$table`)").use { rs ->
             buildMap { while (rs.next()) put(rs.getString("name"), rs.getInt("notnull")) }
         }
+
+    /** Column names in primary-key order, so a composite key's order is asserted. */
+    private fun primaryKeyOf(
+        db: Connection,
+        table: String,
+    ): List<String> {
+        val ranked = mutableListOf<Pair<Int, String>>()
+        db.createStatement().executeQuery("PRAGMA table_info(`$table`)").use { rs ->
+            while (rs.next()) {
+                val pk = rs.getInt("pk")
+                if (pk > 0) ranked += pk to rs.getString("name")
+            }
+        }
+        return ranked.sortedBy { it.first }.map { it.second }
+    }
 
     private fun indexColumnsOf(
         db: Connection,

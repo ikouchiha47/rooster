@@ -16,6 +16,7 @@ import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.FieldWriter
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
@@ -97,6 +98,9 @@ class AppContainer(
 
     val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger)
 
+    /** Typed extras (`amount`, `sender`, ...), frozen on first write (ADR §13). */
+    val fieldWriter: FieldWriter = FieldWriter(database.itemFieldDao())
+
     /**
      * Single owner of the theme fact: seeds nothing, stores the choice in the
      * shared prefs store. Settings writes through it; the app seeds the
@@ -137,8 +141,9 @@ class AppContainer(
     val ruleRepository: RuleRepository = RuleRepository(database.ruleDao())
 
     /**
-     * Writes `item_rules` matches (ADR 0003 §7–§10). Reads tags and mentions
-     * from the store, so the store stays the one owner of those facts.
+     * Writes `item_rules` matches (ADR 0003 §7–§10). Reads tags, mentions and
+     * typed fields from the store, so the store stays the one owner of those
+     * facts and evaluation sees exactly what is persisted.
      */
     val ruleWriter: RuleWriter =
         RuleWriter(
@@ -146,6 +151,7 @@ class AppContainer(
             database.itemRuleDao(),
             database.itemTagDao(),
             database.mentionDao(),
+            database.itemFieldDao(),
         )
 
     /** Refreshes the party registry from the per-country list pages. */
