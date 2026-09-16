@@ -168,6 +168,41 @@ object Sql {
         LIMIT :limit
         """
 
+    /**
+     * Bounded candidate read for an authoring dry-run preview (ADR 0003 §12).
+     *
+     * Three rules keep it predictable:
+     *  - it is always date-bounded on the indexed `events.timestamp` and capped
+     *    by `:limit`, ordered newest first, so it can never walk the whole store;
+     *  - each optional filter can only *narrow*; the evaluator still decides;
+     *  - `text` and `field` predicates are absent on purpose. A regex cannot be
+     *    indexed, and interpolating a user pattern into SQL is worse than slow -
+     *    that is exactly §12's division of labour.
+     *
+     * `source` hits the indexed `events.source`; tag reads go through
+     * `item_tags_current` (the active tagger's view, for the same reason tile
+     * reads use it - `item_tags` is append-only and would double-count); a
+     * mention reads the indexed `(kind, surface)` pair. `events.timestamp` is
+     * indexed so the window and ordering use it.
+     */
+    const val EVENTS_RULE_PREVIEW_CANDIDATES =
+        """
+        SELECT e.ulid AS item_id, e.source AS source_id, e.title, e.content, e.timestamp
+        FROM events e
+        WHERE e.timestamp >= :since
+          AND (:sourceId IS NULL OR e.source = :sourceId)
+          AND (:tag IS NULL
+               OR EXISTS (SELECT 1 FROM item_tags_current t
+                          WHERE t.item_id = e.ulid AND t.tag = :tag))
+          AND (:mentionKind IS NULL
+               OR EXISTS (SELECT 1 FROM mentions m
+                          WHERE m.item_id = e.ulid
+                            AND m.kind = :mentionKind
+                            AND m.surface = :mentionValue))
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
+        """
+
     // --------------------------------------------------------------- taggers
     const val TAGGER_DEACTIVATE_ALL = "UPDATE taggers SET active = 0"
 

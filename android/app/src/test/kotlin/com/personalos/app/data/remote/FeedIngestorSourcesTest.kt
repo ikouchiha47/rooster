@@ -26,6 +26,7 @@ import com.personalos.app.data.PlaceEntity
 import com.personalos.app.data.RetagCandidate
 import com.personalos.app.data.RuleDao
 import com.personalos.app.data.RuleEntity
+import com.personalos.app.data.RulePreviewCandidate
 import com.personalos.app.data.RuleWriter
 import com.personalos.app.data.SourceCount
 import com.personalos.app.data.SourceEntity
@@ -110,6 +111,15 @@ class FeedIngestorSourcesTest {
             cursorId: Long,
             limit: Int,
         ): List<EventEntity> = emptyList()
+
+        override suspend fun rulePreviewCandidates(
+            since: Long,
+            sourceId: String?,
+            tag: String?,
+            mentionKind: String?,
+            mentionValue: String?,
+            limit: Int,
+        ): List<RulePreviewCandidate> = emptyList()
 
         override suspend fun pageByTag(
             tag: String,

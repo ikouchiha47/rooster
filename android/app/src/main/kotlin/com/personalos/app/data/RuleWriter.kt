@@ -103,8 +103,19 @@ class RuleWriter(
     suspend fun dryRun(
         rule: RuleEntity,
         seeds: List<RuleItemSeed>,
+    ): RuleDryRunResult = dryRun(ConditionJson.parse(rule.conditionJson), seeds)
+
+    /**
+     * [dryRun] over an already-parsed condition, for a caller that does not have
+     * a stored row yet — the authoring preview evaluates a draft before it is
+     * saved. Behaviour is identical, including the loud refusal of a series
+     * predicate; a caller at a UI boundary catches it there rather than having
+     * the evaluator stay quiet ([RulePreviewer]).
+     */
+    suspend fun dryRun(
+        condition: Condition,
+        seeds: List<RuleItemSeed>,
     ): RuleDryRunResult {
-        val condition = ConditionJson.parse(rule.conditionJson)
         RuleEvaluator.requireItemEvaluable(condition)
         val matches = materialise(seeds).filter { RuleEvaluator.evaluate(it, condition) }
         return RuleDryRunResult(matches.map { it.id })

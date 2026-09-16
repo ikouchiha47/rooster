@@ -20,6 +20,8 @@ import com.personalos.app.data.FieldWriter
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
+import com.personalos.app.data.RulePreviewLoader
+import com.personalos.app.data.RulePreviewer
 import com.personalos.app.data.RuleRepository
 import com.personalos.app.data.RuleSeeder
 import com.personalos.app.data.RuleWriter
@@ -152,6 +154,17 @@ class AppContainer(
             database.itemTagDao(),
             database.mentionDao(),
             database.itemFieldDao(),
+        )
+
+    /**
+     * The authoring dry run: a bounded, indexed candidate load over stored
+     * history handed to [ruleWriter], persisting nothing (ADR §12, R4). One
+     * composition point, so the authoring screen invents no plumbing of its own.
+     */
+    val rulePreview: RulePreviewer =
+        RulePreviewer(
+            RulePreviewLoader(database.eventDao()),
+            ruleWriter,
         )
 
     /** Refreshes the party registry from the per-country list pages. */

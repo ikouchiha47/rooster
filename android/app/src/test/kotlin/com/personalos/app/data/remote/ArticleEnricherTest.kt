@@ -6,6 +6,7 @@ import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.RetagCandidate
 import com.personalos.app.data.RuleItemSeed
+import com.personalos.app.data.RulePreviewCandidate
 import com.personalos.app.data.SourceCount
 import com.personalos.app.data.TaggedEvent
 import kotlinx.coroutines.flow.Flow
@@ -73,6 +74,15 @@ class ArticleEnricherTest {
             cursorId: Long,
             limit: Int,
         ): List<EventEntity> = emptyList()
+
+        override suspend fun rulePreviewCandidates(
+            since: Long,
+            sourceId: String?,
+            tag: String?,
+            mentionKind: String?,
+            mentionValue: String?,
+            limit: Int,
+        ): List<RulePreviewCandidate> = emptyList()
 
         override suspend fun pageByTag(
             tag: String,

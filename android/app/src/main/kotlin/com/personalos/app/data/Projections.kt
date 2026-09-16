@@ -51,6 +51,25 @@ data class EnrichmentCandidate(
     val title: String,
 )
 
+/**
+ * One bounded-preview candidate: the identity and text the evaluator needs, plus
+ * the publish timestamp the hit sample renders.
+ *
+ * Tags, mentions and typed fields are deliberately absent - [RuleWriter] loads
+ * those from the store during materialisation, so the store stays the one owner
+ * of each fact (ADR 0003 §7).
+ */
+data class RulePreviewCandidate(
+    /** `events.ulid`. */
+    @ColumnInfo(name = "item_id") val itemId: String,
+    /** `events.source` - the source's identity, not its transport. */
+    @ColumnInfo(name = "source_id") val sourceId: String,
+    val title: String,
+    val content: String,
+    /** `events.timestamp` - publish time, for ordering and the hit row. */
+    val timestamp: Long,
+)
+
 /** One item's tag, for the batched rule-evaluation read. */
 data class ItemTagRow(
     @ColumnInfo(name = "item_id") val itemId: String,
