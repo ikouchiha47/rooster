@@ -7,6 +7,33 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): record slice 1's cleanup, evidence and gaps
+
+_2026-09-16_
+
+Slice 1 is done end to end: 43517af (the rename and schema v11), 42a66d4 (the
+ADR and plan themselves, which the code cited while untracked), 90ff28c (the
+review cleanup) and 3007a79 (the architecture doc).
+
+Corrects T1.4, which still promised a storage-only RuleRepository that the
+cleanup deleted, and records what the cleanup closed: the rest of the rule to
+source identifiers, the SourceKind collision behind the TagSourceKind alias
+(core.tag's was a transport, not a source kind), dead and wrong
+Migrations.CURRENT_VERSION, and the unasserted dflt_value trap.
+
+Also records two things worth not losing. First, two DAO tests were deleted as
+tautologies - they asserted fakes that reimplemented INSERT OR IGNORE, so they
+would have passed with the primary key removed; the real check already exists in
+MigrationSchemaTest against SQLite. Second, the honest gap that leaves:
+Room's @Insert(onConflict) mode is not verified anywhere, and a REPLACE would
+silently rewrite match history, so confirm it on device when slice 3 first
+writes matches.
+
+Device evidence for 90ff28c included: the frozen prefs keys held (all four
+rule:<id> body caches intact, key sets identical before and after), with a note
+that PrefsStringCache splits each logical key into .at and .value entries, which
+makes a naive substring check report a false negative.
+
 ## docs: point the architecture at ADR 0003 for rules
 
 _2026-09-16_
