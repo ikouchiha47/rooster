@@ -57,23 +57,26 @@ internal fun RuleSeed.toEntity(now: Long): RuleEntity {
  * failure returns 0 — nothing in ingest depends on these rows, and a bad seed
  * must never crash launch.
  *
- * ## The rule these seeds may not break: no `field`, no series
+ * ## The rule these seeds may not break: only supplied fields, no series
  *
- * Typed `fields` have no storage column yet, so `RuleItem.fields` is always
- * empty (slice 4 changes that; today it is a fact). A seed using `field` — the
- * mockups' `amount > 10000` — would evaluate to `false` forever and read as a
- * broken engine, not an empty result. Series predicates (`crossing`, `delta`,
- * `min`/`max`) have the same problem in reverse: no monitor evaluates them yet
- * (slice 5). So the seeds use **only** predicates the store can supply today:
- * `subject`, `nature`, `marker`, `mention`, `source` and `text`. If you are
- * tempted to "flesh out" a seed with a field rule, this is why you must not.
+ * A seed using a `field` whose name no producer writes — the mockups'
+ * `amount > 10000` used to be this — would evaluate to `false` forever and read
+ * as a broken engine. Storage now exists (`item_fields`, schema v12) and
+ * [SmsSource] is the first producer, but only for the names in
+ * [com.personalos.app.core.rules.FieldNames.SUPPLIED]. A seed may name one of
+ * those and no other; the guard test enforces it. Series predicates
+ * (`crossing`, `delta`, `min`/`max`) have the same problem in reverse: no
+ * monitor evaluates them yet (slice 5). So the seeds use **only** predicates
+ * the store can supply today: `subject`, `nature`, `marker`, `mention`,
+ * `source`, `text`, and a supplied `field`. If you are tempted to "flesh out" a
+ * seed with a field no producer writes, this is why you must not.
  *
  * ## Real source ids only
  *
  * `source` matches `events.source` exactly. Those values are real
  * (`rss:<catalog id>` from [com.personalos.app.core.feed.FeedCatalog], written
- * by `FeedIngestor`), never the mockups' illustrative `SMS:BANK`, which is not
- * a source this app has.
+ * by `FeedIngestor`, and [SmsSource.SOURCE_ID] for SMS), never the mockups'
+ * illustrative `SMS:BANK`, which is not a source this app has.
  */
 class RuleSeeder(
     private val dao: RuleDao,
@@ -95,7 +98,7 @@ class RuleSeeder(
         const val TAG = "Rules"
 
         /**
-         * Four rules, one per mockup intent, weighted by `position` (10 = most
+         * Five rules, one per mockup intent, weighted by `position` (10 = most
          * prominent). The place watch deliberately has `delivery = none`: it
          * surfaces a match without interrupting (ADR §9), which is the case
          * that proves delivery and surfacing are separate axes.
@@ -128,6 +131,20 @@ class RuleSeeder(
                     // `news` (FeedCatalog), so they stay out of this alert.
                     conditionJson = """{"all":[{"marker":true},{"nature":"incident"}]}""",
                     actionJson = """{"delivery":"push","position":40}""",
+                ),
+                RuleSeed(
+                    name = "Large SMS amount watch",
+                    // The mockups' `amount > 10000` (design-rules/recipe.html),
+                    // against the one producer that supplies an `amount` today:
+                    // SmsSource's transaction parser. `source` is the real
+                    // `events.source` SMS rows carry (SmsSource.SOURCE_ID), not
+                    // the mockups' illustrative `SMS:BANK`. The parser emits no
+                    // amount for a bill, a promo or an ambiguous message, so a
+                    // `false` here is "no transaction amount over the threshold"
+                    // rather than a broken engine.
+                    conditionJson =
+                        """{"all":[{"source":"sms"},{"field":{"name":"amount","op":"gt","value":10000}}]}""",
+                    actionJson = """{"delivery":"push","position":50}""",
                 ),
             )
     }

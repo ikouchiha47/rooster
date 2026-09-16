@@ -5,12 +5,12 @@ import com.personalos.app.core.rules.ActionJson
 import com.personalos.app.core.rules.Condition
 import com.personalos.app.core.rules.ConditionJson
 import com.personalos.app.core.rules.Delivery
+import com.personalos.app.core.rules.FieldNames
 import com.personalos.app.core.rules.RuleEvaluator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -85,17 +85,26 @@ class RuleSeederTest {
             else -> emptyList()
         }
 
+    /** Every `field` name a condition names, recursing through `all` / `any`. */
+    private fun fieldNames(condition: Condition): List<String> =
+        when (condition) {
+            is Condition.All -> condition.conditions.flatMap(::fieldNames)
+            is Condition.Any -> condition.conditions.flatMap(::fieldNames)
+            is Condition.Field -> listOf(condition.name)
+            else -> emptyList()
+        }
+
     @Test
     fun `an empty table seeds the bundled rules as locked and enabled`() =
         runBlocking {
             val dao = FakeRuleDao()
-            assertEquals(4, RuleSeeder(dao).seed(now = 1L))
-            assertEquals(4, dao.rows.size)
+            assertEquals(5, RuleSeeder(dao).seed(now = 1L))
+            assertEquals(5, dao.rows.size)
             assertTrue("every seed is locked", dao.rows.all { it.seeded })
             assertTrue("every seed is enabled", dao.rows.all { it.enabled })
             assertEquals(
                 "ids are unique",
-                4,
+                5,
                 dao.rows
                     .map { it.id }
                     .toSet()
@@ -103,7 +112,7 @@ class RuleSeederTest {
             )
             assertEquals(
                 "positions are distinct",
-                4,
+                5,
                 dao.rows
                     .map { it.position }
                     .toSet()
@@ -115,7 +124,7 @@ class RuleSeederTest {
     fun `every bundled seed parses and is item-evaluable`() =
         runBlocking {
             val dao = FakeRuleDao()
-            assertEquals(4, RuleSeeder(dao).seed(now = 1L))
+            assertEquals(5, RuleSeeder(dao).seed(now = 1L))
 
             // A malformed or series seed would throw here, so this fails a typo
             // in the bundled data the same way the seed itself does.
@@ -127,14 +136,20 @@ class RuleSeederTest {
         }
 
     @Test
-    fun `no bundled seed uses a field predicate the store cannot supply yet`() =
+    fun `no bundled seed names a field no producer supplies`() =
         runBlocking {
             val dao = FakeRuleDao()
             RuleSeeder(dao).seed(now = 1L)
-            dao.rows.forEach { row ->
-                assertFalse(
-                    "${row.name} must not use `field` until fields are stored: ${row.conditionJson}",
-                    row.conditionJson.contains("\"field\""),
+
+            val named = dao.rows.flatMap { fieldNames(ConditionJson.parse(it.conditionJson)) }
+            assertTrue("a seed now exercises a supplied field", named.any { it in FieldNames.SUPPLIED })
+
+            // The remaining limitation: a `field` whose name no producer writes
+            // would evaluate to false forever. Only a supplied name may ship.
+            named.forEach { name ->
+                assertTrue(
+                    "'$name' is not supplied by any producer; supplied: ${FieldNames.SUPPLIED.sorted()}",
+                    name in FieldNames.SUPPLIED,
                 )
             }
         }
@@ -150,7 +165,7 @@ class RuleSeederTest {
     }
 
     @Test
-    fun `the seeds name only source ids the catalog actually produces`() =
+    fun `the seeds name only source ids a producer actually emits`() =
         runBlocking {
             val dao = FakeRuleDao()
             RuleSeeder(dao).seed(now = 1L)
@@ -161,9 +176,12 @@ class RuleSeederTest {
 
             val catalogIds = FeedCatalog.SEEDS.map { it.id }.toSet()
             named.forEach { sourceId ->
+                // Catalog feeds are `rss:<id>`; SMS rows carry `sms` directly,
+                // not a prefixed catalog id.
+                val isCatalog = sourceId.removePrefix(FeedCatalog.SOURCE_PREFIX) in catalogIds
                 assertTrue(
-                    "'$sourceId' is not a catalog source id; expected ${FeedCatalog.SOURCE_PREFIX}<id>",
-                    sourceId.removePrefix(FeedCatalog.SOURCE_PREFIX) in catalogIds,
+                    "'$sourceId' is not emitted by any producer",
+                    isCatalog || sourceId == SmsSource.SOURCE_ID,
                 )
             }
         }

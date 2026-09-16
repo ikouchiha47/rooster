@@ -87,7 +87,15 @@ class MainActivity : ComponentActivity() {
 
         val container = AppContainer(this)
         val database = AppDatabase.getInstance(this)
-        smsSource = SmsSource(this, database, container.tagWriter, container.mentionWriter)
+        smsSource =
+            SmsSource(
+                this,
+                database,
+                container.tagWriter,
+                container.mentionWriter,
+                container.fieldWriter,
+                container.ruleWriter,
+            )
 
         // Periodic background ingest; WorkManager persists this across reboots.
         SyncScheduler.schedule(this)

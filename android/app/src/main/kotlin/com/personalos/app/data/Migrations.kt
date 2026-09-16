@@ -280,6 +280,40 @@ val MIGRATION_10_11_STATEMENTS: List<String> =
     )
 
 /**
+ * v11 -> v12: typed item fields (ADR 0003 §13).
+ *
+ * New table only, like v5 -> v6, v6 -> v7 and the post-rename half of v10 ->
+ * v11: nothing existing changes, so no rebuild and no data to carry.
+ *
+ * `item_fields` materialises a canonical item's kind-specific typed extras
+ * (`amount`, `sender`, ...) as one row per (item, name), mirroring tags and
+ * matches. ADR §13 chose a table over a JSON column on `events` because §8's
+ * monitors need a series key the query planner can use: `(name, item_id)` is
+ * the window read, `(item_id)` reads one item's extras back for evaluation.
+ *
+ * The three value columns mirror the language's `FieldValue` (`Num` / `Str` /
+ * `Flag`) exactly and are all nullable — exactly one is set. No `DEFAULT`
+ * clauses (Room compares defaults when validating on open; see the note
+ * above). Column order and affinities mirror `ItemFieldEntity`, and the index
+ * names are the ones Room generates for its `Index` annotations.
+ */
+val MIGRATION_11_12_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS item_fields (
+            item_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            value_num REAL,
+            value_text TEXT,
+            value_flag INTEGER,
+            PRIMARY KEY(item_id, name)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_item_fields_name_item_id ON item_fields (name, item_id)",
+        "CREATE INDEX IF NOT EXISTS index_item_fields_item_id ON item_fields (item_id)",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -297,6 +331,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         9 to MIGRATION_8_9_STATEMENTS,
         10 to MIGRATION_9_10_STATEMENTS,
         11 to MIGRATION_10_11_STATEMENTS,
+        12 to MIGRATION_11_12_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

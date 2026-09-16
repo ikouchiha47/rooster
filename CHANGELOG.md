@@ -7,6 +7,41 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): store typed fields, and let SMS supply the first two
+
+_2026-09-16_
+
+ADR 0003 defined fields on the canonical item and asserted that monitor series
+points are rows in events with their fields, but no storage was ever specified, so
+a field predicate could never match: a rule like amount > 10000 evaluated to false
+forever and read as a broken engine. item_fields now exists as section 13
+specifies - one row per item and name, primary key on (item_id, name), an index on
+(name, item_id) for monitor windows and one on (item_id) for reading an item - with
+three typed columns mirroring the language's FieldValue so nothing needs widening.
+
+Storage alone would change nothing, so SmsSource is the first producer: it already
+had the sender address, and a conservative parser now extracts a transaction amount
+from the message body. The parser is deliberately narrow - it requires a currency
+marker and a money-movement verb, and refuses bills, promos, balances, multipliers
+and anything ambiguous, because a wrong amount makes a rule fire wrongly, which is
+worse than a missing one. Fields are written before rules are evaluated, so the
+evaluator sees exactly what is stored.
+
+That last point is why RuleWriter reads fields from the store in materialise rather
+than taking them on the seed, exactly as it already does for tags and mentions.
+Carrying them on the seed would have made two owners and allowed evaluation to
+disagree with what was frozen at ingest.
+
+RuleSeeder gains the mockups' flagship rule - source sms with amount > 10000 -
+against the one producer that actually supplies an amount today, and the guard test
+changes shape with it: instead of asserting the string never appears, it now
+recurse-parses every shipped condition and asserts each field name is one a
+producer supplies, and that at least one seed exercises one, so the guard cannot
+quietly become vacuous.
+
+Verified: 348 tests, 0 failures. Not verified: the parser against the device's real
+SMS corpus, and Room's real conflict mode, which no JVM test here can exercise.
+
 ## docs(plan): materialisation is unobserved on device, and why that is starvation
 
 _2026-09-16_

@@ -3,7 +3,6 @@ package com.personalos.app.data
 import android.util.Log
 import com.personalos.app.core.rules.Condition
 import com.personalos.app.core.rules.ConditionJson
-import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.RuleEvaluator
 import com.personalos.app.core.rules.RuleItem
 import com.personalos.app.core.rules.RuleMention
@@ -12,10 +11,12 @@ import com.personalos.app.core.rules.isEnrichmentSensitive
 /**
  * The item facts a caller hands to rule evaluation.
  *
- * Tags and mentions are deliberately **absent**: [RuleWriter] reads those from
- * the store, so the store stays the one owner of tag and mention facts and
+ * Tags, mentions and fields are deliberately **absent**: [RuleWriter] reads
+ * those from the store, so the store stays the one owner of each fact and
  * evaluation sees exactly what is persisted (ADR 0003 §7 — rules evaluate what
- * is already stored).
+ * is already stored). Supplying a field here would let a revised value be
+ * evaluated while the frozen stored value disagrees, which is precisely what
+ * "frozen at ingest" forbids.
  */
 data class RuleItemSeed(
     /** `events.ulid`. */
@@ -24,8 +25,6 @@ data class RuleItemSeed(
     val sourceId: String,
     val title: String,
     val content: String,
-    /** Typed extras, when a kind supplies them. Empty until fields are stored (slice 4). */
-    val fields: Map<String, FieldValue> = emptyMap(),
 )
 
 /**
@@ -56,6 +55,8 @@ class RuleWriter(
     private val matchDao: ItemRuleDao,
     private val tagDao: ItemTagDao,
     private val mentionDao: MentionDao,
+    /** Typed extras are read from the store, like tags and mentions (ADR §13). */
+    private val fieldDao: ItemFieldDao,
 ) {
     /** Evaluates every enabled rule against newly landed items; appends matches. */
     suspend fun writeAll(
@@ -159,7 +160,7 @@ class RuleWriter(
         return rowIds.count { it != -1L }
     }
 
-    /** Loads the stored tags and mentions for the seeds, then builds evaluator inputs. */
+    /** Loads the stored tags, mentions and fields for the seeds, then builds evaluator inputs. */
     private suspend fun materialise(seeds: List<RuleItemSeed>): List<RuleItem> {
         if (seeds.isEmpty()) return emptyList()
         val ids = seeds.map { it.itemId }
@@ -175,6 +176,12 @@ class RuleWriter(
                 .getOrNull()
                 .orEmpty()
                 .groupBy { it.itemId }
+        val fields =
+            runCatching { fieldDao.forItems(ids) }
+                .onFailure { Log.w(TAG, "field load failed for ${ids.size} items", it) }
+                .getOrNull()
+                .orEmpty()
+                .groupBy { it.itemId }
         return seeds.map { seed ->
             RuleItem(
                 id = seed.itemId,
@@ -183,7 +190,11 @@ class RuleWriter(
                 content = seed.content,
                 tags = tags[seed.itemId].orEmpty().toSet(),
                 mentions = mentions[seed.itemId].orEmpty().map { RuleMention(it.kind, it.surface) },
-                fields = seed.fields,
+                fields =
+                    fields[seed.itemId]
+                        .orEmpty()
+                        .mapNotNull { row -> row.toFieldValue()?.let { row.name to it } }
+                        .toMap(),
             )
         }
     }
@@ -199,11 +210,10 @@ class RuleWriter(
 }
 
 /** The evaluation-seed view of a just-landed row. */
-fun EventEntity.toRuleItemSeed(fields: Map<String, FieldValue> = emptyMap()): RuleItemSeed =
+fun EventEntity.toRuleItemSeed(): RuleItemSeed =
     RuleItemSeed(
         itemId = ulid,
         sourceId = source,
         title = title,
         content = content,
-        fields = fields,
     )

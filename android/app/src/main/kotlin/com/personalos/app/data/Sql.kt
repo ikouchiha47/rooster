@@ -342,4 +342,12 @@ object Sql {
 
     // -------------------------------------------------------------- item_rules
     const val ITEM_RULES_ALL = "SELECT * FROM item_rules"
+
+    // ------------------------------------------------------------- item_fields
+    // ADR 0003 §13: typed extras materialised one row per (item, name), indexed
+    // `(name, item_id)` for series windows and `(item_id)` for per-item reads.
+    const val ITEM_FIELDS_FOR_ITEM = "SELECT * FROM item_fields WHERE item_id = :itemId"
+
+    /** One batched read for a batch of items: callers pass the items' ulids. */
+    const val ITEM_FIELDS_FOR_ITEMS = "SELECT * FROM item_fields WHERE item_id IN (:itemIds)"
 }

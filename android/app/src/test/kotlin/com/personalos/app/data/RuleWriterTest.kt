@@ -1,6 +1,5 @@
 package com.personalos.app.data
 
-import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.SeriesPredicateUnsupportedException
 import com.personalos.app.core.tag.Tags
 import kotlinx.coroutines.flow.Flow
@@ -116,12 +115,27 @@ class RuleWriterTest {
         override suspend fun forItems(itemIds: List<String>): List<MentionEntity> = itemIds.flatMap { mentions[it].orEmpty() }
     }
 
+    private open class StubItemFieldDao : ItemFieldDao {
+        override suspend fun insertAll(fields: List<ItemFieldEntity>): List<Long> = fields.map { 1L }
+
+        override suspend fun forItem(itemId: String): List<ItemFieldEntity> = emptyList()
+
+        override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = emptyList()
+    }
+
+    private class FieldsByItem(
+        private val fields: Map<String, List<ItemFieldEntity>>,
+    ) : StubItemFieldDao() {
+        override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = itemIds.flatMap { fields[it].orEmpty() }
+    }
+
     private fun writer(
         ruleDao: RuleDao,
         matchDao: ItemRuleDao,
         tags: Map<String, Set<String>> = emptyMap(),
         mentions: Map<String, List<MentionEntity>> = emptyMap(),
-    ) = RuleWriter(ruleDao, matchDao, TagsByItem(tags), MentionsByItem(mentions))
+        fields: Map<String, List<ItemFieldEntity>> = emptyMap(),
+    ) = RuleWriter(ruleDao, matchDao, TagsByItem(tags), MentionsByItem(mentions), FieldsByItem(fields))
 
     private fun rule(
         id: String,
@@ -298,18 +312,34 @@ class RuleWriterTest {
         }
 
     @Test
-    fun `fields supplied on the seed reach the evaluator`() =
+    fun `stored fields reach the evaluator through an ingest seed`() =
         runBlocking {
             val condition = """{"field": {"name": "amount", "op": "gt", "value": 10000}}"""
             val matches = FakeItemRuleDao()
-            val writer = writer(FakeRuleDao(mutableListOf(rule("big", condition))), matches)
-
-            val written =
-                writer.writeAll(
-                    listOf(seed("i1").copy(fields = mapOf("amount" to FieldValue.Num(12000.0)))),
+            val writer =
+                writer(
+                    FakeRuleDao(mutableListOf(rule("big", condition))),
+                    matches,
+                    // The value is stored (as the ingest path writes it); the seed
+                    // carries only identity and text. The store is the owner.
+                    fields =
+                        mapOf(
+                            "i1" to listOf(ItemFieldEntity(itemId = "i1", name = "amount", valueNum = 12000.0)),
+                        ),
                 )
 
-            assertEquals(1, written)
+            assertEquals(1, writer.writeAll(listOf(seed("i1"))))
             assertEquals(listOf("big"), matches.rows.map { it.ruleId })
+        }
+
+    @Test
+    fun `a field predicate over an unstored name matches nothing`() =
+        runBlocking {
+            val condition = """{"field": {"name": "amount", "op": "gt", "value": 1}}"""
+            val matches = FakeItemRuleDao()
+            val writer = writer(FakeRuleDao(mutableListOf(rule("big", condition))), matches)
+
+            assertEquals(0, writer.writeAll(listOf(seed("i1"))))
+            assertTrue(matches.rows.isEmpty())
         }
 }

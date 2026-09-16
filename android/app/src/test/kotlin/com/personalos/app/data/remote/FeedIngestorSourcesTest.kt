@@ -11,6 +11,8 @@ import com.personalos.app.data.DayHeader
 import com.personalos.app.data.EnrichmentCandidate
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
+import com.personalos.app.data.ItemFieldDao
+import com.personalos.app.data.ItemFieldEntity
 import com.personalos.app.data.ItemRuleDao
 import com.personalos.app.data.ItemRuleEntity
 import com.personalos.app.data.ItemTagDao
@@ -245,6 +247,19 @@ class FeedIngestorSourcesTest {
         }
     }
 
+    private class FakeItemFieldDao : ItemFieldDao {
+        val rows = mutableListOf<ItemFieldEntity>()
+
+        override suspend fun insertAll(fields: List<ItemFieldEntity>): List<Long> {
+            rows += fields
+            return fields.map { 1L }
+        }
+
+        override suspend fun forItem(itemId: String): List<ItemFieldEntity> = rows.filter { it.itemId == itemId }
+
+        override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = rows.filter { it.itemId in itemIds }
+    }
+
     private class FakeMentionDao : MentionDao {
         val rows = mutableListOf<MentionEntity>()
 
@@ -336,6 +351,7 @@ class FeedIngestorSourcesTest {
         places: List<PlaceEntity> = listOf(kolkata),
         rules: RuleDao = FakeRuleDao(),
         matches: FakeItemRuleDao = FakeItemRuleDao(),
+        fields: ItemFieldDao = FakeItemFieldDao(),
     ): FeedIngestor =
         FeedIngestor(
             dao = events,
@@ -347,7 +363,7 @@ class FeedIngestorSourcesTest {
                     loadPlaces = { places },
                     loadParties = { emptyList() },
                 ),
-            ruleWriter = RuleWriter(rules, matches, tags, mentions),
+            ruleWriter = RuleWriter(rules, matches, tags, mentions, fields),
             feeds = emptyList<FeedSource>(),
             loadSources = { sources },
             fetch = { url ->
