@@ -7,6 +7,29 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(plan): the rules engine is device-verified, and the onConflict question is closed
+
+_2026-09-16_
+
+Records slices 7 and 8's T8.1/T8.2/T8.4 as landed, and the device verification that
+ties them together: schema v13 with a matching identity hash, five rules and twelve
+sources under stable ids, Cloudflare gone from both its registry row and its 51
+events, a sync forcible on demand, and the engine's first real match sitting in
+item_rules with one row and one distinct pair.
+
+Closes the @Insert(onConflict) gap that had been open since slice 1, and closes it
+by reading Room rather than trusting it. The generated DAO emits INSERT OR IGNORE
+INTO item_rules, so combined with the composite primary key - asserted against real
+SQLite and present on the device - a duplicate is a no-op and matched_at keeps its
+first value. The lesson is worth keeping: when a Room annotation's behaviour
+matters, the answer is in the generated Impl, not in a fake.
+
+Also repairs a structural mess I made in this file: an edit used the Slice 7
+heading as its anchor and replaced it, orphaning the T7 tasks under Slice 8.
+
+Still open and recorded: item_fields is empty because SMS is its only producer and
+no new SMS has arrived, so that path needs a real message to exercise.
+
 ## fix(data): adopt stable seed ids, and purge what Cloudflare left
 
 _2026-09-16_
