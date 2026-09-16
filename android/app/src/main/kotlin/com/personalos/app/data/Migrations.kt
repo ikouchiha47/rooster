@@ -2,6 +2,7 @@ package com.personalos.app.data
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.personalos.app.core.feed.FeedCatalog
 
 /**
  * Versions that predate the exported schema baseline (see `app/schemas/`).
@@ -314,6 +315,74 @@ val MIGRATION_11_12_STATEMENTS: List<String> =
     )
 
 /**
+ * The `events.source` string of the Cloudflare status feed dropped in plan
+ * T8.1: the catalog prefix plus the id (`status-cloudflare`) that used to sit in
+ * [FeedCatalog.SEEDS]. Named rather than inlined so there is one spelling of the
+ * source being purged, and it is derived from the prefix owner instead of a
+ * hand-typed `rss:` literal.
+ */
+internal const val DROPPED_CLOUDFLARE_SOURCE: String = FeedCatalog.SOURCE_PREFIX + "status-cloudflare"
+
+/**
+ * v12 -> v13: drop every seeded row and purge the removed Cloudflare source.
+ *
+ * ## Why deleting seeded rows on upgrade is lossless
+ *
+ * Before seed reconciliation landed, [SourceSeeder] and [RuleSeeder] generated a
+ * fresh `Ulid.next()` id per install. A device seeded before that change holds
+ * those rows under meaningless ULIDs, so the reconcilers' stable ids
+ * (`seed:rule:*`, `seed:rss:*`, `seed:search:*`) look missing and the next launch
+ * inserts duplicates - nine rules instead of five, twenty-five sources instead of
+ * twelve. Matching by id cannot repair this, because the old ids are exactly the
+ * part that carries no meaning.
+ *
+ * A seeded row is un-editable by construction: the repositories' SQL carries
+ * `AND seeded = 0` (`Sql.SOURCES_UPDATE_ENABLED`, `Sql.RULES_DELETE_USER_ONLY`,
+ * ...), so no user can ever have edited or deleted one, no matter what the UI
+ * shows. A seeded row therefore holds nothing but bundled data - and removing
+ * it is lossless, because the reconcilers re-insert the bundled set under the
+ * stable ids on the next launch. Rows with `seeded = 0` (user sources and user
+ * rules) are never touched. **"Delete rows on upgrade" is only safe because of
+ * that guard**, which is why the reason travels next to the statements.
+ *
+ * ## Why the matches go first
+ *
+ * A match in `item_rules` outlives nothing: its `rule_id` would dangle once the
+ * seeded rule is gone. So every match belonging to a seeded rule is deleted
+ * before the seeded rules themselves.
+ *
+ * ## The Cloudflare purge (plan T8.1)
+ *
+ * `status-cloudflare` was dropped from [FeedCatalog], so it stopped polling, but
+ * installs that had it still hold its ingested events and their dependents. The
+ * affected source is named by [DROPPED_CLOUDFLARE_SOURCE] alone - deliberately
+ * **not** generalised into "delete events whose source is not in the catalog",
+ * which would sweep up a user's own sources and any future catalog gap along
+ * with it.
+ *
+ * Dependent rows share `item_id` (`events.ulid`), and are deleted by `item_id`
+ * before the events that own them, so nothing is left orphaned. `item_rules`
+ * for those items is included: a Cloudflare item may have matched a user rule.
+ */
+val MIGRATION_12_13_STATEMENTS: List<String> =
+    listOf(
+        // Matches of seeded rules first: the rules are deleted below, and a
+        // match must never outlive the rule it belongs to.
+        "DELETE FROM item_rules WHERE rule_id IN (SELECT id FROM rules WHERE seeded = 1)",
+        // The dropped source's dependents, by item_id, before the events.
+        "DELETE FROM item_tags WHERE item_id IN (SELECT ulid FROM events WHERE source = '$DROPPED_CLOUDFLARE_SOURCE')",
+        "DELETE FROM mentions WHERE item_id IN (SELECT ulid FROM events WHERE source = '$DROPPED_CLOUDFLARE_SOURCE')",
+        "DELETE FROM item_fields WHERE item_id IN (SELECT ulid FROM events WHERE source = '$DROPPED_CLOUDFLARE_SOURCE')",
+        "DELETE FROM item_rules WHERE item_id IN (SELECT ulid FROM events WHERE source = '$DROPPED_CLOUDFLARE_SOURCE')",
+        // Now the events themselves.
+        "DELETE FROM events WHERE source = '$DROPPED_CLOUDFLARE_SOURCE'",
+        // Then the seeded rows: the reconcilers re-insert the bundled set with
+        // stable ids on launch. `seeded = 0` rows are untouched.
+        "DELETE FROM rules WHERE seeded = 1",
+        "DELETE FROM sources WHERE seeded = 1",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -332,6 +401,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         10 to MIGRATION_9_10_STATEMENTS,
         11 to MIGRATION_10_11_STATEMENTS,
         12 to MIGRATION_11_12_STATEMENTS,
+        13 to MIGRATION_12_13_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

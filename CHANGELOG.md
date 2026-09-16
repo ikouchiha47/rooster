@@ -7,6 +7,37 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(data): adopt stable seed ids, and purge what Cloudflare left
+
+_2026-09-16_
+
+Reconciling seeds by stable id could not work on a device seeded before that
+change, because those rows carry generated ULIDs that mean nothing: the stable ids
+look missing, so reconciliation would insert duplicates - nine rules instead of
+five, twenty-five sources instead of twelve.
+
+The way out is that seeded rows are un-editable by construction. Both repositories
+carry AND seeded = 0 in their SQL, so a user can never have changed one, which means
+a seeded row holds nothing but bundled data and clearing it is lossless. This
+migration deletes every seeded row from sources and rules, and the reconcilers
+re-insert the bundled set with stable ids on the next launch. It is data only: 13.json
+is byte-identical to 12.json except for the version, and the schema identity hash is
+unchanged.
+
+The same migration purges what the dropped Cloudflare source left behind - its ~51
+events plus their tag, mention, field and match rows, dependents first so nothing is
+orphaned. Deleting the seeded sources rows removes its stale registry row too, since
+it is no longer in the catalog and will not be recreated. The purge names one
+explicit source string rather than diffing against the catalog, which would have
+swept up user sources.
+
+On a fresh install this migration never runs - Room creates the schema directly at
+v13 - and the statements would be no-ops anyway, because every table it touches is
+empty at creation.
+
+Verified: 358 tests, 0 failures. Not verified: the migration installed over the live
+v12 device database, and the identity hash compared on device.
+
 ## fix(data): reconcile bundled seeds, and a debug-only force sync
 
 _2026-09-16_

@@ -281,6 +281,96 @@ class MigrationSchemaTest {
         }
     }
 
+    @Test
+    fun `v12 to v13 clears seeded rows and purges the dropped Cloudflare source`() {
+        // The one spelling of the purged source, derived from the catalog
+        // prefix plus the id `status-cloudflare` that used to be in the seeds.
+        // Pinned here so a typo in the constant cannot pass its own test.
+        assertEquals("rss:status-cloudflare", DROPPED_CLOUDFLARE_SOURCE)
+
+        withMigratedToV12 { db ->
+            // Legacy rows exactly as the pre-reconciliation seeders left them:
+            // a meaningless ULID id with `seeded = 1`, plus a real user row.
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO sources (id, name, kind, spec_json, seeded, enabled, created_at, updated_at, interval_sec) VALUES
+                  ('01HX-STALE-SEED', 'Stale bundled source', 'rss', '{"url":"https://x"}', 1, 1, 1, 1, NULL),
+                  ('seed:rss:thehindu-top', 'The Hindu', 'rss', '{"url":"https://y"}', 1, 1, 1, 1, NULL),
+                  ('01HX-USER-SRC', 'My feed', 'rss', '{"url":"https://z"}', 0, 1, 1, 1, 900)
+                """.trimIndent(),
+            )
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO rules (id, name, enabled, seeded, condition_json, action_json, position, created_at, updated_at) VALUES
+                  ('01HX-STALE-RULE', 'Stale bundled rule', 1, 1, '{"marker":true}', '{"delivery":"push","position":10}', 10, 1, 1),
+                  ('seed:rule:bandh-and-strike-watch', 'Bandh', 1, 1, '{"marker":true}', '{"delivery":"push","position":20}', 20, 1, 1),
+                  ('01HX-USER-RULE', 'My rule', 1, 0, '{"marker":true}', '{"delivery":"none","position":30}', 30, 1, 1)
+                """.trimIndent(),
+            )
+            // One event from the dropped Cloudflare feed and one from a source
+            // that stays, each with a dependent row in every child table.
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO events (ulid, dedupe_key, source, type, category, timestamp, title, content, entities) VALUES
+                  ('cf-1', 'cf-1', 'rss:status-cloudflare', 'feed', 'INCIDENT', 1, 'CF outage', 'body', '[]'),
+                  ('other-1', 'other-1', 'rss:thehindu-top', 'feed', 'NEWS', 2, 'Metro', 'body', '[]')
+                """.trimIndent(),
+            )
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO item_tags (item_id, tag, tagger_id, confidence, entity, tagged_at) VALUES
+                  ('cf-1', 'incident', 'heuristic-v1', 0.9, NULL, 1),
+                  ('other-1', 'news', 'heuristic-v1', 0.9, NULL, 2)
+                """.trimIndent(),
+            )
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO mentions (item_id, kind, surface, entity_id, confidence, mentioned_at) VALUES
+                  ('cf-1', 'place', 'Dublin', NULL, 0.8, 1),
+                  ('other-1', 'place', 'Kolkata', NULL, 0.8, 2)
+                """.trimIndent(),
+            )
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO item_fields (item_id, name, value_num, value_text, value_flag) VALUES
+                  ('cf-1', 'amount', 999.0, NULL, NULL),
+                  ('other-1', 'amount', 42.0, NULL, NULL)
+                """.trimIndent(),
+            )
+            // A match to a seeded rule, a match to a user rule on the purged
+            // item, and a match to a user rule on the surviving item.
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO item_rules (item_id, rule_id, matched_at) VALUES
+                  ('other-1', 'seed:rule:bandh-and-strike-watch', 1),
+                  ('cf-1', '01HX-USER-RULE', 1),
+                  ('other-1', '01HX-USER-RULE', 1)
+                """.trimIndent(),
+            )
+
+            MIGRATION_STATEMENTS.getValue(13).forEach { db.createStatement().executeUpdate(it) }
+
+            // Seed rows gone from both tables; user rows untouched.
+            assertEquals(listOf("01HX-USER-SRC"), idsOf(db, "sources"))
+            assertEquals(listOf("01HX-USER-RULE"), idsOf(db, "rules"))
+
+            // The Cloudflare event and all four kinds of dependent row are gone.
+            assertEquals(listOf("other-1"), idsOf(db, "events", "ulid"))
+            assertEquals(listOf("other-1"), idsOf(db, "item_tags", "item_id"))
+            assertEquals(listOf("other-1"), idsOf(db, "mentions", "item_id"))
+            assertEquals(listOf("other-1"), idsOf(db, "item_fields", "item_id"))
+
+            // Matches to seeded rules are gone; the surviving item's match to
+            // the user rule remains. The purged item's match is gone with it.
+            val matches =
+                db
+                    .createStatement()
+                    .executeQuery("SELECT item_id || '|' || rule_id FROM item_rules ORDER BY 1")
+                    .use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
+            assertEquals(listOf("other-1|01HX-USER-RULE"), matches)
+        }
+    }
+
     // ----------------------------------------------------------------- helpers
 
     /**
@@ -321,6 +411,29 @@ class MigrationSchemaTest {
             block(db)
         }
     }
+
+    /** Replays the chain to v12 only, so the v12 -> v13 statements can be applied alone. */
+    private fun withMigratedToV12(block: (Connection) -> Unit) {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
+            V2_STATEMENTS.forEach { db.createStatement().executeUpdate(it) }
+            MIGRATION_STATEMENTS.entries
+                .sortedBy { it.key }
+                .filter { it.key <= 12 }
+                .forEach { (_, statements) -> statements.forEach { db.createStatement().executeUpdate(it) } }
+            block(db)
+        }
+    }
+
+    /** Distinct values of a column, sorted, so "what survived" reads as one list. */
+    private fun idsOf(
+        db: Connection,
+        table: String,
+        column: String = "id",
+    ): List<String> =
+        db
+            .createStatement()
+            .executeQuery("SELECT DISTINCT `$column` FROM `$table` ORDER BY 1")
+            .use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
 
     private fun columnsOf(
         db: Connection,
