@@ -7,6 +7,47 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(rules): evaluate rules over landed items, and materialise matches
+
+_2026-09-16_
+
+The engine now has all three pieces ADR 0003 describes: a source registry, a rules
+table with a condition language, and something that actually evaluates.
+
+The evaluator takes a RuleItem - id, source, title, content, tags, mentions,
+typed fields - rather than a Room entity, so core/rules stays portable with no
+android import and no knowledge of storage. Rules read only what is already
+stored and never fetch, which is the point of ADR section 7: N rules over one
+source cost no extra fetch, and no user-authored rule can hammer a host.
+
+Series predicates are the deliberate exception, and they fail loudly. crossing,
+delta and min/max read a window of stored observations that slice 5 supplies, so
+the evaluator rejects them with SeriesPredicateUnsupportedException - and it walks
+the whole tree before evaluating, so an all with a series child cannot short-
+circuit past it behind a false sibling and quietly look like never-matches.
+At the data layer RuleWriter catches it, logs, and skips just that rule, so ingest
+never crashes but an unimplemented predicate can never masquerade as no match.
+
+RuleWriter is modelled on TagWriter and writes matches append-only with
+OnConflictStrategy.IGNORE, because re-evaluation is a planned operation and
+REPLACE would silently move matched_at to the latest write. It is wired into
+ingest at the point where rows actually landed - the rows whose insert was not
+deduped - so a re-fetched item does not re-trigger evaluation, and into
+ArticleEnricher so that enrichment re-evaluates only enrichment-sensitive rules
+and only the items whose text actually grew.
+
+The dry run returns matches without touching the match DAO, and a test proves it
+by first showing the writer does persist, then asserting rows and insert calls are
+unchanged across the dry run.
+
+Honest limits, not hidden: the dry run evaluates caller-supplied seeds because its
+bounded history query (ADR section 12) is slice 5's; typed fields are fully
+supported by the evaluator but events has no column for them yet, so the data
+layer supplies none until slice 4; and the IGNORE annotation still cannot be
+checked by a JVM test here, so it waits for a device check with a real match.
+
+Verified: 317 tests, 0 failures.
+
 ## docs(plan): slices 1 and 2 done, and the gap that nothing can create a rule yet
 
 _2026-09-16_

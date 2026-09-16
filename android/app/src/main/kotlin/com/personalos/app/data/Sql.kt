@@ -184,7 +184,7 @@ object Sql {
      */
     const val ENRICHMENT_CANDIDATES =
         """
-        SELECT id, ulid, url, content
+        SELECT id, ulid, url, content, source, title
         FROM events
         WHERE url IS NOT NULL
           AND enriched_at IS NULL
@@ -219,6 +219,16 @@ object Sql {
         """
 
     const val ITEM_TAGS_DELETE_ALL = "DELETE FROM item_tags"
+
+    /**
+     * The stored tag set for a page of items, one query rather than one per row.
+     *
+     * Reads `item_tags_current` — the active tagger's view — so rule matching and
+     * the tiles cannot disagree about an item's tags. Never called with an empty
+     * list (`IN ()` matches nothing in some SQLite builds and errors in others).
+     */
+    const val ITEM_TAGS_CURRENT_FOR_ITEMS =
+        "SELECT item_id, tag FROM item_tags_current WHERE item_id IN (:itemIds)"
 
     /**
      * The read surface for tags: rows from the active tagger only.
