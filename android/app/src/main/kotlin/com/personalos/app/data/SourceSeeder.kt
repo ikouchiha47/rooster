@@ -41,7 +41,7 @@ class SourceSeeder(
         withContext(Dispatchers.IO) {
             runCatching {
                 val stored = dao.all().associateBy { it.id }
-                val missing = (searchSeeds(now) + rssSeeds(now)).filter { it.id !in stored }
+                val missing = (searchSeeds(now) + rssSeeds(now) + gaugeSeeds(now)).filter { it.id !in stored }
                 // Validate every missing spec before the first write: a bad
                 // seed fails closed rather than writing a partial set.
                 missing.forEach { SourceSpecs.parse(it.kind, it.specJson) }
@@ -60,7 +60,7 @@ class SourceSeeder(
      * release's edit did not land.
      */
     private fun logDrift(stored: Map<String, SourceEntity>) {
-        (searchSeeds(0L) + rssSeeds(0L)).forEach { seed ->
+        (searchSeeds(0L) + rssSeeds(0L) + gaugeSeeds(0L)).forEach { seed ->
             val row = stored[seed.id] ?: return@forEach
             if (row.seeded && (row.kind != seed.kind || row.specJson != seed.specJson)) {
                 Log.w(TAG, "bundled source '${seed.id}' changed in a later release; keeping the stored row")
@@ -124,5 +124,70 @@ class SourceSeeder(
                     updatedAt = now,
                 )
             }
+
+        /**
+         * ADR 0005 T7/T16: bundled gauge + sms + device instances. Kinds are
+         * strings; specs are validated per-kind by their adapter's parser.
+         */
+        fun gaugeSeeds(now: Long): List<SourceEntity> =
+            listOf(
+                SourceEntity(
+                    id = "$SEED_PREFIX:sms",
+                    name = "SMS",
+                    kind = "sms",
+                    specJson = JsonObject(emptyMap()).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                SourceEntity(
+                    id = "$SEED_PREFIX:weather:bengaluru",
+                    name = "Bengaluru",
+                    kind = "weather",
+                    specJson =
+                        JsonObject(
+                            mapOf(
+                                "place" to JsonPrimitive("Bengaluru"),
+                                "lat" to JsonPrimitive(12.9716),
+                                "lon" to JsonPrimitive(77.5946),
+                                "tags" to JsonArray(listOf(JsonPrimitive("weather"))),
+                            ),
+                        ).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                SourceEntity(
+                    id = "$SEED_PREFIX:fx:usd-inr",
+                    name = "USD-INR",
+                    kind = "fx",
+                    specJson =
+                        JsonObject(
+                            mapOf(
+                                "pair" to JsonPrimitive("USD-INR"),
+                                "tags" to JsonArray(listOf(JsonPrimitive("finance"))),
+                            ),
+                        ).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                SourceEntity(
+                    id = "$SEED_PREFIX:device:battery",
+                    name = "Battery",
+                    kind = "device",
+                    specJson =
+                        JsonObject(
+                            mapOf("signal" to JsonPrimitive("battery")),
+                        ).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
     }
 }

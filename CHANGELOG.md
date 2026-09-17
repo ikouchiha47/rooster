@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(catalog): observations, adapters, series dispatch and store-backed tiles
+
+_2026-09-17_
+
+
+Completes ADR 0005 T6-T20. Schema v15 adds kinds/facets/kind_facets with add-only CatalogSeeder and CatalogStore (instance-gated). kinds are strings: SourceSpec opens up with sms/weather/fx/device specs, KindAdapter registry owns parse and identity (Topics stays gnews:slug, unbound kinds skip), SourceSeeder gains sms/weather/fx/device rows. Gauges write observations upsert-by-bucket with gauge-only field replace; counters keep IGNORE freeze. SeriesEvaluator gains timestamped points with retention/gap/boundary honesty; RuleWriter dispatches item vs series and dry-runs series; previewer previews series drafts. DraftCompiler plus ConditionStringify make authoring catalog-driven; rule-seed guard checks the catalog. Weather strip and FX cells read ObservationRepository with honest placeholders; enricher skips observations. Fetch and tagging paths unchanged.
+
 ## feat(catalog): facet catalog and typed measures core
 
 _2026-09-17_

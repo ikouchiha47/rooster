@@ -68,6 +68,12 @@ class FeedIngestor(
      */
     private val loadSources: suspend () -> List<SourceEntity> = { emptyList() },
     /**
+     * ADR 0005 T7: gauge adapters by kind string. RSS/search polling stays on
+     * the working path below; weather/fx dispatch here. Kinds with no adapter
+     * skip with a log, never a crash (REQ-ING-05).
+     */
+    private val gaugeAdapters: Map<String, com.personalos.app.data.adapters.KindAdapter> = emptyMap(),
+    /**
      * The single fetch behind every poll, catalog or source — same client, same
      * User-Agent ([Http.getText]). Injectable in tests.
      */
@@ -179,6 +185,7 @@ class FeedIngestor(
 
             added += refreshSearchSources(now, force)
             added += refreshRssSources(now, force)
+            added += refreshGaugeSources(now)
 
             _lastSyncAt.value = System.currentTimeMillis()
             Log.i(TAG, "refresh: +$added items from ${feeds.size} feeds")
@@ -201,7 +208,7 @@ class FeedIngestor(
             runCatching { loadSources() }
                 .onFailure { Log.w(TAG, "sources load failed", it) }
                 .getOrElse { emptyList() }
-                .filter { it.enabled && SourceKind.from(it.kind) == SourceKind.SEARCH }
+                .filter { it.enabled && it.kind == "search" }
 
         var added = 0
         for (source in sources) {
@@ -258,7 +265,7 @@ class FeedIngestor(
             runCatching { loadSources() }
                 .onFailure { Log.w(TAG, "sources load failed", it) }
                 .getOrElse { emptyList() }
-                .filter { it.enabled && !it.seeded && SourceKind.from(it.kind) == SourceKind.RSS }
+                .filter { it.enabled && !it.seeded && it.kind == "rss" }
 
         val health = LinkedHashMap<String, FeedStatus>()
         _sourceStatuses.value.forEach { health[it.id] = it }
@@ -333,6 +340,33 @@ class FeedIngestor(
         _sourceStatuses.value = ordered
         persist(SOURCE_STATUS_KEY, ordered)
 
+        return added
+    }
+
+    /**
+     * ADR 0005 T7/T8: dispatches gauge kinds through the adapter map. RSS,
+     * search and SMS keep their working paths; anything without a bound adapter
+     * (a future `imd` before its release) skips with a log.
+     */
+    private suspend fun refreshGaugeSources(now: Long): Int {
+        if (gaugeAdapters.isEmpty()) return 0
+        val sources =
+            runCatching { loadSources() }
+                .onFailure { Log.w(TAG, "sources load failed", it) }
+                .getOrElse { emptyList() }
+                .filter { it.enabled && it.kind != "rss" && it.kind != "search" && it.kind != "sms" }
+        var added = 0
+        for (source in sources) {
+            val adapter = gaugeAdapters[source.kind]
+            if (adapter == null) {
+                Log.i(TAG, "no adapter for kind '${source.kind}'; skipped")
+                continue
+            }
+            added +=
+                runCatching { adapter.ingest(source, now) }
+                    .onFailure { Log.w(TAG, "gauge ingest failed: ${source.id}", it) }
+                    .getOrDefault(0)
+        }
         return added
     }
 

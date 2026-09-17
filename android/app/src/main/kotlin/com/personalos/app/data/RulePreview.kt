@@ -5,6 +5,7 @@ import com.personalos.app.core.rules.ConditionJson
 import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.RuleEvaluator
 import com.personalos.app.core.rules.SeriesPredicateUnsupportedException
+import com.personalos.app.core.rules.hasSeriesPredicate
 import com.personalos.app.core.tag.TagGroups
 
 /**
@@ -260,6 +261,38 @@ class RulePreviewer(
             scanCap = scanCap,
             sample = sample,
         )
+    }
+
+    /**
+     * ADR 0005 T9: series preview over supplied windows — pure series leaves
+     * only, persisting nothing. Item previews keep using [preview]; this is the
+     * boundary where a series draft gets an honest verdict instead of an
+     * exception in front of the UI.
+     */
+    fun previewSeries(
+        conditionJson: String,
+        windows: Map<String, List<Double>>,
+        windowDays: Int = DEFAULT_WINDOW_DAYS,
+    ): RulePreview {
+        val condition =
+            runCatching { ConditionJson.parse(conditionJson) }
+                .getOrElse { return RulePreview.Unavailable(UnavailableReason.INVALID_DRAFT, it.message) }
+        if (!condition.hasSeriesPredicate()) {
+            return RulePreview.Unavailable(UnavailableReason.UNKNOWN, "not a series condition")
+        }
+        return try {
+            val matched = ruleWriter.dryRunSeries(condition, windows)
+            RulePreview.Available(
+                matchedCount = matched.count,
+                scannedCount = windows.size,
+                truncated = false,
+                windowDays = windowDays,
+                scanCap = scanCap,
+                sample = emptyList(),
+            )
+        } catch (e: Exception) {
+            RulePreview.Unavailable(UnavailableReason.SERIES_UNSUPPORTED, e.message)
+        }
     }
 
     companion object {

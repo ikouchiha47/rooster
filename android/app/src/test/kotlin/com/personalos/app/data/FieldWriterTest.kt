@@ -35,6 +35,23 @@ class FieldWriterTest {
         override suspend fun forItem(itemId: String): List<ItemFieldEntity> = rows.filter { it.itemId == itemId }
 
         override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = rows.filter { it.itemId in itemIds }
+
+        override suspend fun replaceAll(fields: List<ItemFieldEntity>) {
+            for (row in fields) {
+                rows.removeIf { it.itemId == row.itemId && it.name == row.name }
+                rows += row
+            }
+        }
+
+        override suspend fun deleteForItem(itemId: String) {
+            rows.removeIf { it.itemId == itemId }
+        }
+
+        override suspend fun seriesWindow(
+            sourceId: String,
+            field: String,
+            limit: Int,
+        ): List<SeriesSample> = emptyList()
     }
 
     @Test

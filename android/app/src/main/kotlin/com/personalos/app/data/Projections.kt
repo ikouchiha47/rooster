@@ -76,6 +76,12 @@ data class ItemTagRow(
     @ColumnInfo(name = "tag") val tag: String,
 )
 
+/** One series sample: the numeric value plus when it was observed. */
+data class SeriesSample(
+    @ColumnInfo(name = "value_num") val valueNum: Double?,
+    @ColumnInfo(name = "timestamp") val timestamp: Long,
+)
+
 /**
  * An event plus every tag it carries, comma-joined by SQLite.
  *

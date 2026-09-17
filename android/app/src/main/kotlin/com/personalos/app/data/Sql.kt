@@ -222,6 +222,7 @@ object Sql {
         SELECT id, ulid, url, content, source, title
         FROM events
         WHERE url IS NOT NULL
+          AND type != 'observation'
           AND enriched_at IS NULL
           AND LENGTH(TRIM(content)) < 40
         ORDER BY timestamp DESC
@@ -388,4 +389,50 @@ object Sql {
 
     /** One batched read for a batch of items: callers pass the items' ulids. */
     const val ITEM_FIELDS_FOR_ITEMS = "SELECT * FROM item_fields WHERE item_id IN (:itemIds)"
+
+    /**
+     * ADR 0005 T15: the series window read — last N samples for one
+     * source + field, newest first, over the indexed `(events.source,
+     * item_fields.name)` shape. Capped, never a full scan.
+     */
+    const val SERIES_WINDOW =
+        """
+        SELECT f.value_num, e.timestamp
+        FROM item_fields f
+        JOIN events e ON e.ulid = f.item_id
+        WHERE e.source = :sourceId AND f.name = :field
+        ORDER BY e.timestamp DESC
+        LIMIT :limit
+        """
+
+    /** ADR 0005 T19: latest observation per identity for tiles. */
+    const val LATEST_OBSERVATION_BY_SOURCE =
+        """
+        SELECT e.* FROM events e
+        WHERE e.source = :sourceId AND e.type = 'observation'
+        ORDER BY e.timestamp DESC
+        LIMIT 1
+        """
+
+    /** ADR 0005 T19: latest observations for a set of identities. */
+    const val LATEST_OBSERVATIONS_BY_SOURCES =
+        """
+        SELECT e.* FROM events e
+        WHERE e.source IN (:sourceIds) AND e.type = 'observation'
+        ORDER BY e.timestamp DESC
+        """
+
+    /** ADR 0005 T8/T17: gauge upsert-by-bucket needs the row for a dedupe key. */
+    const val EVENT_BY_DEDUPE_KEY = "SELECT * FROM events WHERE dedupe_key = :dedupeKey LIMIT 1"
+
+    const val EVENT_UPDATE_OBSERVATION =
+        "UPDATE events SET timestamp = :timestamp, title = :title, content = :content WHERE ulid = :ulid"
+
+    // ----------------------------------------------------------------- catalog
+    // ADR 0005 T6: producer descriptors as data. Add-only like sources/rules.
+    const val KINDS_ALL = "SELECT * FROM kinds"
+
+    const val FACETS_ALL = "SELECT * FROM facets"
+
+    const val KIND_FACETS_ALL = "SELECT * FROM kind_facets"
 }

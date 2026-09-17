@@ -58,6 +58,52 @@ object SeriesEvaluator {
         return if (condition.by >= 0) change >= condition.by else change <= condition.by
     }
 
+    /**
+     * Timestamped evaluation (REQ-SER-01..03).
+     *
+     * @param points oldest-first window of at most [Window.observations] points.
+     * @param retentionObservations the producer's retained count, when known. A
+     *   window asking for more refuses with [InsufficientSeriesException] rather
+     *   than evaluating a partial series.
+     * @param nowMs injectable clock for the boundary check.
+     * @param maxStalenessMs how old the newest point may be before the series
+     *   condition stops firing.
+     */
+    fun evaluatePoints(
+        points: List<SeriesPoint>,
+        condition: Condition,
+        measure: MeasureKind = MeasureKind.GAUGE,
+        retentionObservations: Int? = null,
+        nowMs: Long = Long.MAX_VALUE,
+        maxStalenessMs: Long = Long.MAX_VALUE,
+    ): Boolean {
+        if (measure != MeasureKind.GAUGE) {
+            throw MeasureUnsupportedException("series ops need a gauge facet, was $measure")
+        }
+        val window =
+            when (condition) {
+                is Condition.Crossing -> condition.window
+                is Condition.Delta -> condition.window
+                is Condition.Min -> condition.window
+                is Condition.Max -> condition.window
+                else -> throw IllegalArgumentException("SeriesEvaluator handles only crossing/delta/min/max")
+            }
+        if (retentionObservations != null && window.observations > retentionObservations) {
+            throw InsufficientSeriesException(
+                "window needs ${window.observations} observations but only $retentionObservations retained",
+            )
+        }
+        val ordered = points.sortedBy { it.timestampMs }.takeLast(window.observations)
+        if (ordered.isEmpty()) return false
+        if (nowMs != Long.MAX_VALUE && maxStalenessMs != Long.MAX_VALUE) {
+            if (nowMs - ordered.last().timestampMs > maxStalenessMs) return false
+        }
+        if (ordered.any { it.gapAfter } && (condition is Condition.Crossing || condition is Condition.Delta)) {
+            return false
+        }
+        return evaluate(ordered.map { it.value }, condition, measure)
+    }
+
     private fun aggregate(
         aggregate: Double?,
         op: FieldOp,

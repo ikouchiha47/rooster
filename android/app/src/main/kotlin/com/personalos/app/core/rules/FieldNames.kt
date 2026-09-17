@@ -1,16 +1,13 @@
 package com.personalos.app.core.rules
 
 /**
- * The `item_fields` names a producer can supply today (ADR 0003 §3, §6, §13).
+ * Short names for the two SMS-supplied `item_fields` (ADR 0003 §3, §6, §13).
  *
- * A `field` predicate over a name no producer writes matches nothing, forever,
- * and reads as a broken engine rather than an absent fact — the defect ADR §13
- * was written to fix. So a shipped seed may only name a member of [SUPPLIED],
- * and [com.personalos.app.data.RuleSeeder]'s guard test enforces it.
- *
- * Producers reference the constants rather than spelling the strings, and this
- * set is the one declaration of what exists. Adding a field to a producer means
- * adding its name here — data, not a branch in the evaluator.
+ * ADR 0005 retires the closed [SUPPLIED] set as the declaration of what
+ * exists: the facet catalog
+ * ([com.personalos.app.core.catalog.CatalogSeeds]) owns that now, and
+ * [com.personalos.app.data.RuleSeeder]'s guard test enforces it. Producers
+ * keep referencing these constants rather than spelling the strings.
  */
 object FieldNames {
     /** The sender address a message source already has (`SmsSource` today). */
@@ -19,6 +16,6 @@ object FieldNames {
     /** A transaction amount parsed from a message body (`SmsSource` today). */
     const val AMOUNT = "amount"
 
-    /** Every field name a producer can supply today. */
+    /** The SMS-supplied names; the catalog owns the full declaration. */
     val SUPPLIED: Set<String> = setOf(SENDER, AMOUNT)
 }

@@ -168,4 +168,27 @@ interface EventDao {
         content: String,
         enrichedAt: Long,
     )
+
+    // ------------------------------------------------------- observations
+    // ADR 0005 T8/T17: gauges upsert by bucket key, keeping the same ulid.
+
+    @Query(Sql.EVENT_BY_DEDUPE_KEY)
+    suspend fun byDedupeKey(dedupeKey: String): EventEntity?
+
+    @Query(Sql.EVENT_UPDATE_OBSERVATION)
+    suspend fun updateObservation(
+        ulid: String,
+        timestamp: Long,
+        title: String,
+        content: String,
+    )
+
+    @Query(Sql.LATEST_OBSERVATION_BY_SOURCE)
+    suspend fun latestObservation(sourceId: String): EventEntity?
+
+    @Query(Sql.LATEST_OBSERVATION_BY_SOURCE)
+    fun observeLatestObservation(sourceId: String): kotlinx.coroutines.flow.Flow<EventEntity?>
+
+    @Query(Sql.LATEST_OBSERVATIONS_BY_SOURCES)
+    suspend fun latestObservations(sourceIds: List<String>): List<EventEntity>
 }

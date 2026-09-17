@@ -148,6 +148,21 @@ class SmsSourceTest {
             content: String,
             enrichedAt: Long,
         ) = Unit
+
+        override suspend fun byDedupeKey(dedupeKey: String): EventEntity? = null
+
+        override suspend fun updateObservation(
+            ulid: String,
+            timestamp: Long,
+            title: String,
+            content: String,
+        ) = Unit
+
+        override suspend fun latestObservation(sourceId: String): EventEntity? = null
+
+        override fun observeLatestObservation(sourceId: String): kotlinx.coroutines.flow.Flow<EventEntity?> = kotlinx.coroutines.flow.flowOf(null)
+
+        override suspend fun latestObservations(sourceIds: List<String>): List<EventEntity> = emptyList()
     }
 
     private class FakeTagger : Tagger {
@@ -236,6 +251,16 @@ class SmsSourceTest {
         override suspend fun forItem(itemId: String): List<ItemFieldEntity> = emptyList()
 
         override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = emptyList()
+
+        override suspend fun replaceAll(fields: List<ItemFieldEntity>) = Unit
+
+        override suspend fun deleteForItem(itemId: String) = Unit
+
+        override suspend fun seriesWindow(
+            sourceId: String,
+            field: String,
+            limit: Int,
+        ): List<SeriesSample> = emptyList()
     }
 
     private class FakeMentionDao : MentionDao {

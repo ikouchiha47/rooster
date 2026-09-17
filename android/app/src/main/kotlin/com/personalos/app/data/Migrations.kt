@@ -401,6 +401,49 @@ val MIGRATION_13_14_STATEMENTS: List<String> =
     listOf("ALTER TABLE rules ADD COLUMN color TEXT")
 
 /**
+ * v14 -> v15: the facet catalog (ADR 0005 T6).
+ *
+ * New tables only, like v5 -> v6 and v6 -> v7: nothing existing changes, so no
+ * rebuild and no data to carry. No `DEFAULT` clauses (Room compares defaults
+ * when validating on open). Column order and affinities mirror
+ * `CatalogEntities.kt`, and the index names are the ones Room generates for
+ * its `Index` annotations (none here — the primary keys are the lookup path).
+ */
+val MIGRATION_14_15_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS kinds (
+            id TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            topics TEXT NOT NULL,
+            enrichable INTEGER NOT NULL,
+            seeded INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS facets (
+            id TEXT NOT NULL,
+            value_type TEXT NOT NULL,
+            measure TEXT NOT NULL,
+            ops TEXT NOT NULL,
+            values_from TEXT,
+            seeded INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS kind_facets (
+            kind_id TEXT NOT NULL,
+            facet_id TEXT NOT NULL,
+            PRIMARY KEY(kind_id, facet_id)
+        )
+        """.trimIndent(),
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -421,6 +464,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         12 to MIGRATION_11_12_STATEMENTS,
         13 to MIGRATION_12_13_STATEMENTS,
         14 to MIGRATION_13_14_STATEMENTS,
+        15 to MIGRATION_14_15_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

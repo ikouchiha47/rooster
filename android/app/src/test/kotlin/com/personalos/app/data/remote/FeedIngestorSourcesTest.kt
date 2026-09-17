@@ -28,6 +28,7 @@ import com.personalos.app.data.RuleDao
 import com.personalos.app.data.RuleEntity
 import com.personalos.app.data.RulePreviewCandidate
 import com.personalos.app.data.RuleWriter
+import com.personalos.app.data.SeriesSample
 import com.personalos.app.data.SourceCount
 import com.personalos.app.data.SourceEntity
 import com.personalos.app.data.TagCount
@@ -155,6 +156,21 @@ class FeedIngestorSourcesTest {
             content: String,
             enrichedAt: Long,
         ) = Unit
+
+        override suspend fun byDedupeKey(dedupeKey: String): EventEntity? = null
+
+        override suspend fun updateObservation(
+            ulid: String,
+            timestamp: Long,
+            title: String,
+            content: String,
+        ) = Unit
+
+        override suspend fun latestObservation(sourceId: String): EventEntity? = null
+
+        override fun observeLatestObservation(sourceId: String): kotlinx.coroutines.flow.Flow<EventEntity?> = kotlinx.coroutines.flow.flowOf(null)
+
+        override suspend fun latestObservations(sourceIds: List<String>): List<EventEntity> = emptyList()
     }
 
     private class FakeTagger : Tagger {
@@ -269,6 +285,23 @@ class FeedIngestorSourcesTest {
         override suspend fun forItem(itemId: String): List<ItemFieldEntity> = rows.filter { it.itemId == itemId }
 
         override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = rows.filter { it.itemId in itemIds }
+
+        override suspend fun replaceAll(fields: List<ItemFieldEntity>) {
+            for (row in fields) {
+                rows.removeIf { it.itemId == row.itemId && it.name == row.name }
+                rows += row
+            }
+        }
+
+        override suspend fun deleteForItem(itemId: String) {
+            rows.removeIf { it.itemId == itemId }
+        }
+
+        override suspend fun seriesWindow(
+            sourceId: String,
+            field: String,
+            limit: Int,
+        ): List<SeriesSample> = emptyList()
     }
 
     private class FakeMentionDao : MentionDao {

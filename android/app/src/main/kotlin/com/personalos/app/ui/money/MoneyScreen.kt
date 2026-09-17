@@ -114,13 +114,53 @@ fun MoneyScreen(
     // means for data that is already cached.
     var reload by remember { mutableStateOf(0) }
 
-    val rates by
-        remember(reload) { container.fx.observe() }
-            .collectAsStateWithLifecycle(initialValue = emptyList())
+    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
+
+    // ADR 0005 T19: FX cells read the store. Pairs come from enabled fx
+    // sources; numbers come from the latest observation per identity. Empty
+    // store renders the existing honest empty, never a borrowed cache value.
+    var rates by remember { mutableStateOf<List<FxRate>>(emptyList()) }
+    LaunchedEffect(maxId, reload) {
+        val fxSources =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "fx" }
+        val specs =
+            fxSources.mapNotNull { row ->
+                runCatching {
+                    val spec =
+                        com.personalos.app.core.sources.SourceSpecs
+                            .parse(row.kind, row.specJson)
+                            as com.personalos.app.core.sources.FxSpec
+                    spec to
+                        com.personalos.app.core.sources.SourceKeys
+                            .sourceFor(row.id, spec)
+                }.getOrNull()
+            }
+        val views =
+            if (specs.isEmpty()) {
+                emptyList()
+            } else {
+                container.observationRepository.latestMany(specs.map { it.second })
+            }
+        val bySource = views.associateBy { it.source }
+        rates =
+            specs.mapNotNull { (spec, identity) ->
+                val view = bySource[identity] ?: return@mapNotNull null
+                val value = (view.fields["rate"] as? com.personalos.app.core.rules.FieldValue.Num)?.value ?: return@mapNotNull null
+                FxRate(
+                    id =
+                        com.personalos.app.core.sources.SourceKeys
+                            .slug(spec.pair),
+                    pair = spec.pair.uppercase(),
+                    rate = value,
+                    note = "store",
+                )
+            }
+    }
 
     var news by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
     var financeMentions by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
-    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
     LaunchedEffect(maxId, reload) {
         val page = dao.pageByTag(Tags.FINANCE, null, 0L, FINANCE_NEWS_LIMIT)
@@ -192,6 +232,7 @@ fun MoneyScreen(
                     scope.launch {
                         container.sync.run("money") {
                             container.sync.step("refreshing rates")
+                            runCatching { container.feeds.refresh(force = true) }
                             reload++
                             container.sync.step("done: ${rates.size} pairs")
                         }

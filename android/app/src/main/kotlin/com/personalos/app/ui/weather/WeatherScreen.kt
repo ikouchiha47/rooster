@@ -126,6 +126,45 @@ fun WeatherScreen(
         remember(reload) { container.weather.observe() }
             .collectAsStateWithLifecycle(initialValue = emptyList())
 
+    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
+
+    // ADR 0005 T19: the strip reads the store. Names come from enabled weather
+    // sources; numbers come from the latest observation per identity. Empty
+    // store renders a placeholder, never a borrowed provider value.
+    var storePlaces by remember { mutableStateOf<List<StorePlace>>(emptyList()) }
+    LaunchedEffect(maxId, reload) {
+        val weatherSources =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "weather" }
+        val specs =
+            weatherSources.mapNotNull { row ->
+                runCatching {
+                    val spec =
+                        com.personalos.app.core.sources.SourceSpecs
+                            .parse(row.kind, row.specJson)
+                            as com.personalos.app.core.sources.WeatherSpec
+                    val identity =
+                        com.personalos.app.core.sources.SourceKeys
+                            .sourceFor(row.id, spec)
+                    spec.place to identity
+                }.getOrNull()
+            }
+        val views =
+            if (specs.isEmpty()) {
+                emptyList()
+            } else {
+                container.observationRepository.latestMany(specs.map { it.second })
+            }
+        val bySource = views.associateBy { it.source }
+        storePlaces =
+            specs.map { (place, identity) ->
+                val view = bySource[identity]
+                val temp = (view?.fields?.get("temp_c") as? com.personalos.app.core.rules.FieldValue.Num)?.value
+                StorePlace(place = place, temperatureC = temp?.let { kotlin.math.round(it).toInt() }, observed = view != null)
+            }
+    }
+
     // The present-location seam. Null is the honest "we do not know where you
     // are" answer, and is rendered as such.
     val present by
@@ -134,7 +173,6 @@ fun WeatherScreen(
 
     var news by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
     var weatherMentions by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
-    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
     LaunchedEffect(maxId, reload) {
         val page = dao.pageByTag(Tags.WEATHER, null, 0L, WEATHER_NEWS_LIMIT)
@@ -195,7 +233,7 @@ fun WeatherScreen(
         onBack = onBack,
         header = {
             Text(
-                text = "${snapshots.size} PLACES",
+                text = "${storePlaces.size} PLACES",
                 style = RadarType.micro,
                 color = RadarColors.paper4,
             )
@@ -205,9 +243,10 @@ fun WeatherScreen(
                 ActionKind.SYNC ->
                     scope.launch {
                         container.sync.run("weather") {
-                            container.sync.step("refreshing forecasts")
+                            container.sync.step("refreshing observations")
+                            runCatching { container.feeds.refresh(force = true) }
                             reload++
-                            container.sync.step("done: ${snapshots.size} places")
+                            container.sync.step("done: ${storePlaces.size} places")
                         }
                     }
 
@@ -216,12 +255,12 @@ fun WeatherScreen(
         },
     ) { query ->
         val places =
-            remember(snapshots, query) {
+            remember(storePlaces, query) {
                 val q = query.trim()
                 if (q.isEmpty()) {
-                    snapshots
+                    storePlaces
                 } else {
-                    snapshots.filter { it.place.contains(q, ignoreCase = true) }
+                    storePlaces.filter { it.place.contains(q, ignoreCase = true) }
                 }
             }
 
@@ -266,9 +305,9 @@ fun WeatherScreen(
 
                 item(key = "places") {
                     CardSection {
-                        PlacesCard(
+                        StorePlacesCard(
                             places = places,
-                            emptyNote = if (snapshots.isEmpty()) "No places configured." else "No places match.",
+                            emptyNote = if (storePlaces.isEmpty()) "No places configured." else "No places match.",
                             onOpen = { onNavigate(Destination.Forecast(it.place)) },
                         )
                     }
@@ -324,7 +363,7 @@ fun WeatherScreen(
                 item(key = "footer") {
                     FooterStrip(
                         text =
-                            "${snapshots.size} places ${Chars.MIDDLE_DOT} " +
+                            "${storePlaces.size} places ${Chars.MIDDLE_DOT} " +
                                 "${news.size} weather items ${Chars.MIDDLE_DOT} end of list",
                     )
                 }
@@ -565,6 +604,117 @@ private fun PlacesCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * ADR 0005 T19: one strip cell as the store sees it. `temperatureC` null means
+ * no observation yet — the cell says so plainly rather than borrowing a
+ * provider cache value.
+ */
+private data class StorePlace(
+    val place: String,
+    val temperatureC: Int?,
+    val observed: Boolean,
+)
+
+@Composable
+private fun StorePlacesCard(
+    places: List<StorePlace>,
+    emptyNote: String,
+    onOpen: (StorePlace) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(RadarColors.paper2)
+            .border(1.dp, RadarColors.ink),
+    ) {
+        WidgetHeader(
+            title = "Places",
+            note = places.size.takeIf { it > 0 }?.toString(),
+            glyph = Glyph.Place,
+        )
+        if (places.isEmpty()) {
+            Text(
+                text = emptyNote,
+                style = RadarType.small,
+                color = RadarColors.ink3,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+            )
+        } else {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val fits = maxWidth >= PLACE_CELL_WIDTH * places.size
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(PLACE_ROW_HEIGHT)
+                            .then(if (fits) Modifier else Modifier.horizontalScroll(rememberScrollState())),
+                ) {
+                    places.forEachIndexed { index, place ->
+                        if (index > 0) {
+                            Box(Modifier.width(1.dp).fillMaxHeight().background(RadarColors.ruleSoft))
+                        }
+                        StorePlaceCell(
+                            place = place,
+                            modifier =
+                                if (fits) {
+                                    Modifier.weight(1f).fillMaxHeight()
+                                } else {
+                                    Modifier.width(PLACE_CELL_WIDTH).fillMaxHeight()
+                                },
+                            onOpen = { onOpen(place) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorePlaceCell(
+    place: StorePlace,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit,
+) {
+    Column(
+        modifier =
+            modifier
+                .clickable(onClick = onOpen)
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = place.place,
+            style = RadarType.micro,
+            color = RadarColors.ink3,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlyphIcon(
+                glyph = Glyph.Place,
+                tint = if (place.observed) RadarColors.ink else RadarColors.ink3,
+                size = 22.dp,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = place.temperatureC?.let { "$it${Chars.DEGREE}" } ?: Chars.EM_DASH,
+                style = RadarType.monoStat,
+                color = if (place.observed) RadarColors.ink else RadarColors.ink3,
+                maxLines = 1,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = if (place.observed) "Observed" else "No observation yet",
+            style = RadarType.microPlain,
+            color = RadarColors.ink2,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

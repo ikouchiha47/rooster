@@ -13,7 +13,7 @@ import kotlinx.serialization.json.jsonArray
  * [IllegalArgumentException] (unknown kind, malformed JSON, missing or invalid
  * keys), so writers validate with a single call and tests assert one type.
  */
-sealed interface SourceSpec {
+interface SourceSpec {
     /** Subject/nature tags applied at ingest. Never empty: writers default to `news`. */
     val tags: Set<String>
 }
@@ -32,6 +32,31 @@ data class SearchSpec(
     /** Which GNews edition to hit (e.g. `en-IN`). v1 seeds are all `en-IN`. */
     val sourceLocale: String,
     override val tags: Set<String>,
+) : SourceSpec
+
+/** `kind = "sms"`: the device inbox. No fetch spec; tags default. */
+data class SmsSpec(
+    override val tags: Set<String> = setOf("news"),
+) : SourceSpec
+
+/** `kind = "weather"`: one place, bundled coordinates (no geocoding). */
+data class WeatherSpec(
+    val place: String,
+    val lat: Double,
+    val lon: Double,
+    override val tags: Set<String> = setOf("weather"),
+) : SourceSpec
+
+/** `kind = "fx"`: one currency pair, e.g. `USD-INR`. */
+data class FxSpec(
+    val pair: String,
+    override val tags: Set<String> = setOf("finance"),
+) : SourceSpec
+
+/** `kind = "device"`: one local signal, e.g. `battery`. */
+data class DeviceSpec(
+    val signal: String,
+    override val tags: Set<String> = setOf("news"),
 ) : SourceSpec
 
 object SourceSpecs {
@@ -59,15 +84,25 @@ object SourceSpecs {
     /**
      * Parses and validates `spec_json` for a stored kind string.
      *
+     * ADR 0005: `kind` is a string, not the closed [SourceKind] enum. Each kind
+     * owns its spec shape; unknown kinds throw so writers fail closed, while
+     * sync-all skips unbound kinds before ever parsing (REQ-ING-05).
+     *
      * @throws IllegalArgumentException when the kind is unknown or the spec is invalid.
      */
     fun parse(
         kindName: String,
         specJson: String,
-    ): SourceSpec {
-        val kind = SourceKind.from(kindName) ?: throw IllegalArgumentException("unknown source kind: $kindName")
-        return parse(kind, specJson)
-    }
+    ): SourceSpec =
+        when (kindName) {
+            SourceKind.RSS.serialName -> parseRss(obj(specJson, "rss"))
+            SourceKind.SEARCH.serialName -> parseSearch(obj(specJson, "search"))
+            "sms" -> parseSms(obj(specJson, "sms"))
+            "weather" -> parseWeather(obj(specJson, "weather"))
+            "fx" -> parseFx(obj(specJson, "fx"))
+            "device" -> parseDevice(obj(specJson, "device"))
+            else -> throw IllegalArgumentException("unknown source kind: $kindName")
+        }
 
     private fun obj(
         specJson: String,
@@ -112,6 +147,34 @@ object SourceSpecs {
         )
     }
 
+    private fun parseSms(obj: JsonObject): SmsSpec {
+        rejectUnknown(obj, setOf("tags"), "sms")
+        return SmsSpec(tags = tags(obj, "sms"))
+    }
+
+    private fun parseWeather(obj: JsonObject): WeatherSpec {
+        rejectUnknown(obj, setOf("place", "lat", "lon", "tags"), "weather")
+        val place = obj.string("place", "weather") ?: throw IllegalArgumentException("kind weather: missing required key place")
+        require(place.isNotBlank()) { "kind weather: place must not be blank" }
+        val lat = obj.double("lat", "weather") ?: throw IllegalArgumentException("kind weather: missing required key lat")
+        val lon = obj.double("lon", "weather") ?: throw IllegalArgumentException("kind weather: missing required key lon")
+        return WeatherSpec(place = place, lat = lat, lon = lon, tags = tags(obj, "weather"))
+    }
+
+    private fun parseFx(obj: JsonObject): FxSpec {
+        rejectUnknown(obj, setOf("pair", "tags"), "fx")
+        val pair = obj.string("pair", "fx") ?: throw IllegalArgumentException("kind fx: missing required key pair")
+        require(pair.isNotBlank()) { "kind fx: pair must not be blank" }
+        return FxSpec(pair = pair, tags = tags(obj, "fx"))
+    }
+
+    private fun parseDevice(obj: JsonObject): DeviceSpec {
+        rejectUnknown(obj, setOf("signal", "tags"), "device")
+        val signal = obj.string("signal", "device") ?: throw IllegalArgumentException("kind device: missing required key signal")
+        require(signal.isNotBlank()) { "kind device: signal must not be blank" }
+        return DeviceSpec(signal = signal, tags = tags(obj, "device"))
+    }
+
     private fun rejectUnknown(
         obj: JsonObject,
         allowed: Set<String>,
@@ -130,6 +193,18 @@ object SourceSpecs {
             "kind $kind: $key must be a string"
         }
         return element.content
+    }
+
+    private fun JsonObject.double(
+        key: String,
+        kind: String,
+    ): Double? {
+        val element = this[key] ?: return null
+        require(element is JsonPrimitive) {
+            "kind $kind: $key must be a number"
+        }
+        return element.content.toDoubleOrNull()
+            ?: throw IllegalArgumentException("kind $kind: $key must be a number")
     }
 
     private fun tags(

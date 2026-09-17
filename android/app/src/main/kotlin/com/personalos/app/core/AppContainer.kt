@@ -16,9 +16,12 @@ import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.CatalogSeeder
+import com.personalos.app.data.CatalogStore
 import com.personalos.app.data.ContentResolverSmsReader
 import com.personalos.app.data.FieldWriter
 import com.personalos.app.data.MentionWriter
+import com.personalos.app.data.ObservationRepository
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
 import com.personalos.app.data.PrefsSmsSyncMark
@@ -32,6 +35,12 @@ import com.personalos.app.data.SourceRepository
 import com.personalos.app.data.SourceSeeder
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.ThemeRepository
+import com.personalos.app.data.adapters.DeviceKindAdapter
+import com.personalos.app.data.adapters.FxKindAdapter
+import com.personalos.app.data.adapters.ObservationWriter
+import com.personalos.app.data.adapters.SmsKindAdapter
+import com.personalos.app.data.adapters.WeatherKindAdapter
+import com.personalos.app.data.adapters.adaptersByKind
 import com.personalos.app.data.cache.PrefsStringCache
 import com.personalos.app.data.location.AndroidLocationProvider
 import com.personalos.app.data.remote.ArticleEnricher
@@ -135,6 +144,14 @@ class AppContainer(
 
     /** Seeds the v1 source set once; afterwards a single `COUNT(*)` no-op. */
     val sourceSeeder: SourceSeeder = SourceSeeder(database.sourceDao())
+
+    /** ADR 0005 T6: seeds the facet catalog; afterwards a no-op. */
+    val catalogSeeder: CatalogSeeder =
+        CatalogSeeder(database.kindDao(), database.facetDao(), database.kindFacetDao())
+
+    /** ADR 0005 T6: the single owner of the catalog fact. */
+    val catalogStore: CatalogStore =
+        CatalogStore(database.kindDao(), database.facetDao(), database.kindFacetDao())
 
     /** Seeds the v1 rule set once; afterwards a single `COUNT(*)` no-op. */
     val ruleSeeder: RuleSeeder = RuleSeeder(database.ruleDao())
@@ -253,6 +270,17 @@ class AppContainer(
      */
     val placeRanker: PlaceRanker = RecencyPlaceRanker()
 
+    /**
+     * ADR 0005 T8: gauge observation writes — upsert-by-bucket, latest wins.
+     * Counters never touch this writer (`IGNORE` + freeze stays theirs).
+     */
+    val observationWriter: ObservationWriter =
+        ObservationWriter(database.eventDao(), database.itemFieldDao(), tagWriter, ruleWriter)
+
+    /** ADR 0005 T19: tiles read the store through here, never a provider list. */
+    val observationRepository: ObservationRepository =
+        ObservationRepository(database.eventDao(), database.itemFieldDao())
+
     val feeds: FeedIngestor =
         FeedIngestor(
             database.eventDao(),
@@ -261,6 +289,15 @@ class AppContainer(
             mentionWriter,
             ruleWriter,
             loadSources = { sourceRepository.enabledSources() },
+            gaugeAdapters =
+                adaptersByKind(
+                    listOf(
+                        SmsKindAdapter(),
+                        WeatherKindAdapter(observationWriter),
+                        FxKindAdapter(observationWriter),
+                        DeviceKindAdapter(),
+                    ),
+                ),
         )
 
     /**

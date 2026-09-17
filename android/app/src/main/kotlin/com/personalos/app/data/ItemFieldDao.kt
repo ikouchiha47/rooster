@@ -26,4 +26,23 @@ interface ItemFieldDao {
      */
     @Query(Sql.ITEM_FIELDS_FOR_ITEMS)
     suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity>
+
+    /**
+     * ADR 0005 T17: gauge-only replace for one observation's fields. Counter
+     * paths keep using [insertAll] (`IGNORE` + freeze); calling this on a
+     * counter ulid would un-freeze SMS and is forbidden.
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun replaceAll(fields: List<ItemFieldEntity>)
+
+    @Query("DELETE FROM item_fields WHERE item_id = :itemId")
+    suspend fun deleteForItem(itemId: String)
+
+    /** ADR 0005 T15: the indexed series window read. */
+    @Query(Sql.SERIES_WINDOW)
+    suspend fun seriesWindow(
+        sourceId: String,
+        field: String,
+        limit: Int,
+    ): List<SeriesSample>
 }
