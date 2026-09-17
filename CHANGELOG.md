@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(catalog): facet catalog and typed measures core
+
+_2026-09-17_
+
+
+Adds pure core/catalog: Facet/Kind/Catalog, InMemoryCatalog union and fail-closed seeds, OpMatrix type x measure with reserved ops loud-fail, FacetCompiler to frozen Condition leaves, CatalogSeeds day-one kinds, and pure core/rules SeriesEvaluator with edge-not-level crossing. UI untouched; fetch/tag paths unchanged.
+
 ## docs(adr): kinds, instances and declared keys — and why services are not providers
 
 _2026-09-17_
