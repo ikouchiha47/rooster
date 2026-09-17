@@ -111,6 +111,7 @@ class OpenMeteoWeatherProvider(
         val maxima = daily["temperature_2m_max"]?.jsonArray ?: return emptyList()
         val minima = daily["temperature_2m_min"]?.jsonArray ?: return emptyList()
         val rain = daily["precipitation_probability_max"]?.jsonArray
+        val codes = daily["weather_code"]?.jsonArray
 
         return dates.mapIndexed { index, date ->
             WeatherDay(
@@ -118,6 +119,7 @@ class OpenMeteoWeatherProvider(
                 maxC = maxima.getOrNull(index).asDouble()?.roundToInt() ?: 0,
                 minC = minima.getOrNull(index).asDouble()?.roundToInt() ?: 0,
                 rainChance = rain?.getOrNull(index).asInt() ?: 0,
+                weatherCode = codes?.getOrNull(index)?.asInt(),
             )
         }
     }

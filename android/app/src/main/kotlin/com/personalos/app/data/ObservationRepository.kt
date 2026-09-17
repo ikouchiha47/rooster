@@ -57,6 +57,7 @@ class ObservationRepository(
                         maxC = kotlin.math.round(max).toInt(),
                         minC = kotlin.math.round(min).toInt(),
                         rainChance = kotlin.math.round(chance).toInt(),
+                        weatherCode = (fields["weather_code"] as? FieldValue.Num)?.value?.toInt(),
                     )
                 }.getOrNull()
             }.sortedBy { it.date }

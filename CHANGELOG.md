@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(weather): code-first condition glyphs from stored weather_code
+
+_2026-09-18_
+
+
+WeatherCondition gains Fog/Drizzle/Showers/Snow bands driven by the stored WMO weather_code, with rain-chance bands as fallback when no code exists. WeatherDay carries the code from both the provider parse and the store week read; the strip cell shows the code's glyph and label. Tint groups stay in-palette with the grouping asserted explicitly.
+
 ## feat(weather,fx): store-backed forecast week and FX everywhere
 
 _2026-09-18_

@@ -160,7 +160,12 @@ fun WeatherScreen(
             specs.map { (place, identity) ->
                 val view = bySource[identity]
                 val temp = (view?.fields?.get("temp_c") as? com.personalos.app.core.rules.FieldValue.Num)?.value
-                StorePlace(place = place, temperatureC = temp?.let { kotlin.math.round(it).toInt() }, observed = view != null)
+                StorePlace(
+                    place = place,
+                    temperatureC = temp?.let { kotlin.math.round(it).toInt() },
+                    observed = view != null,
+                    weatherCode = (view?.fields?.get("weather_code") as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt(),
+                )
             }
     }
 
@@ -626,6 +631,7 @@ private data class StorePlace(
     val place: String,
     val temperatureC: Int?,
     val observed: Boolean,
+    val weatherCode: Int? = null,
 )
 
 @Composable
@@ -689,6 +695,7 @@ private fun StorePlaceCell(
     modifier: Modifier = Modifier,
     onOpen: () -> Unit,
 ) {
+    val condition = place.weatherCode?.let(::weatherCodeCondition)
     Column(
         modifier =
             modifier
@@ -705,7 +712,7 @@ private fun StorePlaceCell(
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             GlyphIcon(
-                glyph = Glyph.Place,
+                glyph = condition?.glyph ?: Glyph.Place,
                 tint = if (place.observed) RadarColors.ink else RadarColors.ink3,
                 size = 22.dp,
             )
@@ -719,7 +726,7 @@ private fun StorePlaceCell(
         }
         Spacer(Modifier.height(2.dp))
         Text(
-            text = if (place.observed) "Observed" else "No observation yet",
+            text = condition?.label ?: if (place.observed) "Observed" else "No observation yet",
             style = RadarType.microPlain,
             color = RadarColors.ink2,
             maxLines = 1,

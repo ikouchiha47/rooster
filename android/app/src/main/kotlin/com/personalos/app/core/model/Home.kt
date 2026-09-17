@@ -50,6 +50,8 @@ data class WeatherDay(
     val maxC: Int,
     val minC: Int,
     val rainChance: Int,
+    /** WMO weather code when the source carried one; null keeps the rain-chance bands. */
+    val weatherCode: Int? = null,
 )
 
 data class NowPlaying(

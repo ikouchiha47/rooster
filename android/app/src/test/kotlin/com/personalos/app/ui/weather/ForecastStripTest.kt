@@ -36,8 +36,15 @@ class ForecastStripTest {
 
     @Test
     fun `each band maps to its own tint`() {
+        // Code-first bands share their rain-band wash: fog and snow read as
+        // cloud, drizzle and showers as rain. The grouping is explicit — a fog
+        // day must tint exactly like a cloudy one, never invent a new colour.
+        assertEquals(conditionTint(WeatherCondition.Cloudy), conditionTint(WeatherCondition.Fog))
+        assertEquals(conditionTint(WeatherCondition.Cloudy), conditionTint(WeatherCondition.Snow))
+        assertEquals(conditionTint(WeatherCondition.Rain), conditionTint(WeatherCondition.Drizzle))
+        assertEquals(conditionTint(WeatherCondition.Rain), conditionTint(WeatherCondition.Showers))
         val tints = WeatherCondition.entries.map(::conditionTint)
-        assertEquals(tints.size, tints.toSet().size)
+        assertEquals(5, tints.toSet().size)
     }
 
     @Test

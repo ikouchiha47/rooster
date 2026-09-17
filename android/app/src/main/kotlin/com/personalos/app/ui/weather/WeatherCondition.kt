@@ -7,20 +7,24 @@ import com.personalos.app.ui.common.Glyph
 /**
  * How the sky reads, and the drawn glyph that stands in for it.
  *
- * The provider already carries a rain probability per day, and folds the current
- * day into a one-word summary (`Rain 55%` / `Dry` / `Unavailable`). That is
- * enough to choose an icon honestly - no weather code, no second source, no new
- * dependency. Thresholds are wide bands on purpose: a number that jitters by a
- * few percent should not make the icon flicker.
+ * The stored WMO `weather_code` decides first — 95+ genuinely is a
+ * thunderstorm, which no rain-chance band can know. Days without a code fall
+ * back to the rain-probability bands, whose thresholds stay wide on purpose: a
+ * number that jitters by a few percent should not make the icon flicker.
  */
 internal enum class WeatherCondition(
     val glyph: Glyph,
+    val label: String,
 ) {
-    Clear(Glyph.Sun),
-    PartlyCloudy(Glyph.CloudSun),
-    Cloudy(Glyph.Cloud),
-    Rain(Glyph.CloudRain),
-    Storm(Glyph.Storm),
+    Clear(Glyph.Sun, "Clear"),
+    PartlyCloudy(Glyph.CloudSun, "Partly cloudy"),
+    Cloudy(Glyph.Cloud, "Cloudy"),
+    Fog(Glyph.Cloud, "Fog"),
+    Drizzle(Glyph.CloudRain, "Drizzle"),
+    Rain(Glyph.CloudRain, "Rain"),
+    Showers(Glyph.CloudRain, "Showers"),
+    Snow(Glyph.Cloud, "Snow"),
+    Storm(Glyph.Storm, "Thunderstorm"),
 }
 
 /** Band a rain chance from clear (0) to storm (100). */
@@ -33,7 +37,21 @@ internal fun weatherCondition(rainChance: Int): WeatherCondition =
         else -> WeatherCondition.Clear
     }
 
-internal fun WeatherDay.condition(): WeatherCondition = weatherCondition(rainChance)
+/** Read a WMO weather code: thunderstorm, snow, rain and fog are real states, not guesses. */
+internal fun weatherCodeCondition(code: Int): WeatherCondition =
+    when (code) {
+        in 95..99 -> WeatherCondition.Storm
+        in 71..77, in 85..86 -> WeatherCondition.Snow
+        in 61..67 -> WeatherCondition.Rain
+        in 80..82 -> WeatherCondition.Showers
+        in 51..57 -> WeatherCondition.Drizzle
+        45, 48 -> WeatherCondition.Fog
+        3 -> WeatherCondition.Cloudy
+        2 -> WeatherCondition.PartlyCloudy
+        else -> WeatherCondition.Clear
+    }
+
+internal fun WeatherDay.condition(): WeatherCondition = weatherCode?.let(::weatherCodeCondition) ?: weatherCondition(rainChance)
 
 /**
  * Read a snapshot's self-summary. `Rain 55%` gives the number; `Dry` reads as
