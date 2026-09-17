@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -187,10 +188,35 @@ private fun HomeAppBar(onScan: () -> Unit) {
 @Composable
 private fun AtAGlanceCard() {
     val container = LocalAppContainer.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val database =
+        remember {
+            com.personalos.app.data.AppDatabase
+                .getInstance(context)
+        }
+    val maxId by database.eventDao().observeMaxId().collectAsStateWithLifecycle(initialValue = null)
     val glanceFlow = remember(container) { container.glance.observe() }
-    val fxFlow = remember(container) { container.fx.observe() }
     val glance by glanceFlow.collectAsStateWithLifecycle(initialValue = null)
-    val rates by fxFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    // FX watch reads the store like the M&M tile; empty store swipes nowhere.
+    var rates by remember { androidx.compose.runtime.mutableStateOf<List<FxRate>>(emptyList()) }
+    androidx.compose.runtime.LaunchedEffect(maxId) {
+        val specs =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "fx" }
+                .mapNotNull { row ->
+                    runCatching {
+                        val spec =
+                            com.personalos.app.core.sources.SourceSpecs
+                                .parse(row.kind, row.specJson)
+                                as com.personalos.app.core.sources.FxSpec
+                        spec.pair to
+                            com.personalos.app.core.sources.SourceKeys
+                                .sourceFor(row.id, spec)
+                    }.getOrNull()
+                }
+        rates = container.observationRepository.fxRates(specs)
+    }
 
     Column(
         modifier =

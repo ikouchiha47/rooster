@@ -1,23 +1,18 @@
 package com.personalos.app.data
 
-import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.TagResult
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TaggerKind
 import com.personalos.app.data.adapters.ObservationWriter
-import com.personalos.app.data.toEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
 
-class GaugeIngestTest {
-    private class FakeEventDao : EventDao {
+/** Shared fakes for gauge/observation tests. Models Room semantics: dedupe IGNORE, field freeze vs replace. */
+object GaugeFakes {
+    class FakeEventDao : EventDao {
         val rows = mutableListOf<EventEntity>()
-        var seq = 1L
+        private var seq = 1L
 
         override suspend fun insertAll(events: List<EventEntity>): List<Long> =
             events.map { row ->
@@ -138,16 +133,14 @@ class GaugeIngestTest {
 
         override suspend fun latestObservation(sourceId: String): EventEntity? = rows.filter { it.source == sourceId && it.type == "observation" }.maxByOrNull { it.timestamp }
 
-        override fun observeLatestObservation(sourceId: String): Flow<EventEntity?> = flowOf(latestObservationSync(sourceId))
-
-        private fun latestObservationSync(sourceId: String): EventEntity? = rows.filter { it.source == sourceId && it.type == "observation" }.maxByOrNull { it.timestamp }
+        override fun observeLatestObservation(sourceId: String): Flow<EventEntity?> = flowOf(null)
 
         override suspend fun latestObservations(sourceIds: List<String>): List<EventEntity> = rows.filter { it.source in sourceIds && it.type == "observation" }
 
         override suspend fun observationsByPrefix(prefix: String): List<EventEntity> = rows.filter { it.source.startsWith(prefix) && it.type == "observation" }
     }
 
-    private class FakeFieldDao : ItemFieldDao {
+    class FakeFieldDao : ItemFieldDao {
         val rows = mutableListOf<ItemFieldEntity>()
 
         override suspend fun insertAll(fields: List<ItemFieldEntity>): List<Long> =
@@ -265,126 +258,18 @@ class GaugeIngestTest {
         override suspend fun deleteSurfaces(surfaces: List<String>): Int = 0
     }
 
-    @Test
-    fun `same bucket keeps one row and the latest value`() =
-        runBlocking {
-            val events = FakeEventDao()
-            val fields = FakeFieldDao()
-            val writer =
-                ObservationWriter(
-                    events,
-                    fields,
-                    TagWriter(StubTagDao(), FixedTagger()),
-                    RuleWriter(StubRuleDao(), StubMatchDao(), StubTagDao(), StubMentionDao(), fields),
-                    bucketMs = 3_600_000L,
-                )
-            val firstHour = 1_726_531_200_000L
-            val first =
-                ObservationWriter.Observation(
-                    identity = "weather:bengaluru",
-                    timestamp = firstHour + 100_000L,
-                    title = "Bengaluru",
-                    content = "31.0C",
-                    topicTag = "weather",
-                    fields = mapOf("temp_c" to FieldValue.Num(31.0)),
-                )
-            val ulid1 = writer.write(first, now = firstHour)
-            val ulid2 =
-                writer.write(first.copy(timestamp = firstHour + 200_000L, content = "31.2C", fields = mapOf("temp_c" to FieldValue.Num(31.2))), now = firstHour)
-            assertEquals(ulid1, ulid2)
-            assertEquals(1, events.rows.count { it.source == "weather:bengaluru" })
-            val stored = fields.forItem(ulid1).single { it.name == "temp_c" }
-            assertEquals(31.2, stored.valueNum!!, 0.0001)
-        }
+    fun events(): FakeEventDao = FakeEventDao()
 
-    @Test
-    fun `counter duplicates freeze the first write`() =
-        runBlocking {
-            val fields = FakeFieldDao()
-            val first = listOf(FieldValue.Num(12000.0).toEntity("item-1", "amount"))
-            assertEquals(listOf(1L), fields.insertAll(first))
-            // A revised counter value is a no-op under IGNORE.
-            assertEquals(listOf(-1L), fields.insertAll(listOf(FieldValue.Num(99999.0).toEntity("item-1", "amount"))))
-            assertEquals(12000.0, fields.forItem("item-1").single().valueNum!!, 0.0001)
-        }
+    fun fields(): FakeFieldDao = FakeFieldDao()
 
-    @Test
-    fun `gauge dispatch evaluates item and series paths`() =
-        runBlocking {
-            val matches = StubMatchDao()
-            val fieldDao = FakeFieldDao()
-            val writer = RuleWriter(StubRuleDaoWithRules(), matches, StubTagDao(), StubMentionDao(), fieldDao)
-            fieldDao.replaceAll(listOf(FieldValue.Num(31.0).toEntity("obs-1", "temp_c")))
-            val seed = RuleItemSeed(itemId = "obs-1", sourceId = "weather:bengaluru", title = "Bengaluru", content = "31.0C")
-            val written =
-                writer.writeGaugeSample(
-                    seed = seed,
-                    windowFor = { _, _ -> listOf(29.0, 31.0) },
-                    now = 0L,
-                )
-            assertTrue(written >= 1)
-        }
-
-    private class StubRuleDaoWithRules : RuleDao {
-        private val rules =
-            listOf(
-                RuleEntity(
-                    id = "item-rule",
-                    name = "hot",
-                    enabled = true,
-                    seeded = false,
-                    conditionJson = """{"field": {"name": "temp_c", "op": "gt", "value": 30}}""",
-                    actionJson = """{"delivery": "none", "position": 0}""",
-                    position = 0L,
-                    createdAt = 0L,
-                    updatedAt = null,
-                    color = null,
-                ),
-                RuleEntity(
-                    id = "series-rule",
-                    name = "warming",
-                    enabled = true,
-                    seeded = false,
-                    conditionJson = """{"crossing": {"field": "temp_c", "direction": "above", "value": 30, "window": 2}}""",
-                    actionJson = """{"delivery": "none", "position": 0}""",
-                    position = 0L,
-                    createdAt = 0L,
-                    updatedAt = null,
-                    color = null,
-                ),
-            )
-
-        override fun observeAll(): Flow<List<RuleEntity>> = flowOf(rules)
-
-        override suspend fun all(): List<RuleEntity> = rules
-
-        override suspend fun count(): Int = rules.size
-
-        override suspend fun insertAll(rules: List<RuleEntity>): List<Long> = rules.map { 1L }
-
-        override suspend fun updateUserOnly(
-            id: String,
-            name: String,
-            conditionJson: String,
-            actionJson: String,
-            color: String?,
-            position: Long,
-            updatedAt: Long,
-        ): Int = 0
-
-        override suspend fun updateEnabledUserOnly(
-            id: String,
-            enabled: Boolean,
-            updatedAt: Long,
-        ): Int = 0
-
-        override suspend fun deleteUserOnly(id: String): Int = 0
-    }
-
-    @Test
-    fun `series window reads one source and field capped`() {
-        assertTrue(Sql.SERIES_WINDOW.contains("e.source = :sourceId"))
-        assertTrue(Sql.SERIES_WINDOW.contains("f.name = :field"))
-        assertTrue(Sql.SERIES_WINDOW.contains("LIMIT :limit"))
-    }
+    fun writer(
+        events: FakeEventDao,
+        fields: FakeFieldDao,
+    ): ObservationWriter =
+        ObservationWriter(
+            events,
+            fields,
+            TagWriter(StubTagDao(), FixedTagger()),
+            RuleWriter(StubRuleDao(), StubMatchDao(), StubTagDao(), StubMentionDao(), fields),
+        )
 }

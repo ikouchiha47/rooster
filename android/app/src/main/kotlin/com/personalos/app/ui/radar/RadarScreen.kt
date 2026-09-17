@@ -397,9 +397,30 @@ private fun RadarGlance(dao: EventDao) {
     val incidents by dao
         .observeCountByCategory(FeedCategories.INCIDENT)
         .collectAsStateWithLifecycle(initialValue = 0)
+    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
     val container = LocalAppContainer.current
-    val fxFlow = remember(container) { container.fx.observe() }
-    val rates by fxFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val context = LocalContext.current
+    val database = remember { AppDatabase.getInstance(context) }
+    // FX watch reads the store like the M&M tile; empty store shows "--".
+    var rates by remember { mutableStateOf<List<com.personalos.app.core.model.FxRate>>(emptyList()) }
+    LaunchedEffect(maxId) {
+        val specs =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "fx" }
+                .mapNotNull { row ->
+                    runCatching {
+                        val spec =
+                            com.personalos.app.core.sources.SourceSpecs
+                                .parse(row.kind, row.specJson)
+                                as com.personalos.app.core.sources.FxSpec
+                        spec.pair to
+                            com.personalos.app.core.sources.SourceKeys
+                                .sourceFor(row.id, spec)
+                    }.getOrNull()
+                }
+        rates = container.observationRepository.fxRates(specs)
+    }
     val glanceFlow = remember(container) { container.glance.observe() }
     val glance by glanceFlow.collectAsStateWithLifecycle(initialValue = null)
 

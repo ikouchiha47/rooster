@@ -422,6 +422,18 @@ object Sql {
         ORDER BY e.timestamp DESC
         """
 
+    /**
+     * Forecast week: every `weather:<slug>:fc:<date>` row, oldest date first.
+     * Exact-identity reads (`latestObservation`) can never collide with these —
+     * the `:fc:` segment keeps the namespaces apart.
+     */
+    const val OBSERVATIONS_BY_PREFIX =
+        """
+        SELECT e.* FROM events e
+        WHERE e.source LIKE :prefix || '%' AND e.type = 'observation'
+        ORDER BY e.source ASC
+        """
+
     /** ADR 0005 T8/T17: gauge upsert-by-bucket needs the row for a dedupe key. */
     const val EVENT_BY_DEDUPE_KEY = "SELECT * FROM events WHERE dedupe_key = :dedupeKey LIMIT 1"
 

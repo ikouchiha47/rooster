@@ -176,6 +176,38 @@ class SourceSeeder(
                     updatedAt = now,
                 ),
                 SourceEntity(
+                    id = "$SEED_PREFIX:fx:eur-inr",
+                    name = "EUR-INR",
+                    kind = "fx",
+                    specJson =
+                        JsonObject(
+                            mapOf(
+                                "pair" to JsonPrimitive("EUR-INR"),
+                                "tags" to JsonArray(listOf(JsonPrimitive("finance"))),
+                            ),
+                        ).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                SourceEntity(
+                    id = "$SEED_PREFIX:fx:gbp-inr",
+                    name = "GBP-INR",
+                    kind = "fx",
+                    specJson =
+                        JsonObject(
+                            mapOf(
+                                "pair" to JsonPrimitive("GBP-INR"),
+                                "tags" to JsonArray(listOf(JsonPrimitive("finance"))),
+                            ),
+                        ).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                SourceEntity(
                     id = "$SEED_PREFIX:device:battery",
                     name = "Battery",
                     kind = "device",

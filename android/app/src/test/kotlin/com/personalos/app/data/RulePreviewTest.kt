@@ -143,6 +143,8 @@ class RulePreviewTest {
         override fun observeLatestObservation(sourceId: String): kotlinx.coroutines.flow.Flow<EventEntity?> = kotlinx.coroutines.flow.flowOf(null)
 
         override suspend fun latestObservations(sourceIds: List<String>): List<EventEntity> = emptyList()
+
+        override suspend fun observationsByPrefix(prefix: String): List<EventEntity> = emptyList()
     }
 
     /** Models the preview query's window, optional filters, ordering and cap. */

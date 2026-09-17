@@ -71,7 +71,6 @@ import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import com.personalos.app.ui.tile.TileScaffold
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -273,10 +272,21 @@ fun WeatherScreen(
                 ?: places.firstOrNull()?.place
                 ?: snapshots.firstOrNull()?.place
         val weekNote = present?.let(::positionLabel) ?: weekPlace.orEmpty()
-        val week by
-            remember(weekPlace, reload) {
-                weekPlace?.let { container.weather.forecast(it) } ?: flowOf(emptyList<WeatherDay>())
-            }.collectAsStateWithLifecycle(initialValue = emptyList())
+        // The week reads the store: `weather:<slug>:fc:<date>` rows mapped to
+        // day cells. Empty store hides the card (existing behaviour below) —
+        // never a borrowed provider cache.
+        var week by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
+        LaunchedEffect(weekPlace, maxId, reload) {
+            week =
+                if (weekPlace == null) {
+                    emptyList()
+                } else {
+                    val slug =
+                        com.personalos.app.core.sources.SourceKeys
+                            .slug(weekPlace)
+                    container.observationRepository.forecastWeek(slug)
+                }
+        }
 
         // Day buckets for the weather timeline: display-only grouping over the
         // page, so the one batched mention read per page is untouched and row

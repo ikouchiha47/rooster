@@ -42,7 +42,19 @@ class ObservationWriter(
         now: Long = System.currentTimeMillis(),
     ): String {
         val bucketStart = observation.timestamp - (observation.timestamp % bucketMs)
-        val dedupeKey = "${observation.identity}:$bucketStart"
+        return writeKeyed("${observation.identity}:$bucketStart", observation, now)
+    }
+
+    /**
+     * Forecast-day writes: the key is stable per date (`weather:<slug>:fc:<date>`),
+     * so a refetch replaces that day's fields on the same ulid instead of
+     * growing a new row per poll. Same gauge-only replace contract as [write].
+     */
+    suspend fun writeKeyed(
+        dedupeKey: String,
+        observation: Observation,
+        now: Long = System.currentTimeMillis(),
+    ): String {
         val existing = runCatching { eventDao.byDedupeKey(dedupeKey) }.getOrNull()
 
         return if (existing == null) {

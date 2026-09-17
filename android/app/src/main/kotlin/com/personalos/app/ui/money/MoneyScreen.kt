@@ -137,26 +137,10 @@ fun MoneyScreen(
                             .sourceFor(row.id, spec)
                 }.getOrNull()
             }
-        val views =
-            if (specs.isEmpty()) {
-                emptyList()
-            } else {
-                container.observationRepository.latestMany(specs.map { it.second })
-            }
-        val bySource = views.associateBy { it.source }
         rates =
-            specs.mapNotNull { (spec, identity) ->
-                val view = bySource[identity] ?: return@mapNotNull null
-                val value = (view.fields["rate"] as? com.personalos.app.core.rules.FieldValue.Num)?.value ?: return@mapNotNull null
-                FxRate(
-                    id =
-                        com.personalos.app.core.sources.SourceKeys
-                            .slug(spec.pair),
-                    pair = spec.pair.uppercase(),
-                    rate = value,
-                    note = "store",
-                )
-            }
+            container.observationRepository.fxRates(
+                specs.map { (spec, identity) -> spec.pair to identity },
+            )
     }
 
     var news by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }

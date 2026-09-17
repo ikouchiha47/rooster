@@ -163,6 +163,8 @@ class SmsSourceTest {
         override fun observeLatestObservation(sourceId: String): kotlinx.coroutines.flow.Flow<EventEntity?> = kotlinx.coroutines.flow.flowOf(null)
 
         override suspend fun latestObservations(sourceIds: List<String>): List<EventEntity> = emptyList()
+
+        override suspend fun observationsByPrefix(prefix: String): List<EventEntity> = emptyList()
     }
 
     private class FakeTagger : Tagger {

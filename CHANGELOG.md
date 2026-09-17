@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(weather,fx): store-backed forecast week and FX everywhere
+
+_2026-09-18_
+
+
+Wide observation set: current rows carry temp_c, rain_mm, humidity_pct, wind_kmh and weather_code; each forecast day is a keyed weather:<slug>:fc:<date> row with temp_max_c, temp_min_c, rain_chance and weather_code. One fetch writes current plus the 7-day week. FX derives all pairs from one USD-base reply via crosses and seeds eur/gbp alongside usd. Weather week, Forecast detail, Money cells, Home glance and Radar glance all read ObservationRepository with honest placeholders; SYNC runs the gauge adapters. SMS/RSS/Topics fetch, tagging, item rules and condition parsing unchanged.
+
 ## feat(catalog): observations, adapters, series dispatch and store-backed tiles
 
 _2026-09-17_

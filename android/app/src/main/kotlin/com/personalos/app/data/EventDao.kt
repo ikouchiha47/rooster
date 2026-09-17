@@ -191,4 +191,7 @@ interface EventDao {
 
     @Query(Sql.LATEST_OBSERVATIONS_BY_SOURCES)
     suspend fun latestObservations(sourceIds: List<String>): List<EventEntity>
+
+    @Query(Sql.OBSERVATIONS_BY_PREFIX)
+    suspend fun observationsByPrefix(prefix: String): List<EventEntity>
 }

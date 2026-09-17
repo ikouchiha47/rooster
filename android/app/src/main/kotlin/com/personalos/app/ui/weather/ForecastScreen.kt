@@ -9,14 +9,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.personalos.app.core.model.WeatherDay
+import com.personalos.app.data.AppDatabase
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
@@ -29,9 +33,8 @@ import kotlinx.coroutines.launch
 /**
  * Seven-day forecast for one place.
  *
- * Reads the provider's **cache only**, so it opens instantly and works offline -
- * there is no fetch on this path. [reload] re-subscribes the flow, which is what
- * the SYNC action means here.
+ * Reads the store (`weather:<slug>:fc:<date>` rows), so it opens instantly and
+ * works offline. SYNC runs the gauge adapters, which rewrite the week's rows.
  *
  * The header is the same band the Weather tile uses (same height, same accent),
  * so going from the tile into a place does not jump; the week below it is the
@@ -45,11 +48,19 @@ fun ForecastScreen(
 ) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val database = remember { AppDatabase.getInstance(context) }
+    val maxId by database.eventDao().observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
     var reload by remember { mutableStateOf(0) }
-    val days by
-        remember(place, reload) { container.weather.forecast(place) }
-            .collectAsStateWithLifecycle(initialValue = emptyList())
+    var days by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
+    LaunchedEffect(place, maxId, reload) {
+        days =
+            container.observationRepository.forecastWeek(
+                com.personalos.app.core.sources.SourceKeys
+                    .slug(place),
+            )
+    }
 
     Column(
         modifier =
@@ -72,7 +83,9 @@ fun ForecastScreen(
                                 scope.launch {
                                     container.sync.run("forecast") {
                                         container.sync.step("refreshing $place")
+                                        runCatching { container.feeds.refresh(force = true) }
                                         reload++
+                                        container.sync.step("done")
                                     }
                                 }
                             }.padding(horizontal = 4.dp, vertical = 2.dp),
