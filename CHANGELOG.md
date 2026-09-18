@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(tiles): sms-scoped messages, sync labels, instant news open
+
+_2026-09-18_
+
+
+Messages queries scope to source sms in every mode, so feeds and observations can never appear in the inbox. Weather, Money, News and Forecast headers show the last sync time or NOT SYNCED YET. News opens from the store first and refreshes behind it instead of blocking first paint on a full poll. Seeds all three bundled weather places.
+
 ## feat(weather): code-first condition glyphs from stored weather_code
 
 _2026-09-18_

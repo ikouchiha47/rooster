@@ -96,6 +96,13 @@ class GaugeIngestTest {
             limit: Int,
         ): List<TaggedEvent> = emptyList()
 
+        override suspend fun pageByTagItems(
+            tag: String,
+            cursorTs: Long?,
+            cursorId: Long,
+            limit: Int,
+        ): List<TaggedEvent> = emptyList()
+
         override fun observeCountByTag(tag: String): Flow<Int> = flowOf(0)
 
         override suspend fun dayHeadersByTag(tag: String): List<DayHeader> = emptyList()
@@ -379,6 +386,18 @@ class GaugeIngestTest {
         ): Int = 0
 
         override suspend fun deleteUserOnly(id: String): Int = 0
+    }
+
+    @Test
+    fun `tag timelines exclude observations`() {
+        assertTrue(Sql.EVENTS_BY_TAG_PAGE_ITEMS.contains("e.type != 'observation'"))
+        assertTrue(Sql.EVENTS_BY_TAG_PAGE_ITEMS.contains("t.tag = :tag"))
+    }
+
+    @Test
+    fun `messages is scoped to sms in every mode`() {
+        assertTrue(Sql.EVENTS_PAGE_BY_MODE.contains("source = 'sms'"))
+        assertTrue(Sql.EVENTS_COUNT_BY_MODE.contains("source = 'sms'"))
     }
 
     @Test

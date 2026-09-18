@@ -120,6 +120,15 @@ interface EventDao {
         limit: Int,
     ): List<TaggedEvent>
 
+    /** Tag timeline without gauge observations (see [Sql.EVENTS_BY_TAG_PAGE_ITEMS]). */
+    @Query(Sql.EVENTS_BY_TAG_PAGE_ITEMS)
+    suspend fun pageByTagItems(
+        tag: String,
+        cursorTs: Long?,
+        cursorId: Long,
+        limit: Int,
+    ): List<TaggedEvent>
+
     @Query(Sql.EVENTS_COUNT_BY_TAG)
     fun observeCountByTag(tag: String): Flow<Int>
 

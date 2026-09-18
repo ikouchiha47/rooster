@@ -142,6 +142,24 @@ class SourceSeeder(
                     updatedAt = now,
                 ),
                 SourceEntity(
+                    id = "$SEED_PREFIX:weather:kolkata",
+                    name = "Kolkata",
+                    kind = "weather",
+                    specJson =
+                        JsonObject(
+                            mapOf(
+                                "place" to JsonPrimitive("Kolkata"),
+                                "lat" to JsonPrimitive(22.5726),
+                                "lon" to JsonPrimitive(88.3639),
+                                "tags" to JsonArray(listOf(JsonPrimitive("weather"))),
+                            ),
+                        ).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                SourceEntity(
                     id = "$SEED_PREFIX:weather:bengaluru",
                     name = "Bengaluru",
                     kind = "weather",
@@ -151,6 +169,24 @@ class SourceSeeder(
                                 "place" to JsonPrimitive("Bengaluru"),
                                 "lat" to JsonPrimitive(12.9716),
                                 "lon" to JsonPrimitive(77.5946),
+                                "tags" to JsonArray(listOf(JsonPrimitive("weather"))),
+                            ),
+                        ).toString(),
+                    seeded = true,
+                    enabled = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                SourceEntity(
+                    id = "$SEED_PREFIX:weather:berhampore",
+                    name = "Berhampore",
+                    kind = "weather",
+                    specJson =
+                        JsonObject(
+                            mapOf(
+                                "place" to JsonPrimitive("Berhampore"),
+                                "lat" to JsonPrimitive(24.1049),
+                                "lon" to JsonPrimitive(88.2516),
                                 "tags" to JsonArray(listOf(JsonPrimitive("weather"))),
                             ),
                         ).toString(),

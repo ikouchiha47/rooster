@@ -20,10 +20,16 @@ object Sql {
     const val EVENTS_DISTINCT_FEED_SOURCES =
         "SELECT COUNT(DISTINCT source) FROM events WHERE source LIKE 'rss:%'"
 
+    /**
+     * Messages is SMS: every branch is scoped to `source = 'sms'` (the SMS
+     * adapter's identity), so feeds, observations and any future event kind
+     * can never leak into the inbox. An allowlist, not a denylist.
+     */
     const val EVENTS_COUNT_BY_MODE =
         """
         SELECT COUNT(*) FROM events
-        WHERE (:mode = 'all'
+        WHERE source = 'sms'
+          AND (:mode = 'all'
                OR (:mode = 'inbox' AND type = 'inbox')
                OR (:mode = 'sent'  AND type = 'sent')
                OR (:mode = 'other' AND type NOT IN ('inbox', 'sent')))
@@ -31,10 +37,12 @@ object Sql {
 
     const val EVENTS_MAX_ID = "SELECT MAX(id) FROM events"
 
+    /** Messages is SMS — see [EVENTS_COUNT_BY_MODE]. */
     const val EVENTS_PAGE_BY_MODE =
         """
         SELECT * FROM events
-        WHERE (:mode = 'all'
+        WHERE source = 'sms'
+          AND (:mode = 'all'
                OR (:mode = 'inbox' AND type = 'inbox')
                OR (:mode = 'sent'  AND type = 'sent')
                OR (:mode = 'other' AND type NOT IN ('inbox', 'sent')))
@@ -96,6 +104,29 @@ object Sql {
         SELECT COUNT(1) FROM events e
         JOIN item_tags_current t ON t.item_id = e.ulid
         WHERE t.tag = :tag
+        """
+
+    /**
+     * Tag timelines show editorial items, never gauge observations: an
+     * observation carries its topic tag so rules can match it, but
+     * `weather:bengaluru:fc:2026-09-18` is not news. Display decision, so it
+     * lives in the query the tiles call, not in the tagger.
+     */
+    const val EVENTS_BY_TAG_PAGE_ITEMS =
+        """
+        SELECT e.*,
+               (SELECT GROUP_CONCAT(t2.tag)
+                FROM item_tags_current t2
+                WHERE t2.item_id = e.ulid) AS tags
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.type != 'observation'
+          AND (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND e.id < :cursorId))
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
         """
 
     /**

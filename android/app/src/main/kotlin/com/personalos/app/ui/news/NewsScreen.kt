@@ -37,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.personalos.app.core.Chars
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
@@ -99,6 +100,16 @@ private const val SYNC_ENRICH_BATCH = 10
 private const val TITLE_LINES = 2
 
 private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+private val SYNC_FMT = SimpleDateFormat("d MMM HH:mm", Locale.getDefault())
+
+/** When the store was last filled: a date, or the honest absence of one. */
+private fun syncLabel(lastSync: Long): String =
+    if (lastSync <= 0L) {
+        "NOT SYNCED YET"
+    } else {
+        "SYNCED ${SYNC_FMT.format(java.util.Date(lastSync)).uppercase()}"
+    }
 
 /** One day's keyset page: its loaded rows plus the cursor that pages it. */
 private data class DayPage(
@@ -242,10 +253,10 @@ fun NewsScreen(
         }
     }
 
-    // Pull feeds once on open; cached, so repeat opens are cheap. Headers load
-    // first, then Today opens with the usual initial page.
+    // Open from the store first, refresh behind it: a full poll of every feed
+    // must never gate first paint. Fresh rows re-enter through `maxId`, which
+    // re-checks headers and the Today head below.
     LaunchedEffect(Unit) {
-        container.feeds.refresh()
         val loaded = refreshHeaders()
         val open = loaded.firstOrNull { it.dayStart == todayStartMs() } ?: loaded.firstOrNull()
         if (open != null) {
@@ -261,6 +272,9 @@ fun NewsScreen(
             }
         }
         initialLoaded = true
+        scope.launch {
+            runCatching { container.feeds.refresh() }
+        }
     }
 
     // A new max id means a sync slid rows in: re-check headers and the Today
@@ -311,7 +325,12 @@ fun NewsScreen(
         onBack = onBack,
         header = {
             if (total > 0) {
-                Text(text = "$total ITEMS", style = RadarType.micro, color = RadarColors.paper4)
+                val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+                Text(
+                    text = "$total ITEMS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
+                    style = RadarType.micro,
+                    color = RadarColors.paper4,
+                )
             }
         },
         onAction = { action ->

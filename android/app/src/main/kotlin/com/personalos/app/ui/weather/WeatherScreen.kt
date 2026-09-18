@@ -71,6 +71,7 @@ import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import com.personalos.app.ui.tile.TileScaffold
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -179,7 +180,7 @@ fun WeatherScreen(
     var weatherMentions by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
 
     LaunchedEffect(maxId, reload) {
-        val page = dao.pageByTag(Tags.WEATHER, null, 0L, WEATHER_NEWS_LIMIT)
+        val page = dao.pageByTagItems(Tags.WEATHER, null, 0L, WEATHER_NEWS_LIMIT)
         news = page
         // Same one-batched-read-per-page shape as News: the timeline renders
         // first, mentions fill the meta lines without moving row heights.
@@ -230,6 +231,8 @@ fun WeatherScreen(
             .collect { (index, offset) -> if (index == 0 && offset == 0) pendingNews = 0 }
     }
 
+    val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+
     TileScaffold(
         config = WEATHER_TILE,
         modifier = modifier,
@@ -237,7 +240,7 @@ fun WeatherScreen(
         onBack = onBack,
         header = {
             Text(
-                text = "${storePlaces.size} PLACES",
+                text = "${storePlaces.size} PLACES ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
                 style = RadarType.micro,
                 color = RadarColors.paper4,
             )
@@ -277,13 +280,22 @@ fun WeatherScreen(
                 ?: places.firstOrNull()?.place
                 ?: snapshots.firstOrNull()?.place
         val weekNote = present?.let(::positionLabel) ?: weekPlace.orEmpty()
-        // The week reads the store: `weather:<slug>:fc:<date>` rows mapped to
-        // day cells. Empty store hides the card (existing behaviour below) —
-        // never a borrowed provider cache.
-        var week by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
-        LaunchedEffect(weekPlace, maxId, reload) {
-            week =
-                if (weekPlace == null) {
+        // Configured places read the week from the store. The present location
+        // is not a source and never will be — no row could own it — so its
+        // week reads the provider like it always did.
+        val isPresentWeek = present != null && weekPlace == present?.place
+        val providerWeek by
+            remember(weekPlace, reload, isPresentWeek) {
+                if (isPresentWeek && weekPlace != null) {
+                    container.weather.forecast(weekPlace)
+                } else {
+                    flowOf(emptyList<WeatherDay>())
+                }
+            }.collectAsStateWithLifecycle(initialValue = emptyList())
+        var storeWeek by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
+        LaunchedEffect(weekPlace, maxId, reload, isPresentWeek) {
+            storeWeek =
+                if (weekPlace == null || isPresentWeek) {
                     emptyList()
                 } else {
                     val slug =
@@ -292,6 +304,7 @@ fun WeatherScreen(
                     container.observationRepository.forecastWeek(slug)
                 }
         }
+        val week = if (isPresentWeek) providerWeek else storeWeek
 
         // Day buckets for the weather timeline: display-only grouping over the
         // page, so the one batched mention read per page is untouched and row
@@ -863,6 +876,16 @@ private fun weatherTitleBlockHeight(): Dp =
  * The present location has no name offline, so coordinates are the honest label.
  * A snapshot without coordinates says so rather than showing a blank.
  */
+private val SYNC_FMT = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault())
+
+/** When the store was last filled: a date, or the honest absence of one. */
+private fun syncLabel(lastSync: Long): String =
+    if (lastSync <= 0L) {
+        "NOT SYNCED YET"
+    } else {
+        "SYNCED ${SYNC_FMT.format(java.util.Date(lastSync)).uppercase()}"
+    }
+
 private fun positionLabel(snapshot: WeatherSnapshot): String {
     val lat = snapshot.lat ?: return "position unknown"
     val lon = snapshot.lon ?: return "position unknown"

@@ -91,6 +91,13 @@ class ArticleEnricherTest {
             limit: Int,
         ): List<TaggedEvent> = emptyList()
 
+        override suspend fun pageByTagItems(
+            tag: String,
+            cursorTs: Long?,
+            cursorId: Long,
+            limit: Int,
+        ): List<TaggedEvent> = emptyList()
+
         override fun observeCountByTag(tag: String): Flow<Int> = flowOf(0)
 
         override suspend fun dayHeadersByTag(tag: String): List<DayHeader> = emptyList()

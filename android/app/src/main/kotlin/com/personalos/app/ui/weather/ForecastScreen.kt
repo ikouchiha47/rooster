@@ -53,14 +53,45 @@ fun ForecastScreen(
     val maxId by database.eventDao().observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
     var reload by remember { mutableStateOf(0) }
-    var days by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
-    LaunchedEffect(place, maxId, reload) {
-        days =
-            container.observationRepository.forecastWeek(
-                com.personalos.app.core.sources.SourceKeys
-                    .slug(place),
-            )
+    val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+    // A configured place reads its week from the store. Anything else (the
+    // present location) is not a source, so it reads the provider cache.
+    var configured by remember { mutableStateOf(true) }
+    LaunchedEffect(place) {
+        configured =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .any { row ->
+                    row.kind == "weather" &&
+                        runCatching {
+                            (
+                                com.personalos.app.core.sources.SourceSpecs
+                                    .parse(row.kind, row.specJson) as com.personalos.app.core.sources.WeatherSpec
+                            ).place == place
+                        }.getOrDefault(false)
+                }
     }
+    val providerDays by
+        remember(place, reload, configured) {
+            if (configured) {
+                kotlinx.coroutines.flow.flowOf(emptyList<WeatherDay>())
+            } else {
+                container.weather.forecast(place)
+            }
+        }.collectAsStateWithLifecycle(initialValue = emptyList())
+    var storeDays by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
+    LaunchedEffect(place, maxId, reload, configured) {
+        storeDays =
+            if (!configured) {
+                emptyList()
+            } else {
+                container.observationRepository.forecastWeek(
+                    com.personalos.app.core.sources.SourceKeys
+                        .slug(place),
+                )
+            }
+    }
+    val days = if (configured) storeDays else providerDays
 
     Column(
         modifier =
@@ -72,6 +103,13 @@ fun ForecastScreen(
             title = place,
             accent = CategoryColors.Cyan,
             onBack = onBack,
+            subtitle = {
+                Text(
+                    text = syncLabel(lastSync),
+                    style = RadarType.labelMicro,
+                    color = RadarColors.paper4,
+                )
+            },
             trailing = {
                 Text(
                     text = "SYNC",
@@ -123,3 +161,13 @@ fun ForecastScreen(
         }
     }
 }
+
+private val SYNC_FMT = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault())
+
+/** When the store was last filled: a date, or the honest absence of one. */
+private fun syncLabel(lastSync: Long): String =
+    if (lastSync <= 0L) {
+        "NOT SYNCED YET"
+    } else {
+        "SYNCED ${SYNC_FMT.format(java.util.Date(lastSync)).uppercase()}"
+    }

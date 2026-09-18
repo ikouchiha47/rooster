@@ -147,7 +147,7 @@ fun MoneyScreen(
     var financeMentions by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
 
     LaunchedEffect(maxId, reload) {
-        val page = dao.pageByTag(Tags.FINANCE, null, 0L, FINANCE_NEWS_LIMIT)
+        val page = dao.pageByTagItems(Tags.FINANCE, null, 0L, FINANCE_NEWS_LIMIT)
         news = page
         // Same one-batched-read-per-page shape as News: the timeline renders
         // first, mentions fill the meta lines without moving row heights.
@@ -198,6 +198,8 @@ fun MoneyScreen(
             .collect { (index, offset) -> if (index == 0 && offset == 0) pendingNews = 0 }
     }
 
+    val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+
     TileScaffold(
         config = MONEY_TILE,
         modifier = modifier,
@@ -205,7 +207,7 @@ fun MoneyScreen(
         onBack = onBack,
         header = {
             Text(
-                text = "${rates.size} PAIRS",
+                text = "${rates.size} PAIRS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
                 style = RadarType.micro,
                 color = RadarColors.paper4,
             )
@@ -598,6 +600,16 @@ private fun moneyTitleBlockHeight(): Dp =
  * number, this owns how it reads. Pure, so it is unit-tested without composing.
  */
 internal fun formatFxRate(rate: FxRate): String = "%.2f".format(rate.rate)
+
+private val SYNC_FMT = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault())
+
+/** When the store was last filled: a date, or the honest absence of one. */
+private fun syncLabel(lastSync: Long): String =
+    if (lastSync <= 0L) {
+        "NOT SYNCED YET"
+    } else {
+        "SYNCED ${SYNC_FMT.format(java.util.Date(lastSync)).uppercase()}"
+    }
 
 /**
  * Search over the loaded finance page: blank matches everything, otherwise the
