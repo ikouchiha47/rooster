@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(radar): sync activity log with Events tab
+
+_2026-09-19_
+
+
+Schema v16 adds sync_runs: one row per source per poll with outcome, item count and error, pruned to 30 days. Feed, SMS and gauge ingest all record runs through one SyncRecorder seam. Radar gains an Events tab reading latest-run-per-source with per-source names, while All and its counts exclude observations. Home Events-24h stat navigates to the Events tab via a tab preselect route.
+
 ## fix(tiles): sms-scoped messages, sync labels, instant news open
 
 _2026-09-18_

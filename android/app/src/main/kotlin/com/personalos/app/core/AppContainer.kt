@@ -145,6 +145,11 @@ class AppContainer(
     /** Seeds the v1 source set once; afterwards a single `COUNT(*)` no-op. */
     val sourceSeeder: SourceSeeder = SourceSeeder(database.sourceDao())
 
+    /** The activity log behind the Radar Events tab — one run row per source per poll. */
+    val syncRecorder: com.personalos.app.data.RoomSyncRecorder =
+        com.personalos.app.data
+            .RoomSyncRecorder(database.syncRunDao())
+
     /** ADR 0005 T6: seeds the facet catalog; afterwards a no-op. */
     val catalogSeeder: CatalogSeeder =
         CatalogSeeder(database.kindDao(), database.facetDao(), database.kindFacetDao())
@@ -229,6 +234,7 @@ class AppContainer(
             mentionWriter,
             fieldWriter,
             ruleWriter,
+            syncRecorder,
         )
 
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
@@ -289,6 +295,7 @@ class AppContainer(
             mentionWriter,
             ruleWriter,
             loadSources = { sourceRepository.enabledSources() },
+            syncRecorder = syncRecorder,
             gaugeAdapters =
                 adaptersByKind(
                     listOf(

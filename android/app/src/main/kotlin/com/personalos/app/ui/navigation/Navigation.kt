@@ -47,7 +47,10 @@ sealed interface Destination {
 
     data object Messages : Destination
 
-    data object Radar : Destination
+    /** Radar timeline; [initialTab] preselects a tab (the Events tab from Home). */
+    data class Radar(
+        val initialTab: Int = 0,
+    ) : Destination
 
     data object News : Destination
 
@@ -91,7 +94,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Rules -> "rules"
         is Destination.Services -> "services"
         is Destination.Messages -> "messages"
-        is Destination.Radar -> "radar"
+        is Destination.Radar -> "radar?tab=${destination.initialTab}"
         is Destination.News -> "news"
         is Destination.Rss -> "rss"
         is Destination.Money -> "money"
@@ -145,7 +148,18 @@ fun AppNavHost(
         }
         composable("services") { ServicesScreen(onNavigate = { openFromGrid(navController, it) }) }
         composable("messages") { MessagesScreen() }
-        composable("radar") { RadarScreen() }
+        composable(
+            route = "radar?tab={tab}",
+            arguments =
+                listOf(
+                    navArgument("tab") {
+                        type = NavType.IntType
+                        defaultValue = 0
+                    },
+                ),
+        ) { entry ->
+            RadarScreen(initialTab = entry.arguments?.getInt("tab") ?: 0)
+        }
         composable("news") {
             NewsScreen(
                 onNavigate = { navigateToDetail(navController, it) },

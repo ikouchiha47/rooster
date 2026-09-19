@@ -73,6 +73,8 @@ class FeedIngestor(
      * skip with a log, never a crash (REQ-ING-05).
      */
     private val gaugeAdapters: Map<String, com.personalos.app.data.adapters.KindAdapter> = emptyMap(),
+    /** Every poll writes one run row per source, so the Events tab sees feeds like any source. */
+    private val syncRecorder: com.personalos.app.data.SyncRecorder = com.personalos.app.data.NoOpSyncRecorder,
     /**
      * The single fetch behind every poll, catalog or source — same client, same
      * User-Agent ([Http.getText]). Injectable in tests.
@@ -177,6 +179,17 @@ class FeedIngestor(
                         lastError = error,
                         itemCount = addedForFeed,
                     )
+                syncRecorder.record(
+                    com.personalos.app.data.SyncRun(
+                        sourceId = FeedCatalog.SOURCE_PREFIX + feed.id,
+                        kind = "rss",
+                        startedAt = attemptAt,
+                        finishedAt = System.currentTimeMillis(),
+                        ok = ok,
+                        itemsAdded = addedForFeed,
+                        error = error,
+                    ),
+                )
             }
 
             val ordered = feeds.mapNotNull { byId[it.id] }
@@ -212,35 +225,55 @@ class FeedIngestor(
 
         var added = 0
         for (source in sources) {
+            val attemptAt = System.currentTimeMillis()
             val spec =
                 runCatching { SourceSpecs.parse(SourceKind.SEARCH, source.specJson) as SearchSpec }
                     .onFailure { Log.w(TAG, "bad search spec for source ${source.id}", it) }
-                    .getOrNull() ?: continue
+                    .getOrNull()
+            if (spec == null) {
+                syncRecorder.record(
+                    com.personalos.app.data
+                        .SyncRun(source.id, "search", attemptAt, System.currentTimeMillis(), false, 0, "bad spec"),
+                )
+                continue
+            }
 
             // Frozen across the v11 rename: changing this key drops cached bodies.
             val key = "rule:${source.id}"
             val entry = cache.read(key)
+            var error: String? = null
             val raw =
                 if (!force && entry != null && now - entry.at < refreshAfterMs) {
                     entry.value
                 } else {
                     val body =
                         runCatching { fetch(GnewsUrl.build(spec.query)) }
-                            .onFailure { Log.w(TAG, "source fetch failed: ${source.name}", it) }
-                            .getOrNull()
+                            .onFailure {
+                                Log.w(TAG, "source fetch failed: ${source.name}", it)
+                                error = it.message ?: "fetch failed"
+                            }.getOrNull()
                     if (body != null) {
                         cache.write(key, body, now)
                         body
                     } else {
+                        if (error == null) error = "fetch failed"
                         // Serve the stale copy rather than showing nothing.
                         entry?.value
                     }
                 }
 
+            var addedForSource = 0
             if (raw != null) {
                 val items = runCatching { FeedParser.parse(raw) }.getOrElse { emptyList() }
-                if (items.isNotEmpty()) added += ingestSource(source, spec, items, now)
+                if (items.isNotEmpty()) addedForSource = ingestSource(source, spec, items, now)
+                added += addedForSource
+            } else if (error == null) {
+                error = "no body"
             }
+            syncRecorder.record(
+                com.personalos.app.data
+                    .SyncRun(source.id, "search", attemptAt, System.currentTimeMillis(), raw != null, addedForSource, error),
+            )
         }
         return added
     }
@@ -333,6 +366,10 @@ class FeedIngestor(
                     itemCount = addedForSource,
                     statusCode = code,
                 )
+            syncRecorder.record(
+                com.personalos.app.data
+                    .SyncRun(source.id, "rss", attemptAt, System.currentTimeMillis(), ok, addedForSource, error),
+            )
         }
 
         // Only live sources, so a deleted feed's dot does not outlive it.
@@ -362,10 +399,19 @@ class FeedIngestor(
                 Log.i(TAG, "no adapter for kind '${source.kind}'; skipped")
                 continue
             }
-            added +=
+            val attemptAt = System.currentTimeMillis()
+            var error: String? = null
+            val count =
                 runCatching { adapter.ingest(source, now) }
-                    .onFailure { Log.w(TAG, "gauge ingest failed: ${source.id}", it) }
-                    .getOrDefault(0)
+                    .onFailure {
+                        Log.w(TAG, "gauge ingest failed: ${source.id}", it)
+                        error = it.message ?: "ingest failed"
+                    }.getOrDefault(0)
+            added += count
+            syncRecorder.record(
+                com.personalos.app.data
+                    .SyncRun(source.id, source.kind, attemptAt, System.currentTimeMillis(), error == null, count, error),
+            )
         }
         return added
     }

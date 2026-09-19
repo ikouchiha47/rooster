@@ -53,8 +53,16 @@ object Sql {
         LIMIT :limit
         """
 
+    /**
+     * The wall (null category) never shows gauge observations — readings and
+     * forecast days live in the Events tab, not the timeline. Category tabs
+     * are unaffected: no observation carries their category.
+     */
     const val EVENTS_COUNT_BY_CATEGORY =
-        "SELECT COUNT(*) FROM events WHERE (:category IS NULL OR category = :category)"
+        """
+        SELECT COUNT(*) FROM events
+        WHERE ((:category IS NULL AND type != 'observation') OR (category = :category))
+        """
 
     const val EVENTS_COUNT_BY_SOURCE =
         """
@@ -63,10 +71,11 @@ object Sql {
         ORDER BY count DESC
         """
 
+    /** The wall excludes observations — see [EVENTS_COUNT_BY_CATEGORY]. */
     const val EVENTS_RADAR_PAGE =
         """
         SELECT * FROM events
-        WHERE (:category IS NULL OR category = :category)
+        WHERE ((:category IS NULL AND type != 'observation') OR (category = :category))
           AND (:cursorTs IS NULL
                OR timestamp < :cursorTs
                OR (timestamp = :cursorTs AND id < :cursorId))
@@ -470,6 +479,28 @@ object Sql {
 
     const val EVENT_UPDATE_OBSERVATION =
         "UPDATE events SET timestamp = :timestamp, title = :title, content = :content WHERE ulid = :ulid"
+
+    // --------------------------------------------------------------- sync_runs
+    // The activity log behind the Radar Events tab: one row per sync run per
+    // source, so a quiet poll and a crashed poll never look the same.
+    const val SYNC_RUNS_LATEST_PER_SOURCE =
+        """
+        SELECT * FROM sync_runs
+        WHERE id IN (SELECT MAX(id) FROM sync_runs GROUP BY source_id)
+        ORDER BY finished_at DESC
+        """
+
+    const val SYNC_RUNS_FOR_SOURCE =
+        """
+        SELECT * FROM sync_runs
+        WHERE source_id = :sourceId
+        ORDER BY finished_at DESC
+        LIMIT :limit
+        """
+
+    const val SYNC_RUNS_SOURCE_COUNT = "SELECT COUNT(DISTINCT source_id) FROM sync_runs"
+
+    const val SYNC_RUNS_PRUNE = "DELETE FROM sync_runs WHERE finished_at < :cutoffMs"
 
     // ----------------------------------------------------------------- catalog
     // ADR 0005 T6: producer descriptors as data. Add-only like sources/rules.

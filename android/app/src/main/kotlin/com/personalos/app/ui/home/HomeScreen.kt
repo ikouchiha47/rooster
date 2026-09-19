@@ -123,7 +123,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .padding(8.dp),
                     ) {
-                        AtAGlanceCard()
+                        AtAGlanceCard(onNavigate = onNavigate)
                         Spacer(Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth().height(CARD_ROW_HEIGHT),
@@ -143,7 +143,7 @@ fun HomeScreen(
                         items = HOME_TILES,
                         onTile = { tile ->
                             when (tile.name) {
-                                "Radar" -> onNavigate(Destination.Radar)
+                                "Radar" -> onNavigate(Destination.Radar())
                                 "News" -> onNavigate(Destination.News)
                                 "RSS" -> onNavigate(Destination.Rss)
                                 "M&M" -> onNavigate(Destination.Money)
@@ -186,7 +186,7 @@ private fun HomeAppBar(onScan: () -> Unit) {
 }
 
 @Composable
-private fun AtAGlanceCard() {
+private fun AtAGlanceCard(onNavigate: (Destination) -> Unit) {
     val container = LocalAppContainer.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val database =
@@ -259,7 +259,10 @@ private fun AtAGlanceCard() {
                 value = pad(glance?.events24h ?: 0),
                 suffix = "all sources",
                 valueColor = CategoryColors.Teal,
-                modifier = Modifier.weight(1f),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .clickable { onNavigate(Destination.Radar(com.personalos.app.ui.radar.radarEventsTabIndex)) },
             )
         }
     }

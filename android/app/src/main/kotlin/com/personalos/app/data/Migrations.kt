@@ -444,6 +444,32 @@ val MIGRATION_14_15_STATEMENTS: List<String> =
     )
 
 /**
+ * v15 -> v16: the sync activity log (Events tab).
+ *
+ * New table only, like every table migration before it: no rebuild, no
+ * defaults, no data to carry. Column order and affinities mirror
+ * `SyncRunEntity.kt`; index names are Room's generated
+ * `index_sync_runs_<columns>` spellings.
+ */
+val MIGRATION_15_16_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS sync_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            source_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            finished_at INTEGER NOT NULL,
+            ok INTEGER NOT NULL,
+            items_added INTEGER NOT NULL,
+            error TEXT
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_sync_runs_source_id_finished_at ON sync_runs (source_id, finished_at)",
+        "CREATE INDEX IF NOT EXISTS index_sync_runs_finished_at ON sync_runs (finished_at)",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -465,6 +491,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         13 to MIGRATION_12_13_STATEMENTS,
         14 to MIGRATION_13_14_STATEMENTS,
         15 to MIGRATION_14_15_STATEMENTS,
+        16 to MIGRATION_15_16_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =
