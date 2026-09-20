@@ -68,15 +68,18 @@ fun UserFeedsSection(sources: List<SourceEntity>) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
+    // Only user rows are listed: a seeded row mirrors a catalog feed whose
+    // health the Feeds list above already shows, so listing it here is the
+    // same feed twice. `seedCount` stays informational in the header note.
     val rssSources =
         remember(sources) {
             sources
-                .filter { SourceKind.from(it.kind) == SourceKind.RSS }
-                .sortedWith(compareBy({ it.seeded }, { it.name.lowercase() }))
+                .filter { SourceKind.from(it.kind) == SourceKind.RSS && !it.seeded }
+                .sortedBy { it.name.lowercase() }
         }
     val urlIndex = remember(rssSources) { rssUrlIndex(rssSources) }
-    val userCount = rssSources.count { !it.seeded }
-    val seedCount = rssSources.size - userCount
+    val userCount = rssSources.size
+    val seedCount = remember(sources) { sources.count { SourceKind.from(it.kind) == SourceKind.RSS && it.seeded } }
 
     // Per-source health from the ingestor: the dot, the last sync and the HTTP
     // code the row reports. Same source the catalog feeds' status comes from.

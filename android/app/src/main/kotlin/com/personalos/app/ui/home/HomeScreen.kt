@@ -58,6 +58,7 @@ import com.personalos.app.ui.common.TileGrid
 import com.personalos.app.ui.common.TileSpec
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.common.color
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -179,7 +180,7 @@ private fun HomeAppBar(onScan: () -> Unit) {
 
     RadarAppBar(
         title = "Personal Radar",
-        sub = "Hub ${Chars.MIDDLE_DOT} ${glance?.totalEvents ?: 0} events",
+        sub = "Hub ${Chars.MIDDLE_DOT} ${compactNumber(glance?.totalEvents ?: 0)} events",
         mark = true,
         actions = { GlyphActionButton(Glyph.Scan, onClick = onScan) },
     )
@@ -256,7 +257,7 @@ private fun AtAGlanceCard(onNavigate: (Destination) -> Unit) {
             Box(Modifier.width(1.dp).fillMaxHeight().background(RadarColors.ruleSoft))
             StatCell(
                 label = "Events 24h",
-                value = pad(glance?.events24h ?: 0),
+                value = compactNumber(glance?.events24h ?: 0),
                 suffix = "all sources",
                 valueColor = CategoryColors.Teal,
                 modifier =

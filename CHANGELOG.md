@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): compact counts, scrollable tabs, deduped sources
+
+_2026-09-20_
+
+
+Counts above a thousand read as 1.50K/2.40M in headers, tabs and glances. TabStrip scrolls horizontally and keeps the selected tab in view, so nine tabs fit. Sources gains a per-kind Sync activity section from sync_runs, lists only user feeds (seeded rows are the catalog feed list above), and folds By tag/By source under one Inventory header.
+
 ## feat(radar): sync activity log with Events tab
 
 _2026-09-19_

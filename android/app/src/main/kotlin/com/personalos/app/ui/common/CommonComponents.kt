@@ -20,12 +20,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -733,12 +737,19 @@ fun TabStrip(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    // Keep the chosen tab visible: with more tabs than fit, selecting one from
+    // an off-screen edge must not leave the strip showing the wrong end.
+    LaunchedEffect(selectedIndex) {
+        if (selectedIndex in items.indices) listState.animateScrollToItem(selectedIndex)
+    }
     Column(modifier.fillMaxWidth().background(RadarColors.paper2)) {
-        Row(
+        LazyRow(
+            state = listState,
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            items.forEachIndexed { index, item ->
+            itemsIndexed(items, key = { _, item -> item.label }) { index, item ->
                 val selected = index == selectedIndex
                 Row(
                     modifier =
@@ -756,7 +767,7 @@ fun TabStrip(
                     )
                     Spacer(Modifier.width(3.dp))
                     Text(
-                        text = item.count.toString(),
+                        text = compactNumber(item.count),
                         style = RadarType.microPlain,
                         color = if (selected) RadarColors.paper4 else RadarColors.ink3,
                         maxLines = 1,

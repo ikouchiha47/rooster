@@ -57,6 +57,7 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.TagLine
 import com.personalos.app.ui.common.WidgetHeader
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.common.groupIntoDays
@@ -207,7 +208,7 @@ fun MoneyScreen(
         onBack = onBack,
         header = {
             Text(
-                text = "${rates.size} PAIRS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
+                text = "${compactNumber(rates.size)} PAIRS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
                 style = RadarType.micro,
                 color = RadarColors.paper4,
             )

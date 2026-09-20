@@ -55,6 +55,7 @@ import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.TagLine
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.common.subjectSpineColor
@@ -327,7 +328,7 @@ fun NewsScreen(
             if (total > 0) {
                 val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
                 Text(
-                    text = "$total ITEMS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
+                    text = "${compactNumber(total)} ITEMS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
                     style = RadarType.micro,
                     color = RadarColors.paper4,
                 )

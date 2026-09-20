@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.personalos.app.core.Chars
 import com.personalos.app.core.feed.FeedStatus
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.ui.common.HardRule
@@ -37,6 +38,7 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.common.WidgetHeader
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import kotlinx.coroutines.launch
@@ -59,6 +61,7 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
     val tagCounts by database.itemTagDao().observeTagCounts().collectAsState(initial = emptyList())
     val sourceCounts by database.eventDao().observeSourceCounts().collectAsState(initial = emptyList())
     val sources by container.sourceRepository.observe().collectAsState(initial = emptyList())
+    val syncRuns by database.syncRunDao().observeLatestPerSource().collectAsState(initial = emptyList())
 
     var syncing by remember { mutableStateOf(false) }
 
@@ -107,13 +110,25 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
         LazyColumn(Modifier.fillMaxSize()) {
             item {
                 Text(
-                    text = "${statuses.size} FEEDS · $totalItems ITEMS · ${tagCounts.size} TAGS",
+                    text =
+                        "${compactNumber(statuses.size)} FEEDS ${Chars.MIDDLE_DOT} " +
+                            "${compactNumber(totalItems)} ITEMS ${Chars.MIDDLE_DOT} " +
+                            "${compactNumber(tagCounts.size)} TAGS",
                     style = RadarType.micro,
                     color = RadarColors.ink3,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                 )
             }
 
+            // The per-kind log the Events tab reads, management-flavoured: one
+            // row per kind that ever ran, newest run only. Feeds the many, so
+            // both views over one fact cannot drift.
+            item { WidgetHeader(title = "Sync activity", note = "${syncRuns.size} sources") }
+            items(syncRunKinds(syncRuns), key = { "kind-${it.kind}" }) { run ->
+                SyncRunRow(run)
+            }
+
+            item { SectionGap() }
             item {
                 WidgetHeader(
                     title = "Feeds",
@@ -123,18 +138,22 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
             items(statuses, key = { it.id }) { status -> FeedRow(status) }
 
             item { SectionGap() }
-            // The sources store's own view: user feeds (add/verify/disable/delete)
-            // and the locked seeds. One owner — writes go through SourceRepository.
+            // Adding and managing feeds. Seeded rows are not repeated here:
+            // their health is the catalog feed list above, so one feed is one row.
             item { UserFeedsSection(sources = sources) }
 
             item { SectionGap() }
-            item { WidgetHeader(title = "By tag", note = "${tagCounts.size}") }
+            item {
+                WidgetHeader(
+                    title = "Inventory",
+                    note = "${tagCounts.size} tags ${Chars.MIDDLE_DOT} ${sourceCounts.size} sources",
+                )
+            }
+            item { MicroLabel("BY TAG") }
             items(tagCounts, key = { "tag-${it.tag}" }) { row ->
                 CountRow(left = row.tag, right = row.count)
             }
-
-            item { SectionGap() }
-            item { WidgetHeader(title = "By source", note = "${sourceCounts.size}") }
+            item { MicroLabel("BY SOURCE") }
             items(sourceCounts, key = { "src-${it.source}" }) { row ->
                 CountRow(left = row.source, right = row.count)
             }
@@ -147,6 +166,86 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
 @Composable
 private fun SectionGap() {
     Spacer(Modifier.height(10.dp))
+}
+
+@Composable
+private fun MicroLabel(text: String) {
+    Text(
+        text = text,
+        style = RadarType.micro,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
+/**
+ * One row per kind that has ever run: the most recent run of that kind. Kinds
+ * are ordered the way the services read (feeds, topics, sms, weather, fx,
+ * device); a kind with no run yet simply has no row.
+ */
+private val SYNC_KIND_ORDER = listOf("rss", "search", "sms", "weather", "fx", "device")
+
+internal fun syncRunKinds(runs: List<com.personalos.app.data.SyncRunEntity>): List<com.personalos.app.data.SyncRunEntity> {
+    val latestByKind = runs.groupBy { it.kind }.mapValues { (_, group) -> group.maxBy { it.finishedAt } }
+    val known =
+        SYNC_KIND_ORDER.mapNotNull { kind -> latestByKind[kind] }
+    val extra =
+        latestByKind
+            .filterKeys { it !in SYNC_KIND_ORDER }
+            .values
+            .sortedByDescending { it.finishedAt }
+    return known + extra
+}
+
+internal fun syncKindLabel(kind: String): String =
+    when (kind) {
+        "rss" -> "Feeds"
+        "search" -> "Topics"
+        "sms" -> "SMS"
+        "weather" -> "Weather"
+        "fx" -> "FX"
+        "device" -> "Device"
+        else -> kind
+    }
+
+@Composable
+private fun SyncRunRow(run: com.personalos.app.data.SyncRunEntity) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(7.dp)
+                    .background(if (run.ok) Ok else CategoryColors.Vermilion),
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = syncKindLabel(run.kind),
+                    style = RadarType.serifTitle,
+                    color = RadarColors.ink,
+                    maxLines = 1,
+                )
+                Text(
+                    text = run.error ?: "${run.sourceId} ${Chars.MIDDLE_DOT} ${ago(run.finishedAt)}",
+                    style = RadarType.microPlain,
+                    color = if (run.ok) RadarColors.ink3 else CategoryColors.Vermilion,
+                    maxLines = 1,
+                )
+            }
+            Text(
+                text = if (run.ok) "+${compactNumber(run.itemsAdded)}" else "FAIL",
+                style = RadarType.monoSmall,
+                color = if (run.ok) RadarColors.ink2 else CategoryColors.Vermilion,
+            )
+        }
+        SoftRule()
+    }
 }
 
 @Composable
