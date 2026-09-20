@@ -502,6 +502,21 @@ object Sql {
 
     const val SYNC_RUNS_PRUNE = "DELETE FROM sync_runs WHERE finished_at < :cutoffMs"
 
+    // ------------------------------------------------------------ calendar
+    // Dated observances from calendar feeds. `starts_at` is indexed, so
+    // "next N days for these regions" is a range scan, never a table walk.
+    const val CALENDAR_UPCOMING =
+        """
+        SELECT * FROM calendar_dates
+        WHERE region IN (:regions) AND starts_at >= :fromMs AND starts_at <= :toMs
+        ORDER BY starts_at ASC, name ASC
+        """
+
+    const val CALENDAR_COUNT = "SELECT COUNT(*) FROM calendar_dates"
+
+    const val CALENDAR_DELETE_STALE =
+        "DELETE FROM calendar_dates WHERE source = :source AND fetched_at < :fetchedBefore"
+
     // ----------------------------------------------------------------- catalog
     // ADR 0005 T6: producer descriptors as data. Add-only like sources/rules.
     const val KINDS_ALL = "SELECT * FROM kinds"

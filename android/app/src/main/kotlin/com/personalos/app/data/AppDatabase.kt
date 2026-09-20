@@ -6,9 +6,9 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class],
+    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class],
     views = [ItemTagCurrent::class],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,6 +39,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun kindFacetDao(): KindFacetDao
 
     abstract fun syncRunDao(): SyncRunDao
+
+    abstract fun calendarDao(): CalendarDao
 
     companion object {
         @Volatile

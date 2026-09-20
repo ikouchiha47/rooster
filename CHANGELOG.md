@@ -7,6 +7,13 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(calendar): ics reader and calendar storage
+
+_2026-09-21_
+
+
+Schema v17 adds calendar_dates keyed by feed uid, indexed by (region, starts_at) for next-N-days reads. The ICS reader is pure core/calendar: unfolds continuation lines, unescapes text, reads DTSTART/SUMMARY/UID, and derives national vs regional scope from the uid. Verified against the OfficeHolidays India and West Bengal feeds: Nager.Date returns 204 for India and the date-holidays dataset carries only five fixed Indian dates, so the feed adapter is the source. Travel UI and the fetch adapter come next.
+
 ## feat(ui): compact counts, scrollable tabs, deduped sources
 
 _2026-09-20_

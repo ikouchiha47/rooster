@@ -470,6 +470,33 @@ val MIGRATION_15_16_STATEMENTS: List<String> =
     )
 
 /**
+ * v16 -> v17: the calendar (Travel).
+ *
+ * New table only, like every table migration before it: no rebuild, no
+ * defaults, no data to carry. Column order and affinities mirror
+ * `CalendarEntities.kt`; index names are Room's generated
+ * `index_calendar_dates_<columns>` spellings.
+ */
+val MIGRATION_16_17_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS calendar_dates (
+            uid TEXT NOT NULL,
+            region TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            date TEXT NOT NULL,
+            starts_at INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            source TEXT NOT NULL,
+            fetched_at INTEGER NOT NULL,
+            PRIMARY KEY(uid)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_calendar_dates_region_starts_at ON calendar_dates (region, starts_at)",
+        "CREATE INDEX IF NOT EXISTS index_calendar_dates_starts_at ON calendar_dates (starts_at)",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -492,6 +519,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         14 to MIGRATION_13_14_STATEMENTS,
         15 to MIGRATION_14_15_STATEMENTS,
         16 to MIGRATION_15_16_STATEMENTS,
+        17 to MIGRATION_16_17_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =
