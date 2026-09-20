@@ -22,19 +22,19 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class FrankfurterFxProvider(
     private val cache: StringCache,
-    private val refreshAfterMs: Long = DEFAULT_REFRESH_MS,
+    private val refreshAfterMs: Long = REFRESH_MS,
 ) : FxProvider {
     override fun observe(): Flow<List<FxRate>> =
         flow {
             val now = System.currentTimeMillis()
-            val cached = cache.read(KEY)
+            val cached = cache.read(CACHE_KEY)
 
             if (cached != null) emit(parse(cached.value))
 
             if (cached == null || now - cached.at >= refreshAfterMs) {
                 val fetched = runCatching { Http.getText(URL) }.getOrNull()
                 if (fetched != null) {
-                    cache.write(KEY, fetched, now)
+                    cache.write(CACHE_KEY, fetched, now)
                     emit(parse(fetched))
                 } else if (cached == null) {
                     emit(FALLBACK)
@@ -65,11 +65,18 @@ class FrankfurterFxProvider(
             FALLBACK
         }
 
-    private companion object {
-        const val TAG = "Fx"
-        const val KEY = "fx:usd-base"
-        const val URL = "https://api.frankfurter.dev/v1/latest?base=USD&symbols=INR,EUR,GBP"
-        const val DEFAULT_REFRESH_MS = 6L * 60 * 60 * 1000
+    companion object {
+        private const val TAG = "Fx"
+        private const val URL = "https://api.frankfurter.dev/v1/latest?base=USD&symbols=INR,EUR,GBP"
+
+        /**
+         * One cached USD-base body for every tracked pair. The observation
+         * adapter reads this same key, so all pairs cost one request.
+         */
+        const val CACHE_KEY = "fx:usd-base"
+
+        /** Refresh window, in ms — the adapter reuses this exact number. */
+        const val REFRESH_MS = 6L * 60 * 60 * 1000
 
         /** Last known good values, so the cell is never empty offline. */
         val FALLBACK =

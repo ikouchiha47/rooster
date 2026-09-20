@@ -6,8 +6,11 @@ import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.sources.DeviceSpec
 import com.personalos.app.core.sources.FxSpec
 import com.personalos.app.core.sources.SmsSpec
+import com.personalos.app.core.sources.SourceKeys
 import com.personalos.app.core.sources.WeatherSpec
 import com.personalos.app.data.SourceEntity
+import com.personalos.app.data.remote.FrankfurterFxProvider
+import com.personalos.app.data.remote.OpenMeteoWeatherProvider
 
 /** `kind = "sms"`: SMS polling lives in `SmsSource`; the adapter only names the identity. */
 class SmsKindAdapter : KindAdapter {
@@ -22,12 +25,17 @@ class SmsKindAdapter : KindAdapter {
 }
 
 /**
- * `kind = "weather"`: one place → one current `weather:<slug>` observation per
- * hour bucket plus one keyed `weather:<slug>:fc:<date>` row per forecast day.
- * A single fetch carries both blocks, so the week costs no extra call.
+ * `kind = "weather"`: one place → one current observation per hour bucket plus
+ * one keyed `weather:<slug>:fc:<date>` row per forecast day.
+ *
+ * Reads through [CachedBody] on the **provider's own cache key and window**, so
+ * opening a screen, the hourly worker and a manual sync all share one fetch per
+ * place per 6 hours — and the body is the same one `WeatherProvider.observe()`
+ * serves, so the two can never disagree.
  */
 class WeatherKindAdapter(
     private val observations: ObservationWriter,
+    private val cache: CachedBody,
     private val fetch: (String) -> String = { url -> Http.getText(url) },
 ) : KindAdapter {
     override val kindId: String = "weather"
@@ -40,13 +48,18 @@ class WeatherKindAdapter(
             runCatching { parseSpec(source.specJson) as WeatherSpec }
                 .onFailure { Log.w(TAG, "bad weather spec for ${source.id}", it) }
                 .getOrNull() ?: return 0
-        val identity =
-            com.personalos.app.core.sources.SourceKeys
-                .sourceFor(source.id, spec)
+        val identity = SourceKeys.sourceFor(source.id, spec)
         val raw =
-            runCatching { fetch(WeatherUrl.url(spec.lat, spec.lon)) }
-                .onFailure { Log.w(TAG, "weather fetch failed: ${spec.place}", it) }
-                .getOrNull() ?: return 0
+            cache.get(
+                key = OpenMeteoWeatherProvider.cacheKey(spec.place),
+                ttlMs = OpenMeteoWeatherProvider.REFRESH_MS,
+                now = now,
+            ) {
+                runCatching { fetch(WeatherUrl.url(spec.lat, spec.lon)) }
+                    .onFailure { Log.w(TAG, "weather fetch failed: ${spec.place}", it) }
+                    .getOrNull()
+            } ?: return 0
+
         var written = 0
         val current = WeatherCurrentParser.parse(raw)
         if (current != null) {
@@ -99,12 +112,15 @@ class WeatherKindAdapter(
 }
 
 /**
- * `kind = "fx"`: one pair → one `fx:<slug>` observation per bucket. Each
- * source fetches the shared USD-base reply; its own pair derives from the one
- * map (`EUR-INR = INR / EUR`), so a missing leg is absent, never zero.
+ * `kind = "fx"`: one pair → one `fx:<slug>` observation per bucket.
+ *
+ * Every pair derives from the provider's **one cached USD-base body**, so three
+ * tracked pairs cost one request per window, not three per refresh, and a
+ * missing leg is absent rather than zero.
  */
 class FxKindAdapter(
     private val observations: ObservationWriter,
+    private val cache: CachedBody,
     private val fetch: (String) -> String = { url -> Http.getText(url) },
 ) : KindAdapter {
     override val kindId: String = "fx"
@@ -117,13 +133,17 @@ class FxKindAdapter(
             runCatching { parseSpec(source.specJson) as FxSpec }
                 .onFailure { Log.w(TAG, "bad fx spec for ${source.id}", it) }
                 .getOrNull() ?: return 0
-        val identity =
-            com.personalos.app.core.sources.SourceKeys
-                .sourceFor(source.id, spec)
+        val identity = SourceKeys.sourceFor(source.id, spec)
         val raw =
-            runCatching { fetch(FxRateParser.url()) }
-                .onFailure { Log.w(TAG, "fx fetch failed: ${spec.pair}", it) }
-                .getOrNull() ?: return 0
+            cache.get(
+                key = FrankfurterFxProvider.CACHE_KEY,
+                ttlMs = FrankfurterFxProvider.REFRESH_MS,
+                now = now,
+            ) {
+                runCatching { fetch(FxRateParser.url()) }
+                    .onFailure { Log.w(TAG, "fx fetch failed: ${spec.pair}", it) }
+                    .getOrNull()
+            } ?: return 0
         val rate = FxRateParser.rateFor(spec.pair, FxRateParser.parseAll(raw)) ?: return 0
         observations.write(
             ObservationWriter.Observation(

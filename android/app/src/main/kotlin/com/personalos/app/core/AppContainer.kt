@@ -277,6 +277,16 @@ class AppContainer(
     val placeRanker: PlaceRanker = RecencyPlaceRanker()
 
     /**
+     * The refresh window for store-backed fetches. One instance, so the
+     * weather/calendar/fx adapters share it and a body is fetched once per
+     * window however many readers ask — including the providers, which use the
+     * same cache and the same keys.
+     */
+    private val cachedBody: com.personalos.app.data.adapters.CachedBody =
+        com.personalos.app.data.adapters
+            .CachedBody(cache)
+
+    /**
      * ADR 0005 T8: gauge observation writes — upsert-by-bucket, latest wins.
      * Counters never touch this writer (`IGNORE` + freeze stays theirs).
      */
@@ -300,9 +310,11 @@ class AppContainer(
                 adaptersByKind(
                     listOf(
                         SmsKindAdapter(),
-                        WeatherKindAdapter(observationWriter),
-                        FxKindAdapter(observationWriter),
+                        WeatherKindAdapter(observationWriter, cachedBody),
+                        FxKindAdapter(observationWriter, cachedBody),
                         DeviceKindAdapter(),
+                        com.personalos.app.data.adapters
+                            .CalendarKindAdapter(database.calendarDao(), cachedBody),
                     ),
                 ),
         )

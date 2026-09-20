@@ -34,6 +34,8 @@ object SourceKeys {
             is WeatherSpec -> "weather:${slug(spec.place)}"
             is FxSpec -> "fx:${slug(spec.pair)}"
             is DeviceSpec -> "device:${slug(spec.signal)}"
+            // The region already is a slug path, so it is the identity as-is.
+            is CalendarSpec -> "calendar:${com.personalos.app.core.calendar.CalendarProviders.normalize(spec.region)}"
             else -> throw IllegalArgumentException("no identity for spec ${spec::class.simpleName}")
         }
 }

@@ -42,7 +42,7 @@ data class WeatherLocation(
 class OpenMeteoWeatherProvider(
     private val locations: List<WeatherLocation>,
     private val cache: StringCache,
-    private val refreshAfterMs: Long = DEFAULT_REFRESH_MS,
+    private val refreshAfterMs: Long = REFRESH_MS,
 ) : WeatherProvider {
     override fun observe(): Flow<List<WeatherSnapshot>> =
         flow {
@@ -158,7 +158,8 @@ class OpenMeteoWeatherProvider(
 
     private fun key(location: WeatherLocation) = keyFor(location.name)
 
-    private fun keyFor(name: String) = "weather:$name"
+    /** Shared with the observation adapter, so both read one cached body. */
+    private fun keyFor(name: String) = cacheKey(name)
 
     private fun fetch(location: WeatherLocation): String {
         val url =
@@ -221,9 +222,17 @@ class OpenMeteoWeatherProvider(
             lon = location.lon,
         )
 
-    private companion object {
-        const val TAG = "Weather"
-        const val FORECAST_DAYS = 7
-        const val DEFAULT_REFRESH_MS = 6L * 60 * 60 * 1000
+    companion object {
+        private const val TAG = "Weather"
+        private const val FORECAST_DAYS = 7
+
+        /**
+         * Refresh window, in ms. The observation adapter reads through the same
+         * window and the same cache key, so a place is fetched once per window
+         * no matter how many readers ask for it.
+         */
+        const val REFRESH_MS = 6L * 60 * 60 * 1000
+
+        fun cacheKey(place: String) = "weather:$place"
     }
 }

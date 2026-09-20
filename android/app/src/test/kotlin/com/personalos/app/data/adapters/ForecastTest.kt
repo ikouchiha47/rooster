@@ -1,5 +1,6 @@
 package com.personalos.app.data.adapters
 
+import com.personalos.app.core.cache.StringCache
 import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.data.ObservationRepository
 import kotlinx.coroutines.runBlocking
@@ -139,7 +140,7 @@ class ForecastTest {
             val writer =
                 com.personalos.app.data.GaugeFakes
                     .writer(events, fields)
-            val adapter = WeatherKindAdapter(writer, fetch = { weekJson })
+            val adapter = WeatherKindAdapter(writer, CachedBody(FreshCache()), fetch = { weekJson })
             val row =
                 com.personalos.app.data.SourceEntity(
                     id = "seed:weather:bengaluru",
@@ -171,7 +172,12 @@ class ForecastTest {
             val writer =
                 com.personalos.app.data.GaugeFakes
                     .writer(events, fields)
-            val adapter = FxKindAdapter(writer, fetch = { """{"rates":{"INR":95.5,"EUR":0.86}}""" })
+            val adapter =
+                FxKindAdapter(
+                    writer,
+                    CachedBody(FreshCache()),
+                    fetch = { """{"rates":{"INR":95.5,"EUR":0.86}}""" },
+                )
             val row =
                 com.personalos.app.data.SourceEntity(
                     id = "seed:fx:eur-inr",
@@ -187,4 +193,15 @@ class ForecastTest {
             val stored = fields.rows.single { it.name == "rate" }
             assertEquals(95.5 / 0.86, stored.valueNum!!, 0.0001)
         }
+
+    /** A cache that never holds anything: one ingest, one fetch. */
+    private class FreshCache : StringCache {
+        override fun read(key: String): StringCache.Entry? = null
+
+        override fun write(
+            key: String,
+            value: String,
+            at: Long,
+        ) = Unit
+    }
 }

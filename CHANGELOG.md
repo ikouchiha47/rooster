@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(adapters): one fetch window for weather, fx and calendar
+
+_2026-09-21_
+
+
+The store-backed adapters were written with a bare Http fetch, so they bypassed the caching the providers already had: weather and fx fetched on every refresh (hourly worker, every screen open, every sync), and the three fx pair sources each fetched the identical URL - 1 request per 6h became 3 per refresh.
+
+CachedBody restores the window in one place: inside it a stored body is served, outside it fetches and stores, and a failed fetch serves the stale body. Weather and fx read through the providers' own cache keys and windows, so the adapters and WeatherProvider.observe() share one cached body and cannot disagree; one fx body feeds all three pairs. Calendar (new, no provider) uses the same window at a monthly cadence.
+
+Removes the half-applied defaultIntervalSec abstraction: fetch frequency belongs to the fetch, not a second mechanism in the dispatcher. Adds FetchRateProofTest, which failed before this change (2 fetches for two ingests 1ms apart; 3 for three pair sources) and now asserts 1 and 1.
+
+Verified: 499 tests, assembleDebug, ktlintCheck.
+
 ## feat(calendar): ics reader and calendar storage
 
 _2026-09-21_

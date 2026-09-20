@@ -183,7 +183,7 @@ private fun MicroLabel(text: String) {
  * are ordered the way the services read (feeds, topics, sms, weather, fx,
  * device); a kind with no run yet simply has no row.
  */
-private val SYNC_KIND_ORDER = listOf("rss", "search", "sms", "weather", "fx", "device")
+private val SYNC_KIND_ORDER = listOf("rss", "search", "sms", "weather", "fx", "device", "calendar")
 
 internal fun syncRunKinds(runs: List<com.personalos.app.data.SyncRunEntity>): List<com.personalos.app.data.SyncRunEntity> {
     val latestByKind = runs.groupBy { it.kind }.mapValues { (_, group) -> group.maxBy { it.finishedAt } }
@@ -205,6 +205,7 @@ internal fun syncKindLabel(kind: String): String =
         "weather" -> "Weather"
         "fx" -> "FX"
         "device" -> "Device"
+        "calendar" -> "Calendar"
         else -> kind
     }
 

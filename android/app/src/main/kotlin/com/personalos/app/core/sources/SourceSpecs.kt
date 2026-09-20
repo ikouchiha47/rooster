@@ -59,6 +59,22 @@ data class DeviceSpec(
     override val tags: Set<String> = setOf("news"),
 ) : SourceSpec
 
+/**
+ * `kind = "calendar"`: one region's holiday feed (ICS). Emits dated
+ * observances into `calendar_dates`, never events, so it declares no tags.
+ *
+ * [region] is the user's choice (`japan`, `india/west-bengal`) and [url] is
+ * resolved from it by the chosen provider — neither is a constant in code.
+ */
+data class CalendarSpec(
+    /** Provider id (`officeholidays`). */
+    val provider: String,
+    /** Region slug path, normalized by the provider. */
+    val region: String,
+    val url: String,
+    override val tags: Set<String> = emptySet(),
+) : SourceSpec
+
 object SourceSpecs {
     private val json = Json { ignoreUnknownKeys = false }
 
@@ -101,6 +117,7 @@ object SourceSpecs {
             "weather" -> parseWeather(obj(specJson, "weather"))
             "fx" -> parseFx(obj(specJson, "fx"))
             "device" -> parseDevice(obj(specJson, "device"))
+            "calendar" -> parseCalendar(obj(specJson, "calendar"))
             else -> throw IllegalArgumentException("unknown source kind: $kindName")
         }
 
@@ -166,6 +183,19 @@ object SourceSpecs {
         val pair = obj.string("pair", "fx") ?: throw IllegalArgumentException("kind fx: missing required key pair")
         require(pair.isNotBlank()) { "kind fx: pair must not be blank" }
         return FxSpec(pair = pair, tags = tags(obj, "fx"))
+    }
+
+    private fun parseCalendar(obj: JsonObject): CalendarSpec {
+        rejectUnknown(obj, setOf("provider", "region", "url"), "calendar")
+        val provider = obj.string("provider", "calendar") ?: throw IllegalArgumentException("kind calendar: missing required key provider")
+        require(provider.isNotBlank()) { "kind calendar: provider must not be blank" }
+        val region = obj.string("region", "calendar") ?: throw IllegalArgumentException("kind calendar: missing required key region")
+        require(region.isNotBlank()) { "kind calendar: region must not be blank" }
+        val url = obj.string("url", "calendar") ?: throw IllegalArgumentException("kind calendar: missing required key url")
+        require(url.startsWith("http://") || url.startsWith("https://")) {
+            "kind calendar: url must be http(s): $url"
+        }
+        return CalendarSpec(provider = provider, region = region, url = url)
     }
 
     private fun parseDevice(obj: JsonObject): DeviceSpec {

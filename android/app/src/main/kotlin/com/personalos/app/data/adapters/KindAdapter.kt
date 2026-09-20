@@ -10,6 +10,10 @@ import com.personalos.app.data.SourceEntity
  * a new kind is an adapter plus seed rows — never a branch in the evaluator,
  * catalog or form. `identity` is the one mapping from `sources.id` to
  * `events.source` (REQ-ING-14); rules store the identity, never the row id.
+ *
+ * Fetch frequency is not declared here. It belongs to the fetch itself, so an
+ * adapter that reads through [CachedBody] is throttled by the same window the
+ * provider uses — one mechanism, not a second one in the dispatcher.
  */
 interface KindAdapter {
     val kindId: String
