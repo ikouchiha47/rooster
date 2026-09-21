@@ -514,8 +514,9 @@ private fun SyncBucketSeparator(label: String) {
     }
 }
 
+/** Shared with Travel's News tab, so both surfaces draw the same row. */
 @Composable
-private fun NewsRow(
+internal fun NewsRow(
     event: Event,
     tags: List<String>,
     onOpen: () -> Unit,

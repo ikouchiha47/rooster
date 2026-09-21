@@ -20,6 +20,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.personalos.app.ui.article.ArticleScreen
+import com.personalos.app.ui.calendar.CalendarScreen
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.home.HomeScreen
@@ -34,6 +35,7 @@ import com.personalos.app.ui.rules.RulesScreen
 import com.personalos.app.ui.services.ServicesScreen
 import com.personalos.app.ui.settings.SettingsScreen
 import com.personalos.app.ui.sources.SourcesScreen
+import com.personalos.app.ui.travel.TravelScreen
 import com.personalos.app.ui.wallet.WalletScreen
 import com.personalos.app.ui.watchers.WatchersScreen
 import com.personalos.app.ui.weather.ForecastScreen
@@ -65,6 +67,12 @@ sealed interface Destination {
 
     /** Rule fires with what matched, and (later) delivery/quotas. */
     data object Watchers : Destination
+
+    /** Followed regions and their upcoming observances, month-grouped. */
+    data object Calendar : Destination
+
+    /** Travel: the calendar's observances plus travel-tagged news. */
+    data object Travel : Destination
 
     data object Settings : Destination
 
@@ -105,6 +113,8 @@ private fun routeFor(destination: Destination): String =
         is Destination.Weather -> "weather"
         is Destination.Sources -> "sources"
         is Destination.Watchers -> "watchers"
+        is Destination.Calendar -> "calendar"
+        is Destination.Travel -> "travel"
         is Destination.Settings -> "settings"
         is Destination.Wallet -> "wallet"
         is Destination.Me -> "me"
@@ -198,6 +208,13 @@ fun AppNavHost(
         }
         composable("sources") { SourcesScreen() }
         composable("watchers") { WatchersScreen(onBack = backOrNull(navController)) }
+        composable("calendar") { CalendarScreen(onBack = backOrNull(navController)) }
+        composable("travel") {
+            TravelScreen(
+                onNavigate = { navigateToDetail(navController, it) },
+                onBack = backOrNull(navController),
+            )
+        }
         composable("settings") { SettingsScreen(onBack = backOrNull(navController)) }
         composable("wallet") { WalletScreen() }
         composable("me") { MeScreen() }
