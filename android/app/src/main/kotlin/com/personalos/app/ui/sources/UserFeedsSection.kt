@@ -64,21 +64,23 @@ import kotlinx.serialization.json.JsonPrimitive
  * and join the next sync automatically.
  */
 @Composable
-fun UserFeedsSection(sources: List<SourceEntity>) {
+fun UserFeedsSection(
+    sources: List<SourceEntity>,
+    /**
+     * Whether the bundled (seeded) feeds are listed as well.
+     *
+     * Sources passes false — its catalog status list above already shows those
+     * feeds' health, so repeating them here would be one feed twice. RSS passes
+     * true — this section *is* the RSS page, and hiding them left it blank.
+     */
+    includeSeeded: Boolean = false,
+) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
-    // Only user rows are listed: a seeded row mirrors a catalog feed whose
-    // health the Feeds list above already shows, so listing it here is the
-    // same feed twice. `seedCount` stays informational in the header note.
-    val rssSources =
-        remember(sources) {
-            sources
-                .filter { SourceKind.from(it.kind) == SourceKind.RSS && !it.seeded }
-                .sortedBy { it.name.lowercase() }
-        }
+    val rssSources = remember(sources, includeSeeded) { feedRows(sources, includeSeeded) }
     val urlIndex = remember(rssSources) { rssUrlIndex(rssSources) }
-    val userCount = rssSources.size
+    val userCount = rssSources.count { !it.seeded }
     val seedCount = remember(sources) { sources.count { SourceKind.from(it.kind) == SourceKind.RSS && it.seeded } }
 
     // Per-source health from the ingestor: the dot, the last sync and the HTTP
@@ -177,7 +179,9 @@ fun UserFeedsSection(sources: List<SourceEntity>) {
 
     Column(Modifier.fillMaxWidth()) {
         WidgetHeader(
-            title = "My feeds",
+            // On the RSS page the bundled feeds are listed too, so "My feeds"
+            // would be a lie there.
+            title = if (includeSeeded) "Feeds" else "My feeds",
             note = "$userCount user · $seedCount seed · sync every ${SyncScheduler.DEFAULT_INTERVAL_MINUTES}m",
         )
         // The form leads: adding a feed is what this section is for, and the
@@ -449,6 +453,22 @@ internal fun intervalSecondsOrNull(raw: String): Long? {
     if (trimmed.isEmpty()) return DEFAULT_USER_INTERVAL_SEC
     val secs = trimmed.toLongOrNull() ?: return null
     return secs.takeIf { it in MIN_INTERVAL_SEC..MAX_INTERVAL_SEC }
+}
+
+/**
+ * The feed rows this section lists: user feeds always, bundled ones only when
+ * asked for. User feeds come first, because they are the ones you can edit.
+ *
+ * Pure, so the two screens' differing needs are stated once and tested rather
+ * than re-derived inside a composable.
+ */
+internal fun feedRows(
+    sources: List<SourceEntity>,
+    includeSeeded: Boolean,
+): List<SourceEntity> {
+    val feeds = sources.filter { SourceKind.from(it.kind) == SourceKind.RSS }
+    val shown = if (includeSeeded) feeds else feeds.filter { !it.seeded }
+    return shown.sortedWith(compareBy({ it.seeded }, { it.name.lowercase() }))
 }
 
 /** Normalised URL to source name, for the duplicate guard. Unparseable rows are skipped. */

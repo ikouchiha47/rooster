@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(rss): list every feed, so the page is not blank
+
+_2026-09-21_
+
+
+RSS rendered UserFeedsSection, and that section had been narrowed to user rows only when Sources was deduped - correct for Sources, whose catalog status list already shows the eight bundled feeds, but fatal for RSS, which is nothing but that section. The bundled feeds therefore vanished and the page was empty.
+
+The section now takes includeSeeded: user feeds always, bundled ones only when asked. Sources passes false, RSS passes true, and feedRows states that difference once as a pure function with tests rather than inside a composable. The header reads 'Feeds' when the bundled ones are listed, since 'My feeds' would be untrue there.
+
+Note: the Calendars region picker is NOT on the device - the install was piped through a grep and never checked, and the phone was already unplugged, so it needs installing before it can be seen.
+
+Verified: 573 tests, assembleDebug, ktlintCheck.
+
 ## feat(calendar): pick a region to follow
 
 _2026-09-21_
