@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class],
     views = [ItemTagCurrent::class],
-    version = 17,
+    version = 18,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -29,6 +29,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ruleDao(): RuleDao
 
     abstract fun itemRuleDao(): ItemRuleDao
+
+    abstract fun ruleFireDao(): RuleFireDao
+
+    abstract fun bookmarkDao(): BookmarkDao
 
     abstract fun itemFieldDao(): ItemFieldDao
 

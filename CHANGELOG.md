@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(watchers,saved): rule-fire feed and item bookmarks
+
+_2026-09-21_
+
+
+Watchers: a fire now says what matched, not just that it fired. MatchedClauses reports the clauses that held with the stored value that satisfied them (temp_c 40.2 > 40), built from RuleWriter.itemsFor so the reason uses the same facts ingest evaluated. A narrow RuleFireDao carries the feed's two reads - putting them on EventDao/ItemRuleDao would have added two methods to six unrelated test fakes. A rule whose condition_json is unreadable now still reports its fires, without a reason, instead of silently dropping them (that was a red test). Watchers screen orders recently-fired first, never-fired last, and the Watchers/Alerts tiles now open it.
+
+Saved: bookmarks are a stamp on the item (events.bookmarked_at, v18), not a side table - 1:0..1 rides along in every list read and needs no join. Nullable with no DEFAULT and a plain declared index: Room and MigrationSchemaTest both compare the index set, so a partial index living only in the migration would fail validation on open. Toggle rule is pure core (nextBookmark/isSaved), tested first, including that a stamp of 0 is a save. Saved reads page on the save stamp, not publish time.
+
+Verified: 530 tests, assembleDebug, ktlintCheck.
+
 ## fix(adapters): one fetch window for weather, fx and calendar
 
 _2026-09-21_

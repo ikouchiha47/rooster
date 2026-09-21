@@ -419,8 +419,53 @@ object Sql {
     /** Guarded: only user rows delete. Returns rows removed. */
     const val RULES_DELETE_USER_ONLY = "DELETE FROM rules WHERE id = :id AND seeded = 0"
 
+    // ---------------------------------------------------------------- saved
+    // Bookmarks are a stamp on the item (1:0..1), so these are plain event
+    // reads and one update — no join. `source` null means every saved item.
+    const val EVENT_BY_ULID = "SELECT * FROM events WHERE ulid = :ulid LIMIT 1"
+
+    const val EVENTS_SET_BOOKMARK =
+        "UPDATE events SET bookmarked_at = :bookmarkedAt WHERE ulid = :ulid"
+
+    /**
+     * Saved items, newest save first, keyset-paged on the **save stamp** rather
+     * than the publish time — the Saved view is ordered by when you saved, and
+     * `bookmarked_at IS NOT NULL` rides the index declared on the entity.
+     */
+    const val EVENTS_SAVED =
+        """
+        SELECT * FROM events
+        WHERE bookmarked_at IS NOT NULL
+          AND (:source IS NULL OR source = :source)
+          AND (:cursor IS NULL OR bookmarked_at < :cursor)
+        ORDER BY bookmarked_at DESC
+        LIMIT :limit
+        """
+
+    const val EVENTS_SAVED_COUNT =
+        """
+        SELECT COUNT(*) FROM events
+        WHERE bookmarked_at IS NOT NULL AND (:source IS NULL OR source = :source)
+        """
+
     // -------------------------------------------------------------- item_rules
     const val ITEM_RULES_ALL = "SELECT * FROM item_rules"
+
+    /**
+     * A rule's fires, newest first — the Watchers feed. Reads the
+     * `(rule_id, item_id)` index; `LIMIT` is always supplied, so this can never
+     * walk the table.
+     */
+    const val ITEM_RULES_FOR_RULE =
+        """
+        SELECT * FROM item_rules
+        WHERE rule_id = :ruleId
+        ORDER BY matched_at DESC
+        LIMIT :limit
+        """
+
+    /** Every item's stored facts at once, so one fire batch costs one read per table. */
+    const val EVENTS_BY_ULIDS = "SELECT * FROM events WHERE ulid IN (:ulids)"
 
     // ------------------------------------------------------------- item_fields
     // ADR 0003 §13: typed extras materialised one row per (item, name), indexed

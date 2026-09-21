@@ -123,6 +123,7 @@ fun ServicesScreen(
                                     "Weather" -> onNavigate(Destination.Weather)
                                     "Sources" -> onNavigate(Destination.Sources)
                                     "Settings" -> onNavigate(Destination.Settings)
+                                    "Watchers", "Alerts" -> onNavigate(Destination.Watchers)
                                     else -> onNavigate(Destination.Placeholder(tile.name))
                                 }
                             },

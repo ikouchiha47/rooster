@@ -498,6 +498,25 @@ val MIGRATION_16_17_STATEMENTS: List<String> =
     )
 
 /**
+ * v17 -> v18: saving an item (bookmarks).
+ *
+ * `bookmarked_at` is a nullable epoch-ms stamp with **no DEFAULT**, per the
+ * Room-validation rule documented above: bytes on disk are the same for an
+ * absent value and a defaulted one, but Room compares declared defaults when it
+ * validates on open, so an added column carrying `DEFAULT 0` would fail there.
+ * Null already means the right thing — not saved — so there is no backfill.
+ *
+ * The index is declared on the entity too. Room compares the index *set*, so an
+ * index present only here would fail validation on open exactly like an
+ * undeclared default.
+ */
+val MIGRATION_17_18_STATEMENTS: List<String> =
+    listOf(
+        "ALTER TABLE events ADD COLUMN bookmarked_at INTEGER",
+        "CREATE INDEX IF NOT EXISTS index_events_bookmarked_at ON events (bookmarked_at)",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -521,6 +540,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         15 to MIGRATION_14_15_STATEMENTS,
         16 to MIGRATION_15_16_STATEMENTS,
         17 to MIGRATION_16_17_STATEMENTS,
+        18 to MIGRATION_17_18_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

@@ -14,6 +14,11 @@ import kotlinx.serialization.json.Json
         Index(value = ["ulid"], unique = true),
         Index(value = ["category"]),
         Index(value = ["timestamp"]),
+        // What the Saved view orders by. A plain index, not a partial one: Room
+        // (and MigrationSchemaTest) compare the index *set*, so an index that
+        // exists in the database but not in this declaration fails validation
+        // on open — the same trap as an undeclared DEFAULT.
+        Index(value = ["bookmarked_at"]),
     ],
 )
 data class EventEntity(
@@ -49,6 +54,16 @@ data class EventEntity(
      * `COALESCE(ingested_at, timestamp)`.
      */
     @ColumnInfo(name = "ingested_at") val ingestedAt: Long? = null,
+    /**
+     * When the user saved this item, or null for "not saved".
+     *
+     * Saved is an attribute of the item (1:0..1), so it lives on the row rather
+     * than in a side table: the flag rides along with every list read for free,
+     * and retention can preserve saved rows by excluding them from deletion.
+     * A timestamp rather than a boolean because "when" is needed to order the
+     * Saved view, and a nullable column needs no backfill.
+     */
+    @ColumnInfo(name = "bookmarked_at") val bookmarkedAt: Long? = null,
 ) {
     fun toDomain(): Event {
         val entitiesList = Json { ignoreUnknownKeys = true }.decodeFromString<List<String>>(entities)

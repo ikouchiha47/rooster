@@ -294,6 +294,14 @@ class RuleWriter(
         return rowIds.count { it != -1L }
     }
 
+    /**
+     * The evaluator's view of these items, read from the store. The Watchers
+     * feed builds its items through here too, so a fire's "what matched" is
+     * computed from exactly the facts ingest evaluated — not a second reader
+     * that could drift.
+     */
+    suspend fun itemsFor(seeds: List<RuleItemSeed>): List<RuleItem> = materialise(seeds)
+
     /** Loads the stored tags, mentions and fields for the seeds, then builds evaluator inputs. */
     private suspend fun materialise(seeds: List<RuleItemSeed>): List<RuleItem> {
         if (seeds.isEmpty()) return emptyList()

@@ -181,6 +181,22 @@ class AppContainer(
             database.itemFieldDao(),
         )
 
+    /** Saved items: one writer, one reader, over the flag on the item. */
+    val bookmarks: com.personalos.app.data.BookmarkRepository =
+        com.personalos.app.data
+            .BookmarkRepository(database.bookmarkDao())
+
+    /**
+     * The Watchers feed: fired matches with what matched. Reads through
+     * [ruleWriter], so a fire's clause evaluation uses the same reader ingest did.
+     */
+    val ruleFires: com.personalos.app.data.RuleFireRepository =
+        com.personalos.app.data.RuleFireRepository(
+            database.ruleDao(),
+            database.ruleFireDao(),
+            ruleWriter,
+        )
+
     /**
      * The authoring dry run: a bounded, indexed candidate load over stored
      * history handed to [ruleWriter], persisting nothing (ADR §12, R4). One
