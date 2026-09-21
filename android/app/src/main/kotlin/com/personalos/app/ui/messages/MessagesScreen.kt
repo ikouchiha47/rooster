@@ -17,13 +17,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -40,6 +44,7 @@ import com.personalos.app.core.SmsClassifier
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
+import com.personalos.app.data.SmsSource
 import com.personalos.app.ui.common.CategorySpine
 import com.personalos.app.ui.common.Chip
 import com.personalos.app.ui.common.DayMarker
@@ -50,6 +55,7 @@ import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphActionButton
 import com.personalos.app.ui.common.GlyphIcon
 import com.personalos.app.ui.common.HardRule
+import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarAppBar
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SyncLine
@@ -59,6 +65,7 @@ import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -79,29 +86,25 @@ private sealed interface MsgRow {
     ) : MsgRow
 }
 
-private fun modeFor(tab: Int): String =
-    when (tab) {
-        1 -> "inbox"
-        2 -> "sent"
-        3 -> "other"
-        else -> "all"
-    }
-
 @Composable
 fun MessagesScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val container = LocalAppContainer.current
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    val mode = modeFor(selectedTab)
+    val mode = messagesTabAt(selectedTab).mode()
 
     val listState = rememberLazyListState()
     var items by remember { mutableStateOf<List<EventEntity>>(emptyList()) }
     var cursorTs by remember { mutableStateOf<Long?>(null) }
     var cursorId by remember { mutableStateOf(0L) }
+    var savedCursor by remember { mutableStateOf<Long?>(null) }
     var loading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
+    var savedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val scope = rememberCoroutineScope()
 
     // Cursor (keyset) pagination: first page on tab change.
     // Reload the first page when new events land, so the list is live.
@@ -111,16 +114,35 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
         items = emptyList()
         cursorTs = null
         cursorId = 0L
+        savedCursor = null
         endReached = false
         loading = true
-        val first = dao.page(mode, null, 0L, PAGE_SIZE)
-        items = first
-        if (first.isNotEmpty()) {
-            cursorTs = first.last().timestamp
-            cursorId = first.last().id
+        if (mode == null) {
+            // Saved is not a box: it reads the save stamp, not the publish time.
+            val first = container.bookmarks.saved(source = SmsSource.SOURCE_ID, limit = PAGE_SIZE)
+            items = first
+            savedCursor = first.lastOrNull()?.bookmarkedAt
+            if (first.size < PAGE_SIZE) endReached = true
+        } else {
+            val first = dao.page(mode, null, 0L, PAGE_SIZE)
+            items = first
+            if (first.isNotEmpty()) {
+                cursorTs = first.last().timestamp
+                cursorId = first.last().id
+            }
+            if (first.size < PAGE_SIZE) endReached = true
         }
-        if (first.size < PAGE_SIZE) endReached = true
         loading = false
+    }
+
+    // Re-read the saved flags for the loaded page, so the glyph and the swipe
+    // reflect the store rather than a guess made at render time.
+    LaunchedEffect(items, mode) {
+        savedIds =
+            items
+                .filter { it.bookmarkedAt != null }
+                .map { it.ulid }
+                .toSet()
     }
 
     // ...and the next page when the list nears its end.
@@ -132,14 +154,25 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
         }.collect { lastVisible ->
             if (!loading && !endReached && items.isNotEmpty() && lastVisible >= items.size - 5) {
                 loading = true
-                val next = dao.page(mode, cursorTs, cursorId, PAGE_SIZE)
-                if (next.isEmpty()) {
-                    endReached = true
+                if (mode == null) {
+                    val next = container.bookmarks.saved(SmsSource.SOURCE_ID, savedCursor, PAGE_SIZE)
+                    if (next.isEmpty()) {
+                        endReached = true
+                    } else {
+                        items = items + next
+                        savedCursor = next.lastOrNull()?.bookmarkedAt
+                        if (next.size < PAGE_SIZE) endReached = true
+                    }
                 } else {
-                    items = items + next
-                    cursorTs = next.last().timestamp
-                    cursorId = next.last().id
-                    if (next.size < PAGE_SIZE) endReached = true
+                    val next = dao.page(mode, cursorTs, cursorId, PAGE_SIZE)
+                    if (next.isEmpty()) {
+                        endReached = true
+                    } else {
+                        items = items + next
+                        cursorTs = next.last().timestamp
+                        cursorId = next.last().id
+                        if (next.size < PAGE_SIZE) endReached = true
+                    }
                 }
                 loading = false
             }
@@ -207,7 +240,26 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
                                     DayMarker(label = label, right = right)
                                 }
 
-                                is MsgRow.Item -> MessageRow(row.event)
+                                is MsgRow.Item ->
+                                    SwipeableMessageRow(
+                                        entity = row.event,
+                                        saved = row.event.ulid in savedIds,
+                                        onToggleSave = {
+                                            scope.launch {
+                                                val nowSaved = container.bookmarks.toggle(row.event.ulid)
+                                                savedIds =
+                                                    if (nowSaved) {
+                                                        savedIds + row.event.ulid
+                                                    } else {
+                                                        savedIds - row.event.ulid
+                                                    }
+                                                if (mode == null) {
+                                                    // In the Saved view an unsaved item no longer belongs.
+                                                    items = items.filterNot { it.ulid == row.event.ulid }
+                                                }
+                                            }
+                                        },
+                                    )
                             }
                         }
                         item { FooterStrip("Last refresh 09:44 ${Chars.MIDDLE_DOT} sample data") }
@@ -239,26 +291,79 @@ private fun MessagesTabs(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
 ) {
+    val container = LocalAppContainer.current
     val all by dao.observeCountByMode("all").collectAsStateWithLifecycle(initialValue = 0)
     val inbox by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
     val sent by dao.observeCountByMode("sent").collectAsStateWithLifecycle(initialValue = 0)
     val other by dao.observeCountByMode("other").collectAsStateWithLifecycle(initialValue = 0)
+    val saved by container.bookmarks.observeSavedCount(SmsSource.SOURCE_ID).collectAsStateWithLifecycle(initialValue = 0)
 
+    // Labels come from the tab model, so the strip and the loader cannot disagree.
+    val counts = listOf(all, inbox, sent, other, saved)
     TabStrip(
-        items =
-            listOf(
-                TabSpec("All", all),
-                TabSpec("Alerts", inbox),
-                TabSpec("Digest", sent),
-                TabSpec("Muted", other),
-            ),
+        items = MessagesTab.entries.mapIndexed { index, tab -> TabSpec(tab.label, counts[index]) },
         selectedIndex = selectedIndex,
         onSelect = onSelect,
     )
 }
 
+/**
+ * A message row with swipe-left to save or unsave.
+ *
+ * The swipe **acts and snaps back** rather than dismissing: the item is not
+ * going away, its saved state is changing, and a row that vanished would look
+ * like a delete. The revealed background states what the swipe will do.
+ */
 @Composable
-private fun MessageRow(entity: EventEntity) {
+private fun SwipeableMessageRow(
+    entity: EventEntity,
+    saved: Boolean,
+    onToggleSave: () -> Unit,
+) {
+    val state =
+        rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart) onToggleSave()
+                // Never dismiss: report the gesture, then spring back.
+                false
+            },
+        )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(RadarColors.paper3)
+                        .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GlyphIcon(
+                    glyph = if (saved) Glyph.Stack else Glyph.Plus,
+                    tint = RadarColors.ink,
+                    size = 16.dp,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = if (saved) "UNSAVE" else "SAVE",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink,
+                )
+            }
+        },
+    ) {
+        MessageRow(entity, saved = saved)
+    }
+}
+
+@Composable
+private fun MessageRow(
+    entity: EventEntity,
+    saved: Boolean = false,
+) {
     val unread = entity.type == "inbox"
     val time = remember(entity.timestamp) { TIME_FMT.format(Date(entity.timestamp)) }
     // Classification drives the chip. It is a pure function, so it is safe to
@@ -368,6 +473,11 @@ private fun MessageRow(entity: EventEntity) {
                 }
                 // State belongs with delivery, not with identity.
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (saved) {
+                        // The saved mark sits with state, where the swipe acts.
+                        GlyphIcon(glyph = Glyph.Stack, tint = CategoryColors.Teal, size = 12.dp)
+                        Spacer(Modifier.width(4.dp))
+                    }
                     Chip(text = stateLabel(entity.type), color = stateColor(entity.type))
                     Spacer(Modifier.width(6.dp))
                     Text(text = time, style = RadarType.microPlain, color = RadarColors.ink3)

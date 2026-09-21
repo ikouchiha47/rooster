@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): saved tab and swipe-to-save
+
+_2026-09-21_
+
+
+Messages gains a Saved tab. The tab strip is now data (MessagesTab) rather than four literals and a when(): four tabs filter SMS by box, Saved is not a box at all (mode() == null means it reads bookmarked rows ordered by save stamp), so the screen carries no special case of its own and the strip cannot disagree with the loader.
+
+Rows swipe left to save or unsave. The swipe acts and snaps back rather than dismissing - the item is not going away, its saved state is changing, and a row that vanished would read as a delete. Unsaving from inside the Saved view drops the row, since it no longer belongs there. A saved row also marks itself next to its state chip.
+
+Verified: 534 tests, assembleDebug, ktlintCheck.
+
 ## feat(watchers,saved): rule-fire feed and item bookmarks
 
 _2026-09-21_
