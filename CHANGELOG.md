@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs: ADR 0006 one source model, one health record, per-kind surfaces
+
+_2026-09-21_
+
+
+Records the design problem behind the RSS/Sources mess with evidence: a feed has two owners (FeedCatalog as a runtime object and the sources table), health has two records (statuses and sourceStatuses, plus a prefs cache each) and this session added a third (sync_runs); the screens re-unify them by matching normalised URL strings at render time. Observed consequences: Sources showed 8/8 ok while RSS was empty (two views of one fact disagreeing), and the four seeded Topics rows sync but have no surface at all, because nothing reads a non-rss kind.
+
+The decision: sources is the single owner of what exists; sync_runs is the single health record; every kind goes through one adapter dispatch (rss and search stop being special-cased loops); ingest is uniform but authoring is per kind, so a kind owns its spec shape and its surface - rss/RSS, search/Topics, calendar/Calendars - and Sources becomes the index of all kinds rather than a home for the feed list. That corrects ARCHITECTURE 4.8 and 9, which claim Topics was folded into RSS: the structure differs (query with language and edition versus a URL) even though the result is the same shape.
+
+Nine tasks, tests first, with the ordering constraints that make it safe. Not implemented.
+
 ## fix(rss): list every feed, so the page is not blank
 
 _2026-09-21_
