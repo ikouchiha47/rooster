@@ -1,7 +1,9 @@
 package com.personalos.app.data
 
 import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.execSQL
 import com.personalos.app.core.feed.FeedCatalog
 
 /**
@@ -517,6 +519,85 @@ val MIGRATION_17_18_STATEMENTS: List<String> =
     )
 
 /**
+ * v18 -> v19: Messages search — an FTS5 external-content index over
+ * `events(title, content)`, using the **trigram** tokenizer.
+ *
+ * ## Why FTS5, and why trigram
+ *
+ * Messages search must match **inside** a word: `rtel` has to find `airtel`,
+ * and `654` has to find `9876543210`. A token index cannot do that — it only
+ * knows whole tokens and prefixes. FTS5's trigram tokenizer indexes every
+ * three-character sequence, so a MATCH finds any sub-string of three or more
+ * characters; that is the infix behaviour this feature is for.
+ *
+ * The platform SQLite has FTS3/FTS4 but **no FTS5**, so the database is opened
+ * through `androidx.sqlite:sqlite-bundled` (SQLite 3.50.1, which ships fts5 and
+ * the trigram tokenizer) via `AppDatabase.setDriver` — see `build.gradle.kts`.
+ *
+ * ## Why the table is hand-written here
+ *
+ * Room cannot model an FTS5 external-content table with a custom tokenizer: it
+ * neither exports this table nor validates it on open. It is created by this
+ * migration as plain DDL, and `MigrationSchemaTest` is what asserts it exists
+ * and stays in sync — Room will not do either.
+ *
+ * ## External content: an index, not a copy
+ *
+ * `content='events', content_rowid='id'` makes the FTS table hold only the
+ * index; the indexed text is read back from `events` by rowid. So there is no
+ * second copy of a message that could drift — "one fact, one owner" holds. The
+ * price is that the index must be kept in step by hand, which is what the three
+ * triggers do: every INSERT / UPDATE / DELETE of `events` replays into the
+ * index. `rebuild` at the end indexes the rows that predate v19.
+ *
+ * The UPDATE trigger deletes with the **old** values and inserts the **new**
+ * ones: the external-content `'delete'` command needs the values that were
+ * indexed, so a plain replace would leave stale entries behind.
+ *
+ * ## Traps this avoids
+ *
+ * - The trigram tokenizer answers nothing for a MATCH shorter than three
+ *   characters. The read path falls back to `LIKE`, and that decision lives in
+ *   `core/search` (SmsSearch), never in SQL.
+ * - Room compares the index set and declared defaults on open; this migration
+ *   adds no column and no ordinary index to `events`, so nothing there moves.
+ * - User input never reaches this DDL. The MATCH expression is built and
+ *   quoted in `core/search` and bound as a parameter, never concatenated.
+ */
+val MIGRATION_18_19_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
+            title,
+            content,
+            content='events',
+            content_rowid='id',
+            tokenize='trigram'
+        )
+        """.trimIndent(),
+        // Keep the index in step with the table it indexes.
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_ai AFTER INSERT ON events BEGIN
+            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+        END
+        """.trimIndent(),
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_ad AFTER DELETE ON events BEGIN
+            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+        END
+        """.trimIndent(),
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_au AFTER UPDATE ON events BEGIN
+            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+        END
+        """.trimIndent(),
+        // Rows that predate the index. `rebuild` re-reads every row from the
+        // external content table, which is exactly the backfill needed.
+        "INSERT INTO events_fts(events_fts) VALUES('rebuild')",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -541,6 +622,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         16 to MIGRATION_15_16_STATEMENTS,
         17 to MIGRATION_16_17_STATEMENTS,
         18 to MIGRATION_17_18_STATEMENTS,
+        19 to MIGRATION_18_19_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =
@@ -558,5 +640,15 @@ private fun migration(
     object : Migration(from, to) {
         override fun migrate(db: SupportSQLiteDatabase) {
             statements.forEach { db.execSQL(it) }
+        }
+
+        /**
+         * Required because the database is opened through a supplied driver
+         * (`BundledSQLiteDriver`, for FTS5). Room dispatches to this overload
+         * when a driver is set, and the base implementation throws
+         * `NotImplementedError` — so both paths must run the same statements.
+         */
+        override fun migrate(connection: SQLiteConnection) {
+            statements.forEach { connection.execSQL(it) }
         }
     }

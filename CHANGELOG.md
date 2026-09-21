@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(messages): swipe and cancel in search results
+
+_2026-09-21_
+
+
+Search results rendered MessageRow directly, so a result could not be swiped while the same message could be in the stream. Results now render through SwipeableMessageRow like everything else, and both lists share one pair of toggleSave/deleteMessage helpers so an action can never apply to one list and silently miss the other - a search result is a message, not a read-only copy of the row.
+
+Adds a cancel X to the search field: one tap drops the query, the results and the field, so leaving search never needs two. SearchField gains an optional trailing slot, so existing callers are untouched, and Glyph.Close joins the drawn set.
+
+Verified: 563 tests, assembleDebug, ktlintCheck.
+
 ## feat(messages): delete the app's stored copy
 
 _2026-09-21_

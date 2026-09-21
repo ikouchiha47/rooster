@@ -62,6 +62,7 @@ enum class Glyph {
     Bookmark,
     BookmarkFilled,
     Trash,
+    Close,
 }
 
 @Composable
@@ -437,6 +438,10 @@ private fun DrawScope.drawGlyph(
         // A ribbon with a notch: outline when it can be saved, solid once it is.
         Glyph.Bookmark -> bookmarkRibbon(s, ::path)
         Glyph.BookmarkFilled -> bookmarkRibbon(s, ::fill)
+        Glyph.Close -> {
+            ln(6.5f, 6.5f, 17.5f, 17.5f)
+            ln(17.5f, 6.5f, 6.5f, 17.5f)
+        }
         Glyph.Trash -> {
             ln(4f, 6.4f, 20f, 6.4f)
             ln(9.2f, 6.4f, 9.2f, 4.4f)

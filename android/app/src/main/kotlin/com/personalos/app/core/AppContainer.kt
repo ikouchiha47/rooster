@@ -192,6 +192,14 @@ class AppContainer(
             .MessageDeleteRepository(database.messageDeleteDao())
 
     /**
+     * Messages search: an FTS5 trigram read over SMS rows only (v19). The query
+     * plan is built in `core/search`; this exposes the one call the screen makes.
+     */
+    val messageSearch: com.personalos.app.data.MessageSearchRepository =
+        com.personalos.app.data
+            .MessageSearchRepository(database.messageSearchDao())
+
+    /**
      * The Watchers feed: fired matches with what matched. Reads through
      * [ruleWriter], so a fire's clause evaluation uses the same reader ingest did.
      */

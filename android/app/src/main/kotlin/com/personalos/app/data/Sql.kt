@@ -466,6 +466,40 @@ object Sql {
         WHERE bookmarked_at IS NOT NULL AND (:source IS NULL OR source = :source)
         """
 
+    // ------------------------------------------------------------ messages search
+    // The FTS5 trigram index over `events(title, content)` created by the v19
+    // migration (see MIGRATION_18_19_STATEMENTS). Only Messages calls these, and
+    // both are scoped to `source = 'sms'` exactly like every other Messages read,
+    // so search can never surface a feed item - there is no global search.
+    //
+    // `:match` is an FTS expression built and quoted in `core/search`, bound as a
+    // parameter, never raw input. `events_fts.rank` orders best textual match
+    // first (FTS5's BM25); the JOIN drives off the FTS index rowid.
+    const val EVENTS_SEARCH_MATCH =
+        """
+        SELECT e.* FROM events e
+        JOIN events_fts ON events_fts.rowid = e.id
+        WHERE events_fts MATCH :match AND e.source = 'sms'
+        ORDER BY events_fts.rank
+        LIMIT :limit
+        """
+
+    /**
+     * The fallback for inputs the trigram index cannot serve (a term shorter
+     * than three characters): a plain sub-string scan over the same two
+     * columns, still SMS-only. `:pattern` is escaped and wrapped in `%` by
+     * `core/search`; `ESCAPE '\'` is what makes a literal `%` or `_` in the
+     * user's text a literal rather than a wildcard.
+     */
+    const val EVENTS_SEARCH_LIKE =
+        """
+        SELECT * FROM events
+        WHERE source = 'sms'
+          AND (title LIKE :pattern ESCAPE '\' OR content LIKE :pattern ESCAPE '\')
+        ORDER BY timestamp DESC, id DESC
+        LIMIT :limit
+        """
+
     // -------------------------------------------------------------- item_rules
     const val ITEM_RULES_ALL = "SELECT * FROM item_rules"
 

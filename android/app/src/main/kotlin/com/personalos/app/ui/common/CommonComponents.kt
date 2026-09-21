@@ -369,6 +369,11 @@ fun SearchField(
     query: String? = null,
     onQueryChange: ((String) -> Unit)? = null,
     onSubmit: (() -> Unit)? = null,
+    /**
+     * Optional control at the far end of the field — a cancel "X", typically.
+     * Null keeps the field exactly as it was, so existing callers are unaffected.
+     */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier
@@ -425,6 +430,10 @@ fun SearchField(
                 ) {
                     GlyphIcon(Glyph.Forward, RadarColors.ink2, 15.dp)
                 }
+            }
+            trailing?.let {
+                Spacer(Modifier.width(6.dp))
+                it()
             }
         }
     }
