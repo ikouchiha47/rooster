@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(calendar,travel): calendar tile and travel surfaces
+
+_2026-09-21_
+
+
+Calendar becomes its own tile rather than a section inside Sources: a Calendar destination and screen hold the region picker (moved out of Sources, which no longer renders any calendar section) plus month-grouped upcoming observances, with an honest empty state that distinguishes no-regions from nothing-upcoming. Travel becomes a real tile with Calendar and News tabs, reusing the same repository and the same grouping rather than a second implementation.
+
+One owner for which regions are followed: CalendarRepository exposes the enabled kind=calendar sources and the observances for exactly those regions (now to +12 months); AppContainer wires it. Plans, the leave optimiser and season windows stay out of scope (PRD v3).
+
+Pure models tested first, and they failed before they passed: groupIntoCalendarMonths (soonest first, UTC months, whole-month cap of 6, cap=0, and the cap never dropping a month that exists), calendarMonthHeader (MARCH 2027), calendarEmptyMessage, and the Travel tab model with an out-of-range fallback.
+
+Verified: 587 tests (was 573), assembleDebug, ktlintCheck. No device verification: adb reports no device attached, and both host USB buses enumerate empty.
+
 ## docs(adr): sync_runs is the history, not a redundant status copy
 
 _2026-09-21_

@@ -16,6 +16,7 @@ import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.CalendarRepository
 import com.personalos.app.data.CatalogSeeder
 import com.personalos.app.data.CatalogStore
 import com.personalos.app.data.ContentResolverSmsReader
@@ -144,6 +145,14 @@ class AppContainer(
 
     /** Seeds the v1 source set once; afterwards a single `COUNT(*)` no-op. */
     val sourceSeeder: SourceSeeder = SourceSeeder(database.sourceDao())
+
+    /**
+     * The single owner of the calendar fact: followed regions and their
+     * observances. The Calendar tile and Travel's Calendar tab both read this
+     * one instance, so they can never disagree on which regions are followed.
+     */
+    val calendarRepository: CalendarRepository =
+        CalendarRepository(database.sourceDao(), database.calendarDao())
 
     /** The activity log behind the Radar Events tab — one run row per source per poll. */
     val syncRecorder: com.personalos.app.data.RoomSyncRecorder =
