@@ -35,7 +35,9 @@ fun RssScreen(
             onBack = onBack,
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            UserFeedsSection(sources = sources)
+            // Every feed the device polls, bundled included: this page *is* the
+            // feed section, so hiding the seeded ones left it blank.
+            UserFeedsSection(sources = sources, includeSeeded = true)
         }
     }
 }
