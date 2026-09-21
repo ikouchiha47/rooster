@@ -143,6 +143,11 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
             item { UserFeedsSection(sources = sources) }
 
             item { SectionGap() }
+            // Regions to follow for holidays and festivals. A region is a source
+            // of kind `calendar`, so this is the same writer, not a parallel path.
+            item { CalendarRegionsSection(sources = sources) }
+
+            item { SectionGap() }
             item {
                 WidgetHeader(
                     title = "Inventory",

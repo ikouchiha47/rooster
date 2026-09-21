@@ -393,7 +393,7 @@ private fun AddFeedForm(
 }
 
 @Composable
-private fun FieldBox(
+internal fun FieldBox(
     value: String,
     hint: String,
     onChange: (String) -> Unit,

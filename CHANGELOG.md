@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(calendar): pick a region to follow
+
+_2026-09-21_
+
+
+Regions were unreachable: the adapter could sync, but nothing could tell it what to sync. Sources gains a Calendars section that writes a source of kind calendar, the same shape as a feed, so Settings stays the only writer and no region is a literal in code - japan and india/west-bengal are the same string shape.
+
+A region is checked against the provider before it is stored: the feed must parse to at least one dated row, so a typo fails at add time instead of syncing nothing forever. Regions can be disabled or deleted, and a user row is the only kind the repository will touch.
+
+Adds PRD 0001 (docs/prd), which fixes the scope this serves: both world dates and personal ones; timed and recurring events with custom intervals (every 6 months, every 2 years, leap-day birthdays); plans as intents with a leave optimiser that ranks windows by leave cost across two regions; peak-window inference instead of invented prices; and a named RRULE subset rather than full RFC 5545.
+
+Verified: 569 tests, assembleDebug, ktlintCheck.
+
 ## docs: record the search design (v19 FTS5, bundled driver)
 
 _2026-09-21_
