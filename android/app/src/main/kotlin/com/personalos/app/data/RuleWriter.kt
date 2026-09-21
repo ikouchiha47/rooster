@@ -1,13 +1,18 @@
 package com.personalos.app.data
 
 import android.util.Log
+import com.personalos.app.core.catalog.MeasureKind
 import com.personalos.app.core.mention.MentionKind
 import com.personalos.app.core.rules.Condition
 import com.personalos.app.core.rules.ConditionJson
+import com.personalos.app.core.rules.RuleDispatcher
 import com.personalos.app.core.rules.RuleEvaluator
 import com.personalos.app.core.rules.RuleItem
 import com.personalos.app.core.rules.RuleMention
+import com.personalos.app.core.rules.SeriesEvaluator
+import com.personalos.app.core.rules.hasSeriesPredicate
 import com.personalos.app.core.rules.isEnrichmentSensitive
+import com.personalos.app.core.rules.seriesWindows
 
 /**
  * The item facts a caller hands to rule evaluation.
@@ -123,6 +128,83 @@ class RuleWriter(
     }
 
     /**
+     * ADR 0005 T18: gauge ingest dispatch. Item-only rules run on
+     * [RuleEvaluator] over this sample; rules containing a series predicate run
+     * on [SeriesEvaluator] with windows from [windowFor]. Pure series leaves
+     * only — a nested mixed tree logs and skips rather than guessing.
+     */
+    suspend fun writeGaugeSample(
+        seed: RuleItemSeed,
+        windowFor: suspend (field: String, window: Int) -> List<Double>,
+        now: Long = System.currentTimeMillis(),
+    ): Int {
+        val rules = enabledRules()
+        if (rules.isEmpty()) return 0
+        val dispatchable = rules.map { RuleDispatcher.DispatchableRule(it.id, it.condition) }
+        val partition = RuleDispatcher.partition(dispatchable)
+        var written = 0
+        if (partition.item.isNotEmpty()) {
+            written += insertMatches(partition.item.map { EvaluableRule(it.id, it.condition) }, materialise(listOf(seed)), now)
+        }
+        val seriesRows = ArrayList<ItemRuleEntity>()
+        for (rule in partition.series) {
+            val matched =
+                runCatching {
+                    when (val cond = rule.condition) {
+                        is com.personalos.app.core.rules.Condition.Crossing,
+                        is com.personalos.app.core.rules.Condition.Delta,
+                        is com.personalos.app.core.rules.Condition.Min,
+                        is com.personalos.app.core.rules.Condition.Max,
+                        -> {
+                            val (field, window) = cond.seriesWindows().first()
+                            SeriesEvaluator.evaluate(windowFor(field, window), cond, MeasureKind.GAUGE)
+                        }
+                        else -> {
+                            Log.w(TAG, "rule ${rule.id} mixes item and series predicates; skipped", null)
+                            false
+                        }
+                    }
+                }.onFailure { Log.w(TAG, "rule ${rule.id} series eval failed; skipped", it) }
+                    .getOrDefault(false)
+            if (matched) seriesRows += ItemRuleEntity(itemId = seed.itemId, ruleId = rule.id, matchedAt = now)
+        }
+        if (seriesRows.isNotEmpty()) {
+            val rowIds =
+                runCatching { matchDao.insertAll(seriesRows) }
+                    .onFailure { Log.w(TAG, "series match insert failed", it) }
+                    .getOrNull() ?: return written
+            written += rowIds.count { it != -1L }
+        }
+        return written
+    }
+
+    /**
+     * ADR 0005 T9: series dry run over supplied windows — pure series leaves
+     * only, persisting nothing. The map carries field → last-N values.
+     */
+    fun dryRunSeries(
+        condition: Condition,
+        windows: Map<String, List<Double>>,
+        measure: MeasureKind = MeasureKind.GAUGE,
+    ): RuleDryRunResult {
+        require(condition.hasSeriesPredicate()) { "dryRunSeries needs a series condition" }
+        val matched =
+            when (condition) {
+                is com.personalos.app.core.rules.Condition.Crossing,
+                is com.personalos.app.core.rules.Condition.Delta,
+                is com.personalos.app.core.rules.Condition.Min,
+                is com.personalos.app.core.rules.Condition.Max,
+                -> {
+                    val (field, _) = condition.seriesWindows().first()
+                    val values = windows[field] ?: emptyList()
+                    SeriesEvaluator.evaluate(values, condition, measure)
+                }
+                else -> throw IllegalArgumentException("dryRunSeries supports single series leaves only")
+            }
+        return RuleDryRunResult(if (matched) listOf("series") else emptyList())
+    }
+
+    /**
      * The typed extras and place mention for the preview's **sampled** hits
      * (ADR §12's dry run, R4). Returns facts keyed by item id, absent for an
      * item that stored neither.
@@ -211,6 +293,14 @@ class RuleWriter(
                 ?: return 0
         return rowIds.count { it != -1L }
     }
+
+    /**
+     * The evaluator's view of these items, read from the store. The Watchers
+     * feed builds its items through here too, so a fire's "what matched" is
+     * computed from exactly the facts ingest evaluated — not a second reader
+     * that could drift.
+     */
+    suspend fun itemsFor(seeds: List<RuleItemSeed>): List<RuleItem> = materialise(seeds)
 
     /** Loads the stored tags, mentions and fields for the seeds, then builds evaluator inputs. */
     private suspend fun materialise(seeds: List<RuleItemSeed>): List<RuleItem> {

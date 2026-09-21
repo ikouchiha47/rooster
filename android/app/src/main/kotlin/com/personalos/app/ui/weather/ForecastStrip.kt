@@ -94,8 +94,10 @@ internal fun conditionTint(condition: WeatherCondition): Color =
     when (condition) {
         WeatherCondition.Clear -> lerp(RadarColors.paper2, CategoryColors.Mustard, 0.16f)
         WeatherCondition.PartlyCloudy -> lerp(RadarColors.paper2, CategoryColors.Mustard, 0.07f)
-        WeatherCondition.Cloudy -> lerp(RadarColors.paper2, RadarColors.ink3, 0.14f)
-        WeatherCondition.Rain -> lerp(RadarColors.paper2, CategoryColors.Cyan, 0.14f)
+        WeatherCondition.Cloudy, WeatherCondition.Fog, WeatherCondition.Snow ->
+            lerp(RadarColors.paper2, RadarColors.ink3, 0.14f)
+        WeatherCondition.Rain, WeatherCondition.Drizzle, WeatherCondition.Showers ->
+            lerp(RadarColors.paper2, CategoryColors.Cyan, 0.14f)
         WeatherCondition.Storm -> CategoryColors.Indigo
     }
 

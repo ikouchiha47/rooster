@@ -16,9 +16,12 @@ import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.CatalogSeeder
+import com.personalos.app.data.CatalogStore
 import com.personalos.app.data.ContentResolverSmsReader
 import com.personalos.app.data.FieldWriter
 import com.personalos.app.data.MentionWriter
+import com.personalos.app.data.ObservationRepository
 import com.personalos.app.data.PartySeeder
 import com.personalos.app.data.PlacesSeeder
 import com.personalos.app.data.PrefsSmsSyncMark
@@ -32,6 +35,12 @@ import com.personalos.app.data.SourceRepository
 import com.personalos.app.data.SourceSeeder
 import com.personalos.app.data.TagWriter
 import com.personalos.app.data.ThemeRepository
+import com.personalos.app.data.adapters.DeviceKindAdapter
+import com.personalos.app.data.adapters.FxKindAdapter
+import com.personalos.app.data.adapters.ObservationWriter
+import com.personalos.app.data.adapters.SmsKindAdapter
+import com.personalos.app.data.adapters.WeatherKindAdapter
+import com.personalos.app.data.adapters.adaptersByKind
 import com.personalos.app.data.cache.PrefsStringCache
 import com.personalos.app.data.location.AndroidLocationProvider
 import com.personalos.app.data.remote.ArticleEnricher
@@ -136,6 +145,19 @@ class AppContainer(
     /** Seeds the v1 source set once; afterwards a single `COUNT(*)` no-op. */
     val sourceSeeder: SourceSeeder = SourceSeeder(database.sourceDao())
 
+    /** The activity log behind the Radar Events tab — one run row per source per poll. */
+    val syncRecorder: com.personalos.app.data.RoomSyncRecorder =
+        com.personalos.app.data
+            .RoomSyncRecorder(database.syncRunDao())
+
+    /** ADR 0005 T6: seeds the facet catalog; afterwards a no-op. */
+    val catalogSeeder: CatalogSeeder =
+        CatalogSeeder(database.kindDao(), database.facetDao(), database.kindFacetDao())
+
+    /** ADR 0005 T6: the single owner of the catalog fact. */
+    val catalogStore: CatalogStore =
+        CatalogStore(database.kindDao(), database.facetDao(), database.kindFacetDao())
+
     /** Seeds the v1 rule set once; afterwards a single `COUNT(*)` no-op. */
     val ruleSeeder: RuleSeeder = RuleSeeder(database.ruleDao())
 
@@ -157,6 +179,35 @@ class AppContainer(
             database.itemTagDao(),
             database.mentionDao(),
             database.itemFieldDao(),
+        )
+
+    /** Saved items: one writer, one reader, over the flag on the item. */
+    val bookmarks: com.personalos.app.data.BookmarkRepository =
+        com.personalos.app.data
+            .BookmarkRepository(database.bookmarkDao())
+
+    /** Removing the app's stored copy of an item (device copy untouched). */
+    val messageDeletes: com.personalos.app.data.MessageDeleteRepository =
+        com.personalos.app.data
+            .MessageDeleteRepository(database.messageDeleteDao())
+
+    /**
+     * Messages search: an FTS5 trigram read over SMS rows only (v19). The query
+     * plan is built in `core/search`; this exposes the one call the screen makes.
+     */
+    val messageSearch: com.personalos.app.data.MessageSearchRepository =
+        com.personalos.app.data
+            .MessageSearchRepository(database.messageSearchDao())
+
+    /**
+     * The Watchers feed: fired matches with what matched. Reads through
+     * [ruleWriter], so a fire's clause evaluation uses the same reader ingest did.
+     */
+    val ruleFires: com.personalos.app.data.RuleFireRepository =
+        com.personalos.app.data.RuleFireRepository(
+            database.ruleDao(),
+            database.ruleFireDao(),
+            ruleWriter,
         )
 
     /**
@@ -212,6 +263,7 @@ class AppContainer(
             mentionWriter,
             fieldWriter,
             ruleWriter,
+            syncRecorder,
         )
 
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
@@ -253,6 +305,27 @@ class AppContainer(
      */
     val placeRanker: PlaceRanker = RecencyPlaceRanker()
 
+    /**
+     * The refresh window for store-backed fetches. One instance, so the
+     * weather/calendar/fx adapters share it and a body is fetched once per
+     * window however many readers ask — including the providers, which use the
+     * same cache and the same keys.
+     */
+    private val cachedBody: com.personalos.app.data.adapters.CachedBody =
+        com.personalos.app.data.adapters
+            .CachedBody(cache)
+
+    /**
+     * ADR 0005 T8: gauge observation writes — upsert-by-bucket, latest wins.
+     * Counters never touch this writer (`IGNORE` + freeze stays theirs).
+     */
+    val observationWriter: ObservationWriter =
+        ObservationWriter(database.eventDao(), database.itemFieldDao(), tagWriter, ruleWriter)
+
+    /** ADR 0005 T19: tiles read the store through here, never a provider list. */
+    val observationRepository: ObservationRepository =
+        ObservationRepository(database.eventDao(), database.itemFieldDao())
+
     val feeds: FeedIngestor =
         FeedIngestor(
             database.eventDao(),
@@ -261,6 +334,18 @@ class AppContainer(
             mentionWriter,
             ruleWriter,
             loadSources = { sourceRepository.enabledSources() },
+            syncRecorder = syncRecorder,
+            gaugeAdapters =
+                adaptersByKind(
+                    listOf(
+                        SmsKindAdapter(),
+                        WeatherKindAdapter(observationWriter, cachedBody),
+                        FxKindAdapter(observationWriter, cachedBody),
+                        DeviceKindAdapter(),
+                        com.personalos.app.data.adapters
+                            .CalendarKindAdapter(database.calendarDao(), cachedBody),
+                    ),
+                ),
         )
 
     /**

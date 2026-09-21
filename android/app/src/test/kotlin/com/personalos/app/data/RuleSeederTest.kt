@@ -5,7 +5,6 @@ import com.personalos.app.core.rules.ActionJson
 import com.personalos.app.core.rules.Condition
 import com.personalos.app.core.rules.ConditionJson
 import com.personalos.app.core.rules.Delivery
-import com.personalos.app.core.rules.FieldNames
 import com.personalos.app.core.rules.RuleEvaluator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -143,15 +142,20 @@ class RuleSeederTest {
             val dao = FakeRuleDao()
             RuleSeeder(dao).seed(now = 1L)
 
+            // ADR 0005: the catalog owns what exists — a `field` whose facet no
+            // kind declares would evaluate to false forever.
+            val supplied =
+                com.personalos.app.core.catalog.CatalogSeeds
+                    .facets()
+                    .map { it.id }
+                    .toSet()
             val named = dao.rows.flatMap { fieldNames(ConditionJson.parse(it.conditionJson)) }
-            assertTrue("a seed now exercises a supplied field", named.any { it in FieldNames.SUPPLIED })
+            assertTrue("a seed now exercises a supplied field", named.any { it in supplied })
 
-            // The remaining limitation: a `field` whose name no producer writes
-            // would evaluate to false forever. Only a supplied name may ship.
             named.forEach { name ->
                 assertTrue(
-                    "'$name' is not supplied by any producer; supplied: ${FieldNames.SUPPLIED.sorted()}",
-                    name in FieldNames.SUPPLIED,
+                    "'$name' is not supplied by any producer; supplied: ${supplied.sorted()}",
+                    name in supplied,
                 )
             }
         }

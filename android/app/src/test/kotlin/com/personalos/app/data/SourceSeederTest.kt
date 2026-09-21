@@ -48,18 +48,22 @@ class SourceSeederTest {
     }
 
     @Test
-    fun `an empty table seeds twelve locked rows`() =
+    fun `an empty table seeds twenty locked rows`() =
         runBlocking {
             val dao = FakeSourceDao()
-            assertEquals(12, SourceSeeder(dao).seed(now = 1L))
-            assertEquals(12, dao.rows.size)
+            assertEquals(20, SourceSeeder(dao).seed(now = 1L))
+            assertEquals(20, dao.rows.size)
             assertTrue("every seed is locked", dao.rows.all { it.seeded })
             assertTrue("every seed is enabled", dao.rows.all { it.enabled })
             assertEquals(4, dao.rows.count { it.kind == "search" })
             assertEquals(8, dao.rows.count { it.kind == "rss" })
+            assertEquals(1, dao.rows.count { it.kind == "sms" })
+            assertEquals(3, dao.rows.count { it.kind == "weather" })
+            assertEquals(1, dao.rows.count { it.kind == "device" })
+            assertEquals(3, dao.rows.count { it.kind == "fx" })
             assertEquals(
                 "ids are unique",
-                12,
+                20,
                 dao.rows
                     .map { it.id }
                     .toSet()
@@ -135,8 +139,8 @@ class SourceSeederTest {
                 )
             val dao = FakeSourceDao(mutableListOf(user))
 
-            assertEquals(12, SourceSeeder(dao).seed(now = 99L))
-            assertEquals(13, dao.rows.size)
+            assertEquals(20, SourceSeeder(dao).seed(now = 99L))
+            assertEquals(21, dao.rows.size)
             assertEquals("the user's row is byte-identical", user, dao.rows.single { it.id == "user-1" })
         }
 
@@ -151,17 +155,17 @@ class SourceSeederTest {
             val dao = FakeSourceDao()
             SourceSeeder(dao).seed(now = 1L)
 
-            val kept = dao.rows.take(9).toList()
+            val kept = dao.rows.take(13).toList()
             val missingIds =
                 dao.rows
-                    .drop(9)
+                    .drop(13)
                     .map { it.id }
                     .toSet()
             val keptIds = kept.map { it.id }.toSet()
             dao.rows.retainAll { it.id in keptIds }
 
-            assertEquals(3, SourceSeeder(dao).seed(now = 99L))
-            assertEquals(12, dao.rows.size)
+            assertEquals(7, SourceSeeder(dao).seed(now = 99L))
+            assertEquals(20, dao.rows.size)
             kept.forEach { row -> assertEquals("${row.id} was rewritten", row, dao.rows.single { it.id == row.id }) }
             dao.rows
                 .filter { it.id in missingIds }
@@ -172,7 +176,7 @@ class SourceSeederTest {
     fun `a second run adds nothing`() =
         runBlocking {
             val dao = FakeSourceDao()
-            assertEquals(12, SourceSeeder(dao).seed(now = 1L))
+            assertEquals(20, SourceSeeder(dao).seed(now = 1L))
             val afterFirst = dao.rows.toList()
 
             assertEquals(0, SourceSeeder(dao).seed(now = 99L))

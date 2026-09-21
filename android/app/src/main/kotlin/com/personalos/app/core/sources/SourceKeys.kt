@@ -14,6 +14,15 @@ package com.personalos.app.core.sources
 object SourceKeys {
     const val USER_RSS_PREFIX = "userrss:"
 
+    /** Slug for observation identities (`weather:bengaluru`, `fx:usd-inr`). */
+    fun slug(value: String): String =
+        value
+            .trim()
+            .lowercase()
+            .replace(Regex("[^a-z0-9]+"), "-")
+            .trim('-')
+            .ifEmpty { "unknown" }
+
     fun sourceFor(
         sourceId: String,
         spec: SourceSpec,
@@ -21,5 +30,12 @@ object SourceKeys {
         when (spec) {
             is SearchSpec -> GnewsUrl.sourceFor(spec.query)
             is RssSpec -> "$USER_RSS_PREFIX$sourceId"
+            is SmsSpec -> "sms"
+            is WeatherSpec -> "weather:${slug(spec.place)}"
+            is FxSpec -> "fx:${slug(spec.pair)}"
+            is DeviceSpec -> "device:${slug(spec.signal)}"
+            // The region already is a slug path, so it is the identity as-is.
+            is CalendarSpec -> "calendar:${com.personalos.app.core.calendar.CalendarProviders.normalize(spec.region)}"
+            else -> throw IllegalArgumentException("no identity for spec ${spec::class.simpleName}")
         }
 }

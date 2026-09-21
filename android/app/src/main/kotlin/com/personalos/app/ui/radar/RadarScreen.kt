@@ -60,6 +60,7 @@ import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarAppBar
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SectionHeader
+import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.SyncLine
 import com.personalos.app.ui.common.TabSpec
 import com.personalos.app.ui.common.TabStrip
@@ -107,16 +108,23 @@ private val RADAR_TABS: List<Pair<String, String?>> =
         "Updates" to SmsClass.UPDATES.name,
     )
 
+/** The activity-log tab sits past every category tab: content timelines never see it. */
+internal val radarEventsTabIndex: Int get() = RADAR_TABS.size
+
 @Composable
-fun RadarScreen(modifier: Modifier = Modifier) {
+fun RadarScreen(
+    modifier: Modifier = Modifier,
+    initialTab: Int = 0,
+) {
     val context = LocalContext.current
     val container = LocalAppContainer.current
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
     val scope = rememberCoroutineScope()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val category = RADAR_TABS[selectedTab].second
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, RADAR_TABS.size)) }
+    val isEvents = selectedTab == RADAR_TABS.size
+    val category = if (isEvents) null else RADAR_TABS[selectedTab].second
 
     // Pull feeds once when the screen opens; cached, so repeat opens are cheap.
     LaunchedEffect(Unit) { container.feeds.refresh() }
@@ -131,7 +139,8 @@ fun RadarScreen(modifier: Modifier = Modifier) {
     // Reload the first page when new events land, so the list is live.
     val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
-    LaunchedEffect(category, maxId) {
+    LaunchedEffect(category, maxId, isEvents) {
+        if (isEvents) return@LaunchedEffect
         cursorTs = null
         cursorId = 0L
         endReached = false
@@ -219,52 +228,62 @@ fun RadarScreen(modifier: Modifier = Modifier) {
                 left = "Sync on open ${Chars.MIDDLE_DOT} cached 1h",
                 right = if (category == null) "curated" else "filtered",
             )
-            RadarTabs(dao, selectedTab, onSelect = { selectedTab = it })
+            RadarTabs(database, selectedTab, onSelect = { selectedTab = it })
             FilterRail()
             RadarGlance(dao)
 
-            TimelineHeader(dao, category, shown = visible.size)
+            if (isEvents) {
+                EventsPanel(
+                    database = database,
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                )
+            } else {
+                TimelineHeader(dao, category, shown = visible.size)
 
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-            ) {
-                if (rows.isEmpty()) {
-                    EmptyRadar(Modifier.fillMaxSize())
-                } else {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                        items(
-                            items = rows,
-                            key = { row ->
-                                when (row) {
-                                    is RadarRow.Header -> "d-${row.dayStart}"
-                                    is RadarRow.Item -> "e-${row.event.id}"
-                                }
-                            },
-                        ) { row ->
-                            when (row) {
-                                is RadarRow.Header -> {
-                                    val (label, right) =
-                                        remember(row.dayStart) {
-                                            val l = dayLabel(row.dayStart)
-                                            l to dayLabelRight(l, row.dayStart)
-                                        }
-                                    DayMarker(label = label, right = right)
-                                }
-
-                                is RadarRow.Item -> RadarEventRow(row.event)
-                            }
-                        }
-                        item {
-                            FooterStrip(
-                                if (category == null) {
-                                    "Curated view ${Chars.MIDDLE_DOT} pick a tab, or add a rule, for more"
-                                } else {
-                                    "End of cached events"
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                ) {
+                    if (rows.isEmpty()) {
+                        EmptyRadar(Modifier.fillMaxSize())
+                    } else {
+                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                            items(
+                                items = rows,
+                                key = { row ->
+                                    when (row) {
+                                        is RadarRow.Header -> "d-${row.dayStart}"
+                                        is RadarRow.Item -> "e-${row.event.id}"
+                                    }
                                 },
-                            )
+                            ) { row ->
+                                when (row) {
+                                    is RadarRow.Header -> {
+                                        val (label, right) =
+                                            remember(row.dayStart) {
+                                                val l = dayLabel(row.dayStart)
+                                                l to dayLabelRight(l, row.dayStart)
+                                            }
+                                        DayMarker(label = label, right = right)
+                                    }
+
+                                    is RadarRow.Item -> RadarEventRow(row.event)
+                                }
+                            }
+                            item {
+                                FooterStrip(
+                                    if (category == null) {
+                                        "Curated view ${Chars.MIDDLE_DOT} pick a tab, or add a rule, for more"
+                                    } else {
+                                        "End of cached events"
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -340,20 +359,97 @@ private fun StatColumn(
 
 @Composable
 private fun RadarTabs(
-    dao: EventDao,
+    database: AppDatabase,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
 ) {
+    val dao = database.eventDao()
     val counts =
         RADAR_TABS.map { (_, category) ->
             dao.observeCountByCategory(category).collectAsStateWithLifecycle(initialValue = 0)
         }
+    val eventsCount by database.syncRunDao().observeSourceCount().collectAsStateWithLifecycle(initialValue = 0)
     TabStrip(
-        items = RADAR_TABS.mapIndexed { i, (label, _) -> TabSpec(label, counts[i].value) },
+        items =
+            RADAR_TABS.mapIndexed { i, (label, _) -> TabSpec(label, counts[i].value) } +
+                TabSpec("Events", eventsCount),
         selectedIndex = selectedIndex,
         onSelect = onSelect,
     )
 }
+
+/**
+ * The activity log: latest sync run per source — when it ran, whether it
+ * worked, how many items landed. No bodies, no headlines; content lives under
+ * the other tabs. Empty until the first poll writes a run row.
+ */
+@Composable
+private fun EventsPanel(
+    database: AppDatabase,
+    modifier: Modifier = Modifier,
+) {
+    val runs by database.syncRunDao().observeLatestPerSource().collectAsStateWithLifecycle(initialValue = emptyList())
+    val names by database.sourceDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val nameById = remember(names) { names.associate { it.id to it.name } }
+
+    if (runs.isEmpty()) {
+        Text(
+            text = "No sync runs yet.",
+            style = RadarType.body,
+            color = RadarColors.ink3,
+            modifier = modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+        )
+        return
+    }
+    LazyColumn(state = rememberLazyListState(), modifier = modifier.fillMaxSize()) {
+        items(runs, key = { "run-${it.id}" }) { run ->
+            val label = nameById[run.sourceId] ?: run.sourceId
+            Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .width(3.dp)
+                            .height(28.dp)
+                            .background(if (run.ok) CategoryColors.Teal else CategoryColors.Vermilion),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(text = label, style = RadarType.serifTitle, color = RadarColors.ink, maxLines = 1)
+                        Text(
+                            text = "${run.kind} ${Chars.MIDDLE_DOT} ${syncRunLabel(run.finishedAt)}",
+                            style = RadarType.micro,
+                            color = RadarColors.ink3,
+                            maxLines = 1,
+                        )
+                    }
+                    Text(
+                        text = if (run.ok) "+${run.itemsAdded}" else "FAIL",
+                        style = RadarType.monoStat,
+                        color = if (run.ok) RadarColors.ink else CategoryColors.Vermilion,
+                        maxLines = 1,
+                    )
+                }
+                if (!run.ok && run.error != null) {
+                    Text(
+                        text = run.error,
+                        style = RadarType.microPlain,
+                        color = RadarColors.ink2,
+                        maxLines = 1,
+                        modifier = Modifier.padding(start = 11.dp, top = 2.dp),
+                    )
+                }
+            }
+            SoftRule()
+        }
+        item {
+            FooterStrip("${runs.size} sources ${Chars.MIDDLE_DOT} end of log")
+        }
+    }
+}
+
+private val RUN_FMT = SimpleDateFormat("d MMM HH:mm", Locale.getDefault())
+
+private fun syncRunLabel(finishedAt: Long): String = "SYNCED ${RUN_FMT.format(Date(finishedAt)).uppercase()}"
 
 @Composable
 private fun FilterRail() {
@@ -397,9 +493,30 @@ private fun RadarGlance(dao: EventDao) {
     val incidents by dao
         .observeCountByCategory(FeedCategories.INCIDENT)
         .collectAsStateWithLifecycle(initialValue = 0)
+    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
     val container = LocalAppContainer.current
-    val fxFlow = remember(container) { container.fx.observe() }
-    val rates by fxFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val context = LocalContext.current
+    val database = remember { AppDatabase.getInstance(context) }
+    // FX watch reads the store like the M&M tile; empty store shows "--".
+    var rates by remember { mutableStateOf<List<com.personalos.app.core.model.FxRate>>(emptyList()) }
+    LaunchedEffect(maxId) {
+        val specs =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "fx" }
+                .mapNotNull { row ->
+                    runCatching {
+                        val spec =
+                            com.personalos.app.core.sources.SourceSpecs
+                                .parse(row.kind, row.specJson)
+                                as com.personalos.app.core.sources.FxSpec
+                        spec.pair to
+                            com.personalos.app.core.sources.SourceKeys
+                                .sourceFor(row.id, spec)
+                    }.getOrNull()
+                }
+        rates = container.observationRepository.fxRates(specs)
+    }
     val glanceFlow = remember(container) { container.glance.observe() }
     val glance by glanceFlow.collectAsStateWithLifecycle(initialValue = null)
 

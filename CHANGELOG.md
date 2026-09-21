@@ -7,6 +7,152 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(calendar): pick a region to follow
+
+_2026-09-21_
+
+
+Regions were unreachable: the adapter could sync, but nothing could tell it what to sync. Sources gains a Calendars section that writes a source of kind calendar, the same shape as a feed, so Settings stays the only writer and no region is a literal in code - japan and india/west-bengal are the same string shape.
+
+A region is checked against the provider before it is stored: the feed must parse to at least one dated row, so a typo fails at add time instead of syncing nothing forever. Regions can be disabled or deleted, and a user row is the only kind the repository will touch.
+
+Adds PRD 0001 (docs/prd), which fixes the scope this serves: both world dates and personal ones; timed and recurring events with custom intervals (every 6 months, every 2 years, leap-day birthdays); plans as intents with a leave optimiser that ranks windows by leave cost across two regions; peak-window inference instead of invented prices; and a named RRULE subset rather than full RFC 5545.
+
+Verified: 569 tests, assembleDebug, ktlintCheck.
+
+## docs: record the search design (v19 FTS5, bundled driver)
+
+_2026-09-21_
+
+
+The search feature landed inside 72ec477, which was committed under a fix subject because the same files were being edited; this records what that commit actually contained. ARCHITECTURE.md gains 11.7: why the bundled SQLite driver is required (the platform library has no FTS5, verified by grepping the pulled libsqlite.so), why the index is FTS5 external-content with the trigram tokenizer (the requirement is infix: rtel must find airtel), why sync is done with triggers rather than app code, why queries are scoped to SMS in SQL while the index stays global, and why MigrationSchemaTest must assert the virtual table and triggers itself, since Room cannot export or validate either.
+
+It also records the trap that only showed on device: with a driver set, Room dispatches to Migration.migrate(SQLiteConnection), whose base implementation throws. A factory overriding only migrate(SupportSQLiteDatabase) passes the JVM schema test and crashes on the first real migration; Migrations.kt now overrides both.
+
+## fix(messages): swipe and cancel in search results
+
+_2026-09-21_
+
+
+Search results rendered MessageRow directly, so a result could not be swiped while the same message could be in the stream. Results now render through SwipeableMessageRow like everything else, and both lists share one pair of toggleSave/deleteMessage helpers so an action can never apply to one list and silently miss the other - a search result is a message, not a read-only copy of the row.
+
+Adds a cancel X to the search field: one tap drops the query, the results and the field, so leaving search never needs two. SearchField gains an optional trailing slot, so existing callers are untouched, and Glyph.Close joins the drawn set.
+
+Verified: 563 tests, assembleDebug, ktlintCheck.
+
+## feat(messages): delete the app's stored copy
+
+_2026-09-21_
+
+
+Swipe now reveals two actions: SAVE/UNSAVE and DELETE. DELETE removes the app's stored copy - the event plus its tags, mentions, typed fields and rule matches - and nothing else: the message on the device is untouched, and offering to remove that too (WhatsApp's delete-for-everyone) is a separate capability behind its own permission and confirmation, not a swipe. It is effectively permanent for that message because SmsSource holds a high-water mark, so it is not re-read; the one exception is resetMarkIfTableIsEmpty if the whole events table ever empties.
+
+Dependents are deleted by item_id before the event row, the same order the schema migrations use, so a partial failure cannot orphan rows. The sidecar deletes run unconditionally because they are idempotent. Adds a drawn Trash glyph to the flat set.
+
+Verified: 537 tests, assembleDebug, ktlintCheck.
+
+## fix(messages): reveal-actions swipe, bookmark glyph
+
+_2026-09-21_
+
+
+The swipe did nothing: SwipeToDismissBox only fires confirmValueChange once the drag crosses its default threshold (half the row), so an ordinary swipe sprang back silently and no save was ever written - confirmed by zero rows carrying a stamp on the device. Replaced with an explicit reveal: the row slides left, stays open at a fixed reveal width, and closes only after you tap the action, so the movement is the receipt and the action is visible before you press it.
+
+Adds a drawn Bookmark/BookmarkFilled glyph to the flat set (ribbon with a notch) instead of a plus sign: outline when it can be saved, solid when it is. Also fixes the saved marker on the row, which was using the stack glyph.
+
+Verified: 534 tests, assembleDebug, ktlintCheck.
+
+## feat(messages): saved tab and swipe-to-save
+
+_2026-09-21_
+
+
+Messages gains a Saved tab. The tab strip is now data (MessagesTab) rather than four literals and a when(): four tabs filter SMS by box, Saved is not a box at all (mode() == null means it reads bookmarked rows ordered by save stamp), so the screen carries no special case of its own and the strip cannot disagree with the loader.
+
+Rows swipe left to save or unsave. The swipe acts and snaps back rather than dismissing - the item is not going away, its saved state is changing, and a row that vanished would read as a delete. Unsaving from inside the Saved view drops the row, since it no longer belongs there. A saved row also marks itself next to its state chip.
+
+Verified: 534 tests, assembleDebug, ktlintCheck.
+
+## feat(watchers,saved): rule-fire feed and item bookmarks
+
+_2026-09-21_
+
+
+Watchers: a fire now says what matched, not just that it fired. MatchedClauses reports the clauses that held with the stored value that satisfied them (temp_c 40.2 > 40), built from RuleWriter.itemsFor so the reason uses the same facts ingest evaluated. A narrow RuleFireDao carries the feed's two reads - putting them on EventDao/ItemRuleDao would have added two methods to six unrelated test fakes. A rule whose condition_json is unreadable now still reports its fires, without a reason, instead of silently dropping them (that was a red test). Watchers screen orders recently-fired first, never-fired last, and the Watchers/Alerts tiles now open it.
+
+Saved: bookmarks are a stamp on the item (events.bookmarked_at, v18), not a side table - 1:0..1 rides along in every list read and needs no join. Nullable with no DEFAULT and a plain declared index: Room and MigrationSchemaTest both compare the index set, so a partial index living only in the migration would fail validation on open. Toggle rule is pure core (nextBookmark/isSaved), tested first, including that a stamp of 0 is a save. Saved reads page on the save stamp, not publish time.
+
+Verified: 530 tests, assembleDebug, ktlintCheck.
+
+## fix(adapters): one fetch window for weather, fx and calendar
+
+_2026-09-21_
+
+
+The store-backed adapters were written with a bare Http fetch, so they bypassed the caching the providers already had: weather and fx fetched on every refresh (hourly worker, every screen open, every sync), and the three fx pair sources each fetched the identical URL - 1 request per 6h became 3 per refresh.
+
+CachedBody restores the window in one place: inside it a stored body is served, outside it fetches and stores, and a failed fetch serves the stale body. Weather and fx read through the providers' own cache keys and windows, so the adapters and WeatherProvider.observe() share one cached body and cannot disagree; one fx body feeds all three pairs. Calendar (new, no provider) uses the same window at a monthly cadence.
+
+Removes the half-applied defaultIntervalSec abstraction: fetch frequency belongs to the fetch, not a second mechanism in the dispatcher. Adds FetchRateProofTest, which failed before this change (2 fetches for two ingests 1ms apart; 3 for three pair sources) and now asserts 1 and 1.
+
+Verified: 499 tests, assembleDebug, ktlintCheck.
+
+## feat(calendar): ics reader and calendar storage
+
+_2026-09-21_
+
+
+Schema v17 adds calendar_dates keyed by feed uid, indexed by (region, starts_at) for next-N-days reads. The ICS reader is pure core/calendar: unfolds continuation lines, unescapes text, reads DTSTART/SUMMARY/UID, and derives national vs regional scope from the uid. Verified against the OfficeHolidays India and West Bengal feeds: Nager.Date returns 204 for India and the date-holidays dataset carries only five fixed Indian dates, so the feed adapter is the source. Travel UI and the fetch adapter come next.
+
+## feat(ui): compact counts, scrollable tabs, deduped sources
+
+_2026-09-20_
+
+
+Counts above a thousand read as 1.50K/2.40M in headers, tabs and glances. TabStrip scrolls horizontally and keeps the selected tab in view, so nine tabs fit. Sources gains a per-kind Sync activity section from sync_runs, lists only user feeds (seeded rows are the catalog feed list above), and folds By tag/By source under one Inventory header.
+
+## feat(radar): sync activity log with Events tab
+
+_2026-09-19_
+
+
+Schema v16 adds sync_runs: one row per source per poll with outcome, item count and error, pruned to 30 days. Feed, SMS and gauge ingest all record runs through one SyncRecorder seam. Radar gains an Events tab reading latest-run-per-source with per-source names, while All and its counts exclude observations. Home Events-24h stat navigates to the Events tab via a tab preselect route.
+
+## fix(tiles): sms-scoped messages, sync labels, instant news open
+
+_2026-09-18_
+
+
+Messages queries scope to source sms in every mode, so feeds and observations can never appear in the inbox. Weather, Money, News and Forecast headers show the last sync time or NOT SYNCED YET. News opens from the store first and refreshes behind it instead of blocking first paint on a full poll. Seeds all three bundled weather places.
+
+## feat(weather): code-first condition glyphs from stored weather_code
+
+_2026-09-18_
+
+
+WeatherCondition gains Fog/Drizzle/Showers/Snow bands driven by the stored WMO weather_code, with rain-chance bands as fallback when no code exists. WeatherDay carries the code from both the provider parse and the store week read; the strip cell shows the code's glyph and label. Tint groups stay in-palette with the grouping asserted explicitly.
+
+## feat(weather,fx): store-backed forecast week and FX everywhere
+
+_2026-09-18_
+
+
+Wide observation set: current rows carry temp_c, rain_mm, humidity_pct, wind_kmh and weather_code; each forecast day is a keyed weather:<slug>:fc:<date> row with temp_max_c, temp_min_c, rain_chance and weather_code. One fetch writes current plus the 7-day week. FX derives all pairs from one USD-base reply via crosses and seeds eur/gbp alongside usd. Weather week, Forecast detail, Money cells, Home glance and Radar glance all read ObservationRepository with honest placeholders; SYNC runs the gauge adapters. SMS/RSS/Topics fetch, tagging, item rules and condition parsing unchanged.
+
+## feat(catalog): observations, adapters, series dispatch and store-backed tiles
+
+_2026-09-17_
+
+
+Completes ADR 0005 T6-T20. Schema v15 adds kinds/facets/kind_facets with add-only CatalogSeeder and CatalogStore (instance-gated). kinds are strings: SourceSpec opens up with sms/weather/fx/device specs, KindAdapter registry owns parse and identity (Topics stays gnews:slug, unbound kinds skip), SourceSeeder gains sms/weather/fx/device rows. Gauges write observations upsert-by-bucket with gauge-only field replace; counters keep IGNORE freeze. SeriesEvaluator gains timestamped points with retention/gap/boundary honesty; RuleWriter dispatches item vs series and dry-runs series; previewer previews series drafts. DraftCompiler plus ConditionStringify make authoring catalog-driven; rule-seed guard checks the catalog. Weather strip and FX cells read ObservationRepository with honest placeholders; enricher skips observations. Fetch and tagging paths unchanged.
+
+## feat(catalog): facet catalog and typed measures core
+
+_2026-09-17_
+
+
+Adds pure core/catalog: Facet/Kind/Catalog, InMemoryCatalog union and fail-closed seeds, OpMatrix type x measure with reserved ops loud-fail, FacetCompiler to frozen Condition leaves, CatalogSeeds day-one kinds, and pure core/rules SeriesEvaluator with edge-not-level crossing. UI untouched; fetch/tag paths unchanged.
+
 ## docs(adr): kinds, instances and declared keys — and why services are not providers
 
 _2026-09-17_

@@ -42,7 +42,7 @@ data class WeatherLocation(
 class OpenMeteoWeatherProvider(
     private val locations: List<WeatherLocation>,
     private val cache: StringCache,
-    private val refreshAfterMs: Long = DEFAULT_REFRESH_MS,
+    private val refreshAfterMs: Long = REFRESH_MS,
 ) : WeatherProvider {
     override fun observe(): Flow<List<WeatherSnapshot>> =
         flow {
@@ -111,6 +111,7 @@ class OpenMeteoWeatherProvider(
         val maxima = daily["temperature_2m_max"]?.jsonArray ?: return emptyList()
         val minima = daily["temperature_2m_min"]?.jsonArray ?: return emptyList()
         val rain = daily["precipitation_probability_max"]?.jsonArray
+        val codes = daily["weather_code"]?.jsonArray
 
         return dates.mapIndexed { index, date ->
             WeatherDay(
@@ -118,6 +119,7 @@ class OpenMeteoWeatherProvider(
                 maxC = maxima.getOrNull(index).asDouble()?.roundToInt() ?: 0,
                 minC = minima.getOrNull(index).asDouble()?.roundToInt() ?: 0,
                 rainChance = rain?.getOrNull(index).asInt() ?: 0,
+                weatherCode = codes?.getOrNull(index)?.asInt(),
             )
         }
     }
@@ -156,7 +158,8 @@ class OpenMeteoWeatherProvider(
 
     private fun key(location: WeatherLocation) = keyFor(location.name)
 
-    private fun keyFor(name: String) = "weather:$name"
+    /** Shared with the observation adapter, so both read one cached body. */
+    private fun keyFor(name: String) = cacheKey(name)
 
     private fun fetch(location: WeatherLocation): String {
         val url =
@@ -219,9 +222,17 @@ class OpenMeteoWeatherProvider(
             lon = location.lon,
         )
 
-    private companion object {
-        const val TAG = "Weather"
-        const val FORECAST_DAYS = 7
-        const val DEFAULT_REFRESH_MS = 6L * 60 * 60 * 1000
+    companion object {
+        private const val TAG = "Weather"
+        private const val FORECAST_DAYS = 7
+
+        /**
+         * Refresh window, in ms. The observation adapter reads through the same
+         * window and the same cache key, so a place is fetched once per window
+         * no matter how many readers ask for it.
+         */
+        const val REFRESH_MS = 6L * 60 * 60 * 1000
+
+        fun cacheKey(place: String) = "weather:$place"
     }
 }

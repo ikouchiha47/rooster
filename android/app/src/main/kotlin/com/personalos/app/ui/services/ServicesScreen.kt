@@ -116,13 +116,14 @@ fun ServicesScreen(
                             items = group.tiles,
                             onTile = { tile ->
                                 when (tile.name) {
-                                    "Radar" -> onNavigate(Destination.Radar)
+                                    "Radar" -> onNavigate(Destination.Radar())
                                     "News" -> onNavigate(Destination.News)
                                     "RSS" -> onNavigate(Destination.Rss)
                                     "M&M" -> onNavigate(Destination.Money)
                                     "Weather" -> onNavigate(Destination.Weather)
                                     "Sources" -> onNavigate(Destination.Sources)
                                     "Settings" -> onNavigate(Destination.Settings)
+                                    "Watchers", "Alerts" -> onNavigate(Destination.Watchers)
                                     else -> onNavigate(Destination.Placeholder(tile.name))
                                 }
                             },

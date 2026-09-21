@@ -20,10 +20,16 @@ object Sql {
     const val EVENTS_DISTINCT_FEED_SOURCES =
         "SELECT COUNT(DISTINCT source) FROM events WHERE source LIKE 'rss:%'"
 
+    /**
+     * Messages is SMS: every branch is scoped to `source = 'sms'` (the SMS
+     * adapter's identity), so feeds, observations and any future event kind
+     * can never leak into the inbox. An allowlist, not a denylist.
+     */
     const val EVENTS_COUNT_BY_MODE =
         """
         SELECT COUNT(*) FROM events
-        WHERE (:mode = 'all'
+        WHERE source = 'sms'
+          AND (:mode = 'all'
                OR (:mode = 'inbox' AND type = 'inbox')
                OR (:mode = 'sent'  AND type = 'sent')
                OR (:mode = 'other' AND type NOT IN ('inbox', 'sent')))
@@ -31,10 +37,12 @@ object Sql {
 
     const val EVENTS_MAX_ID = "SELECT MAX(id) FROM events"
 
+    /** Messages is SMS — see [EVENTS_COUNT_BY_MODE]. */
     const val EVENTS_PAGE_BY_MODE =
         """
         SELECT * FROM events
-        WHERE (:mode = 'all'
+        WHERE source = 'sms'
+          AND (:mode = 'all'
                OR (:mode = 'inbox' AND type = 'inbox')
                OR (:mode = 'sent'  AND type = 'sent')
                OR (:mode = 'other' AND type NOT IN ('inbox', 'sent')))
@@ -45,8 +53,16 @@ object Sql {
         LIMIT :limit
         """
 
+    /**
+     * The wall (null category) never shows gauge observations — readings and
+     * forecast days live in the Events tab, not the timeline. Category tabs
+     * are unaffected: no observation carries their category.
+     */
     const val EVENTS_COUNT_BY_CATEGORY =
-        "SELECT COUNT(*) FROM events WHERE (:category IS NULL OR category = :category)"
+        """
+        SELECT COUNT(*) FROM events
+        WHERE ((:category IS NULL AND type != 'observation') OR (category = :category))
+        """
 
     const val EVENTS_COUNT_BY_SOURCE =
         """
@@ -55,10 +71,11 @@ object Sql {
         ORDER BY count DESC
         """
 
+    /** The wall excludes observations — see [EVENTS_COUNT_BY_CATEGORY]. */
     const val EVENTS_RADAR_PAGE =
         """
         SELECT * FROM events
-        WHERE (:category IS NULL OR category = :category)
+        WHERE ((:category IS NULL AND type != 'observation') OR (category = :category))
           AND (:cursorTs IS NULL
                OR timestamp < :cursorTs
                OR (timestamp = :cursorTs AND id < :cursorId))
@@ -96,6 +113,29 @@ object Sql {
         SELECT COUNT(1) FROM events e
         JOIN item_tags_current t ON t.item_id = e.ulid
         WHERE t.tag = :tag
+        """
+
+    /**
+     * Tag timelines show editorial items, never gauge observations: an
+     * observation carries its topic tag so rules can match it, but
+     * `weather:bengaluru:fc:2026-09-18` is not news. Display decision, so it
+     * lives in the query the tiles call, not in the tagger.
+     */
+    const val EVENTS_BY_TAG_PAGE_ITEMS =
+        """
+        SELECT e.*,
+               (SELECT GROUP_CONCAT(t2.tag)
+                FROM item_tags_current t2
+                WHERE t2.item_id = e.ulid) AS tags
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.type != 'observation'
+          AND (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND e.id < :cursorId))
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
         """
 
     /**
@@ -222,6 +262,7 @@ object Sql {
         SELECT id, ulid, url, content, source, title
         FROM events
         WHERE url IS NOT NULL
+          AND type != 'observation'
           AND enriched_at IS NULL
           AND LENGTH(TRIM(content)) < 40
         ORDER BY timestamp DESC
@@ -378,8 +419,105 @@ object Sql {
     /** Guarded: only user rows delete. Returns rows removed. */
     const val RULES_DELETE_USER_ONLY = "DELETE FROM rules WHERE id = :id AND seeded = 0"
 
+    // --------------------------------------------------------- removal
+    // Removing the app's stored copy of an item. Dependents are deleted by
+    // `item_id` (= events.ulid) before the event row, the same order the schema
+    // migrations use, so a partial failure cannot orphan rows.
+    //
+    // This touches **only the app's copy**: the message on the device is
+    // untouched, and offering to remove that too (WhatsApp's "also delete for
+    // everyone") is a separate capability, deliberately not built.
+    const val DELETE_ITEM_TAGS_BY_ITEM = "DELETE FROM item_tags WHERE item_id = :itemId"
+
+    const val DELETE_MENTIONS_BY_ITEM = "DELETE FROM mentions WHERE item_id = :itemId"
+
+    const val DELETE_ITEM_FIELDS_BY_ITEM = "DELETE FROM item_fields WHERE item_id = :itemId"
+
+    const val DELETE_ITEM_RULES_BY_ITEM = "DELETE FROM item_rules WHERE item_id = :itemId"
+
+    const val DELETE_EVENT_BY_ULID = "DELETE FROM events WHERE ulid = :ulid"
+
+    // ---------------------------------------------------------------- saved
+    // Bookmarks are a stamp on the item (1:0..1), so these are plain event
+    // reads and one update — no join. `source` null means every saved item.
+    const val EVENT_BY_ULID = "SELECT * FROM events WHERE ulid = :ulid LIMIT 1"
+
+    const val EVENTS_SET_BOOKMARK =
+        "UPDATE events SET bookmarked_at = :bookmarkedAt WHERE ulid = :ulid"
+
+    /**
+     * Saved items, newest save first, keyset-paged on the **save stamp** rather
+     * than the publish time — the Saved view is ordered by when you saved, and
+     * `bookmarked_at IS NOT NULL` rides the index declared on the entity.
+     */
+    const val EVENTS_SAVED =
+        """
+        SELECT * FROM events
+        WHERE bookmarked_at IS NOT NULL
+          AND (:source IS NULL OR source = :source)
+          AND (:cursor IS NULL OR bookmarked_at < :cursor)
+        ORDER BY bookmarked_at DESC
+        LIMIT :limit
+        """
+
+    const val EVENTS_SAVED_COUNT =
+        """
+        SELECT COUNT(*) FROM events
+        WHERE bookmarked_at IS NOT NULL AND (:source IS NULL OR source = :source)
+        """
+
+    // ------------------------------------------------------------ messages search
+    // The FTS5 trigram index over `events(title, content)` created by the v19
+    // migration (see MIGRATION_18_19_STATEMENTS). Only Messages calls these, and
+    // both are scoped to `source = 'sms'` exactly like every other Messages read,
+    // so search can never surface a feed item - there is no global search.
+    //
+    // `:match` is an FTS expression built and quoted in `core/search`, bound as a
+    // parameter, never raw input. `events_fts.rank` orders best textual match
+    // first (FTS5's BM25); the JOIN drives off the FTS index rowid.
+    const val EVENTS_SEARCH_MATCH =
+        """
+        SELECT e.* FROM events e
+        JOIN events_fts ON events_fts.rowid = e.id
+        WHERE events_fts MATCH :match AND e.source = 'sms'
+        ORDER BY events_fts.rank
+        LIMIT :limit
+        """
+
+    /**
+     * The fallback for inputs the trigram index cannot serve (a term shorter
+     * than three characters): a plain sub-string scan over the same two
+     * columns, still SMS-only. `:pattern` is escaped and wrapped in `%` by
+     * `core/search`; `ESCAPE '\'` is what makes a literal `%` or `_` in the
+     * user's text a literal rather than a wildcard.
+     */
+    const val EVENTS_SEARCH_LIKE =
+        """
+        SELECT * FROM events
+        WHERE source = 'sms'
+          AND (title LIKE :pattern ESCAPE '\' OR content LIKE :pattern ESCAPE '\')
+        ORDER BY timestamp DESC, id DESC
+        LIMIT :limit
+        """
+
     // -------------------------------------------------------------- item_rules
     const val ITEM_RULES_ALL = "SELECT * FROM item_rules"
+
+    /**
+     * A rule's fires, newest first — the Watchers feed. Reads the
+     * `(rule_id, item_id)` index; `LIMIT` is always supplied, so this can never
+     * walk the table.
+     */
+    const val ITEM_RULES_FOR_RULE =
+        """
+        SELECT * FROM item_rules
+        WHERE rule_id = :ruleId
+        ORDER BY matched_at DESC
+        LIMIT :limit
+        """
+
+    /** Every item's stored facts at once, so one fire batch costs one read per table. */
+    const val EVENTS_BY_ULIDS = "SELECT * FROM events WHERE ulid IN (:ulids)"
 
     // ------------------------------------------------------------- item_fields
     // ADR 0003 §13: typed extras materialised one row per (item, name), indexed
@@ -388,4 +526,99 @@ object Sql {
 
     /** One batched read for a batch of items: callers pass the items' ulids. */
     const val ITEM_FIELDS_FOR_ITEMS = "SELECT * FROM item_fields WHERE item_id IN (:itemIds)"
+
+    /**
+     * ADR 0005 T15: the series window read — last N samples for one
+     * source + field, newest first, over the indexed `(events.source,
+     * item_fields.name)` shape. Capped, never a full scan.
+     */
+    const val SERIES_WINDOW =
+        """
+        SELECT f.value_num, e.timestamp
+        FROM item_fields f
+        JOIN events e ON e.ulid = f.item_id
+        WHERE e.source = :sourceId AND f.name = :field
+        ORDER BY e.timestamp DESC
+        LIMIT :limit
+        """
+
+    /** ADR 0005 T19: latest observation per identity for tiles. */
+    const val LATEST_OBSERVATION_BY_SOURCE =
+        """
+        SELECT e.* FROM events e
+        WHERE e.source = :sourceId AND e.type = 'observation'
+        ORDER BY e.timestamp DESC
+        LIMIT 1
+        """
+
+    /** ADR 0005 T19: latest observations for a set of identities. */
+    const val LATEST_OBSERVATIONS_BY_SOURCES =
+        """
+        SELECT e.* FROM events e
+        WHERE e.source IN (:sourceIds) AND e.type = 'observation'
+        ORDER BY e.timestamp DESC
+        """
+
+    /**
+     * Forecast week: every `weather:<slug>:fc:<date>` row, oldest date first.
+     * Exact-identity reads (`latestObservation`) can never collide with these —
+     * the `:fc:` segment keeps the namespaces apart.
+     */
+    const val OBSERVATIONS_BY_PREFIX =
+        """
+        SELECT e.* FROM events e
+        WHERE e.source LIKE :prefix || '%' AND e.type = 'observation'
+        ORDER BY e.source ASC
+        """
+
+    /** ADR 0005 T8/T17: gauge upsert-by-bucket needs the row for a dedupe key. */
+    const val EVENT_BY_DEDUPE_KEY = "SELECT * FROM events WHERE dedupe_key = :dedupeKey LIMIT 1"
+
+    const val EVENT_UPDATE_OBSERVATION =
+        "UPDATE events SET timestamp = :timestamp, title = :title, content = :content WHERE ulid = :ulid"
+
+    // --------------------------------------------------------------- sync_runs
+    // The activity log behind the Radar Events tab: one row per sync run per
+    // source, so a quiet poll and a crashed poll never look the same.
+    const val SYNC_RUNS_LATEST_PER_SOURCE =
+        """
+        SELECT * FROM sync_runs
+        WHERE id IN (SELECT MAX(id) FROM sync_runs GROUP BY source_id)
+        ORDER BY finished_at DESC
+        """
+
+    const val SYNC_RUNS_FOR_SOURCE =
+        """
+        SELECT * FROM sync_runs
+        WHERE source_id = :sourceId
+        ORDER BY finished_at DESC
+        LIMIT :limit
+        """
+
+    const val SYNC_RUNS_SOURCE_COUNT = "SELECT COUNT(DISTINCT source_id) FROM sync_runs"
+
+    const val SYNC_RUNS_PRUNE = "DELETE FROM sync_runs WHERE finished_at < :cutoffMs"
+
+    // ------------------------------------------------------------ calendar
+    // Dated observances from calendar feeds. `starts_at` is indexed, so
+    // "next N days for these regions" is a range scan, never a table walk.
+    const val CALENDAR_UPCOMING =
+        """
+        SELECT * FROM calendar_dates
+        WHERE region IN (:regions) AND starts_at >= :fromMs AND starts_at <= :toMs
+        ORDER BY starts_at ASC, name ASC
+        """
+
+    const val CALENDAR_COUNT = "SELECT COUNT(*) FROM calendar_dates"
+
+    const val CALENDAR_DELETE_STALE =
+        "DELETE FROM calendar_dates WHERE source = :source AND fetched_at < :fetchedBefore"
+
+    // ----------------------------------------------------------------- catalog
+    // ADR 0005 T6: producer descriptors as data. Add-only like sources/rules.
+    const val KINDS_ALL = "SELECT * FROM kinds"
+
+    const val FACETS_ALL = "SELECT * FROM facets"
+
+    const val KIND_FACETS_ALL = "SELECT * FROM kind_facets"
 }

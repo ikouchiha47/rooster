@@ -122,6 +122,16 @@ class RuleWriterTest {
         override suspend fun forItem(itemId: String): List<ItemFieldEntity> = emptyList()
 
         override suspend fun forItems(itemIds: List<String>): List<ItemFieldEntity> = emptyList()
+
+        override suspend fun replaceAll(fields: List<ItemFieldEntity>) = Unit
+
+        override suspend fun deleteForItem(itemId: String) = Unit
+
+        override suspend fun seriesWindow(
+            sourceId: String,
+            field: String,
+            limit: Int,
+        ): List<SeriesSample> = emptyList()
     }
 
     private class FieldsByItem(

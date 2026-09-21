@@ -59,6 +59,8 @@ class SmsSource(
      * rule can match (ADR §10, R2).
      */
     private val ruleWriter: RuleWriter,
+    /** Every ingest writes one run row, so the Events tab sees SMS like any source. */
+    private val syncRecorder: SyncRecorder = NoOpSyncRecorder,
 ) : LifecycleObserver,
     SmsIngest {
     companion object {
@@ -112,6 +114,7 @@ class SmsSource(
 
     override suspend fun ingestNewMessages(): Int =
         withContext(Dispatchers.IO) {
+            val started = System.currentTimeMillis()
             resetMarkIfTableIsEmpty()
             tagWriter.ensureActive()
 
@@ -119,10 +122,12 @@ class SmsSource(
             val messages = reader.messagesAfter(since)
             if (messages == null) {
                 Log.i(TAG, "SmsSource: no SMS access")
+                syncRecorder.record(SyncRun(SOURCE_ID, "sms", started, System.currentTimeMillis(), false, 0, "no SMS access"))
                 return@withContext 0
             }
             if (messages.isEmpty()) {
                 Log.i(TAG, "SmsSource: no new SMS (lastSeenId=$since)")
+                syncRecorder.record(SyncRun(SOURCE_ID, "sms", started, System.currentTimeMillis(), true, 0, null))
                 return@withContext 0
             }
 
@@ -190,6 +195,7 @@ class SmsSource(
             lastSeenId = maxId
             mark.write(maxId)
             Log.i(TAG, "SmsSource: ingested $newCount new SMS (scanned ${events.size}, lastSeenId=$maxId)")
+            syncRecorder.record(SyncRun(SOURCE_ID, "sms", started, System.currentTimeMillis(), true, newCount, null))
             newCount
         }
 

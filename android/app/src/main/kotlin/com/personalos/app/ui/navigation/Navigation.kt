@@ -35,6 +35,7 @@ import com.personalos.app.ui.services.ServicesScreen
 import com.personalos.app.ui.settings.SettingsScreen
 import com.personalos.app.ui.sources.SourcesScreen
 import com.personalos.app.ui.wallet.WalletScreen
+import com.personalos.app.ui.watchers.WatchersScreen
 import com.personalos.app.ui.weather.ForecastScreen
 import com.personalos.app.ui.weather.WeatherScreen
 
@@ -47,7 +48,10 @@ sealed interface Destination {
 
     data object Messages : Destination
 
-    data object Radar : Destination
+    /** Radar timeline; [initialTab] preselects a tab (the Events tab from Home). */
+    data class Radar(
+        val initialTab: Int = 0,
+    ) : Destination
 
     data object News : Destination
 
@@ -58,6 +62,9 @@ sealed interface Destination {
     data object Weather : Destination
 
     data object Sources : Destination
+
+    /** Rule fires with what matched, and (later) delivery/quotas. */
+    data object Watchers : Destination
 
     data object Settings : Destination
 
@@ -91,12 +98,13 @@ private fun routeFor(destination: Destination): String =
         is Destination.Rules -> "rules"
         is Destination.Services -> "services"
         is Destination.Messages -> "messages"
-        is Destination.Radar -> "radar"
+        is Destination.Radar -> "radar?tab=${destination.initialTab}"
         is Destination.News -> "news"
         is Destination.Rss -> "rss"
         is Destination.Money -> "money"
         is Destination.Weather -> "weather"
         is Destination.Sources -> "sources"
+        is Destination.Watchers -> "watchers"
         is Destination.Settings -> "settings"
         is Destination.Wallet -> "wallet"
         is Destination.Me -> "me"
@@ -145,7 +153,18 @@ fun AppNavHost(
         }
         composable("services") { ServicesScreen(onNavigate = { openFromGrid(navController, it) }) }
         composable("messages") { MessagesScreen() }
-        composable("radar") { RadarScreen() }
+        composable(
+            route = "radar?tab={tab}",
+            arguments =
+                listOf(
+                    navArgument("tab") {
+                        type = NavType.IntType
+                        defaultValue = 0
+                    },
+                ),
+        ) { entry ->
+            RadarScreen(initialTab = entry.arguments?.getInt("tab") ?: 0)
+        }
         composable("news") {
             NewsScreen(
                 onNavigate = { navigateToDetail(navController, it) },
@@ -178,6 +197,7 @@ fun AppNavHost(
             )
         }
         composable("sources") { SourcesScreen() }
+        composable("watchers") { WatchersScreen(onBack = backOrNull(navController)) }
         composable("settings") { SettingsScreen(onBack = backOrNull(navController)) }
         composable("wallet") { WalletScreen() }
         composable("me") { MeScreen() }

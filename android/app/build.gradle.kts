@@ -81,6 +81,13 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.1")
     ksp("androidx.room:room-compiler:2.8.1")
 
+    // Bundled SQLite, not the platform's. The platform library has FTS3/FTS4 but
+    // no FTS5, and the trigram tokenizer that gives Messages search its infix
+    // matching only ships with FTS5. This payload is SQLite 3.50.1; Room opens
+    // it through BundledSQLiteDriver (see AppDatabase), so every connection in
+    // the app - migration, ingest, search - is FTS5-capable.
+    implementation("androidx.sqlite:sqlite-bundled:2.7.1")
+
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
     // ULID: stable, sortable, collision-free-offline ids (docs/ARCHITECTURE.md §11.1)

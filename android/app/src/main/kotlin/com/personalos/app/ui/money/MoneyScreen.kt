@@ -57,6 +57,7 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.TagLine
 import com.personalos.app.ui.common.WidgetHeader
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.common.groupIntoDays
@@ -114,16 +115,40 @@ fun MoneyScreen(
     // means for data that is already cached.
     var reload by remember { mutableStateOf(0) }
 
-    val rates by
-        remember(reload) { container.fx.observe() }
-            .collectAsStateWithLifecycle(initialValue = emptyList())
+    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
+
+    // ADR 0005 T19: FX cells read the store. Pairs come from enabled fx
+    // sources; numbers come from the latest observation per identity. Empty
+    // store renders the existing honest empty, never a borrowed cache value.
+    var rates by remember { mutableStateOf<List<FxRate>>(emptyList()) }
+    LaunchedEffect(maxId, reload) {
+        val fxSources =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "fx" }
+        val specs =
+            fxSources.mapNotNull { row ->
+                runCatching {
+                    val spec =
+                        com.personalos.app.core.sources.SourceSpecs
+                            .parse(row.kind, row.specJson)
+                            as com.personalos.app.core.sources.FxSpec
+                    spec to
+                        com.personalos.app.core.sources.SourceKeys
+                            .sourceFor(row.id, spec)
+                }.getOrNull()
+            }
+        rates =
+            container.observationRepository.fxRates(
+                specs.map { (spec, identity) -> spec.pair to identity },
+            )
+    }
 
     var news by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
     var financeMentions by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
-    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
     LaunchedEffect(maxId, reload) {
-        val page = dao.pageByTag(Tags.FINANCE, null, 0L, FINANCE_NEWS_LIMIT)
+        val page = dao.pageByTagItems(Tags.FINANCE, null, 0L, FINANCE_NEWS_LIMIT)
         news = page
         // Same one-batched-read-per-page shape as News: the timeline renders
         // first, mentions fill the meta lines without moving row heights.
@@ -174,6 +199,8 @@ fun MoneyScreen(
             .collect { (index, offset) -> if (index == 0 && offset == 0) pendingNews = 0 }
     }
 
+    val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+
     TileScaffold(
         config = MONEY_TILE,
         modifier = modifier,
@@ -181,7 +208,7 @@ fun MoneyScreen(
         onBack = onBack,
         header = {
             Text(
-                text = "${rates.size} PAIRS",
+                text = "${compactNumber(rates.size)} PAIRS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
                 style = RadarType.micro,
                 color = RadarColors.paper4,
             )
@@ -192,6 +219,7 @@ fun MoneyScreen(
                     scope.launch {
                         container.sync.run("money") {
                             container.sync.step("refreshing rates")
+                            runCatching { container.feeds.refresh(force = true) }
                             reload++
                             container.sync.step("done: ${rates.size} pairs")
                         }
@@ -573,6 +601,16 @@ private fun moneyTitleBlockHeight(): Dp =
  * number, this owns how it reads. Pure, so it is unit-tested without composing.
  */
 internal fun formatFxRate(rate: FxRate): String = "%.2f".format(rate.rate)
+
+private val SYNC_FMT = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault())
+
+/** When the store was last filled: a date, or the honest absence of one. */
+private fun syncLabel(lastSync: Long): String =
+    if (lastSync <= 0L) {
+        "NOT SYNCED YET"
+    } else {
+        "SYNCED ${SYNC_FMT.format(java.util.Date(lastSync)).uppercase()}"
+    }
 
 /**
  * Search over the loaded finance page: blank matches everything, otherwise the

@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,6 +58,7 @@ import com.personalos.app.ui.common.TileGrid
 import com.personalos.app.ui.common.TileSpec
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.common.color
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -122,7 +124,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .padding(8.dp),
                     ) {
-                        AtAGlanceCard()
+                        AtAGlanceCard(onNavigate = onNavigate)
                         Spacer(Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth().height(CARD_ROW_HEIGHT),
@@ -142,12 +144,13 @@ fun HomeScreen(
                         items = HOME_TILES,
                         onTile = { tile ->
                             when (tile.name) {
-                                "Radar" -> onNavigate(Destination.Radar)
+                                "Radar" -> onNavigate(Destination.Radar())
                                 "News" -> onNavigate(Destination.News)
                                 "RSS" -> onNavigate(Destination.Rss)
                                 "M&M" -> onNavigate(Destination.Money)
                                 "Weather" -> onNavigate(Destination.Weather)
                                 "Settings" -> onNavigate(Destination.Settings)
+                                "Watchers", "Alerts" -> onNavigate(Destination.Watchers)
                                 else -> onNavigate(Destination.Placeholder(tile.name))
                             }
                         },
@@ -178,19 +181,44 @@ private fun HomeAppBar(onScan: () -> Unit) {
 
     RadarAppBar(
         title = "Personal Radar",
-        sub = "Hub ${Chars.MIDDLE_DOT} ${glance?.totalEvents ?: 0} events",
+        sub = "Hub ${Chars.MIDDLE_DOT} ${compactNumber(glance?.totalEvents ?: 0)} events",
         mark = true,
         actions = { GlyphActionButton(Glyph.Scan, onClick = onScan) },
     )
 }
 
 @Composable
-private fun AtAGlanceCard() {
+private fun AtAGlanceCard(onNavigate: (Destination) -> Unit) {
     val container = LocalAppContainer.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val database =
+        remember {
+            com.personalos.app.data.AppDatabase
+                .getInstance(context)
+        }
+    val maxId by database.eventDao().observeMaxId().collectAsStateWithLifecycle(initialValue = null)
     val glanceFlow = remember(container) { container.glance.observe() }
-    val fxFlow = remember(container) { container.fx.observe() }
     val glance by glanceFlow.collectAsStateWithLifecycle(initialValue = null)
-    val rates by fxFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    // FX watch reads the store like the M&M tile; empty store swipes nowhere.
+    var rates by remember { androidx.compose.runtime.mutableStateOf<List<FxRate>>(emptyList()) }
+    androidx.compose.runtime.LaunchedEffect(maxId) {
+        val specs =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "fx" }
+                .mapNotNull { row ->
+                    runCatching {
+                        val spec =
+                            com.personalos.app.core.sources.SourceSpecs
+                                .parse(row.kind, row.specJson)
+                                as com.personalos.app.core.sources.FxSpec
+                        spec.pair to
+                            com.personalos.app.core.sources.SourceKeys
+                                .sourceFor(row.id, spec)
+                    }.getOrNull()
+                }
+        rates = container.observationRepository.fxRates(specs)
+    }
 
     Column(
         modifier =
@@ -230,10 +258,13 @@ private fun AtAGlanceCard() {
             Box(Modifier.width(1.dp).fillMaxHeight().background(RadarColors.ruleSoft))
             StatCell(
                 label = "Events 24h",
-                value = pad(glance?.events24h ?: 0),
+                value = compactNumber(glance?.events24h ?: 0),
                 suffix = "all sources",
                 valueColor = CategoryColors.Teal,
-                modifier = Modifier.weight(1f),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .clickable { onNavigate(Destination.Radar(com.personalos.app.ui.radar.radarEventsTabIndex)) },
             )
         }
     }
@@ -298,8 +329,66 @@ private fun NowPlayingCard(modifier: Modifier = Modifier) {
 @Composable
 private fun WeatherCard(modifier: Modifier = Modifier) {
     val container = LocalAppContainer.current
-    val flow = remember(container) { container.weather.observe() }
-    val snapshots by flow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val database =
+        remember {
+            com.personalos.app.data.AppDatabase
+                .getInstance(context)
+        }
+    val maxId by database.eventDao().observeMaxId().collectAsStateWithLifecycle(initialValue = null)
+    // Same store as the Weather tile: one page per enabled weather source, so
+    // Home and the tile can never disagree on how many places exist.
+    var snapshots by remember { androidx.compose.runtime.mutableStateOf<List<WeatherSnapshot>>(emptyList()) }
+    androidx.compose.runtime.LaunchedEffect(maxId) {
+        val specs =
+            runCatching { database.sourceDao().enabled() }
+                .getOrDefault(emptyList())
+                .filter { it.kind == "weather" }
+                .mapNotNull { row ->
+                    runCatching {
+                        val spec =
+                            com.personalos.app.core.sources.SourceSpecs
+                                .parse(row.kind, row.specJson)
+                                as com.personalos.app.core.sources.WeatherSpec
+                        spec to
+                            com.personalos.app.core.sources.SourceKeys
+                                .sourceFor(row.id, spec)
+                    }.getOrNull()
+                }
+        val views =
+            if (specs.isEmpty()) {
+                emptyList()
+            } else {
+                container.observationRepository.latestMany(specs.map { it.second })
+            }
+        val bySource = views.associateBy { it.source }
+        snapshots =
+            specs.mapNotNull { (spec, identity) ->
+                val view = bySource[identity] ?: return@mapNotNull null
+                val fields = view.fields
+                val temp = (fields["temp_c"] as? com.personalos.app.core.rules.FieldValue.Num)?.value ?: return@mapNotNull null
+                val code = (fields["weather_code"] as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt()
+                val humidity = (fields["humidity_pct"] as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt()
+                val wind = (fields["wind_kmh"] as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt()
+                WeatherSnapshot(
+                    place = spec.place,
+                    temperatureC = kotlin.math.round(temp).toInt(),
+                    summary =
+                        code?.let {
+                            com.personalos.app.ui.weather
+                                .weatherCodeCondition(it)
+                                .label
+                        } ?: "Observed",
+                    detail =
+                        listOfNotNull(
+                            humidity?.let { "$it%" },
+                            wind?.let { "wind $it km/h" },
+                        ).joinToString(" ${Chars.MIDDLE_DOT} "),
+                    lat = spec.lat,
+                    lon = spec.lon,
+                )
+            }
+    }
 
     Column(
         modifier =

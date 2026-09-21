@@ -1,7 +1,9 @@
 package com.personalos.app.data
 
 import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.execSQL
 import com.personalos.app.core.feed.FeedCatalog
 
 /**
@@ -401,6 +403,201 @@ val MIGRATION_13_14_STATEMENTS: List<String> =
     listOf("ALTER TABLE rules ADD COLUMN color TEXT")
 
 /**
+ * v14 -> v15: the facet catalog (ADR 0005 T6).
+ *
+ * New tables only, like v5 -> v6 and v6 -> v7: nothing existing changes, so no
+ * rebuild and no data to carry. No `DEFAULT` clauses (Room compares defaults
+ * when validating on open). Column order and affinities mirror
+ * `CatalogEntities.kt`, and the index names are the ones Room generates for
+ * its `Index` annotations (none here — the primary keys are the lookup path).
+ */
+val MIGRATION_14_15_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS kinds (
+            id TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            topics TEXT NOT NULL,
+            enrichable INTEGER NOT NULL,
+            seeded INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS facets (
+            id TEXT NOT NULL,
+            value_type TEXT NOT NULL,
+            measure TEXT NOT NULL,
+            ops TEXT NOT NULL,
+            values_from TEXT,
+            seeded INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS kind_facets (
+            kind_id TEXT NOT NULL,
+            facet_id TEXT NOT NULL,
+            PRIMARY KEY(kind_id, facet_id)
+        )
+        """.trimIndent(),
+    )
+
+/**
+ * v15 -> v16: the sync activity log (Events tab).
+ *
+ * New table only, like every table migration before it: no rebuild, no
+ * defaults, no data to carry. Column order and affinities mirror
+ * `SyncRunEntity.kt`; index names are Room's generated
+ * `index_sync_runs_<columns>` spellings.
+ */
+val MIGRATION_15_16_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS sync_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            source_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            finished_at INTEGER NOT NULL,
+            ok INTEGER NOT NULL,
+            items_added INTEGER NOT NULL,
+            error TEXT
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_sync_runs_source_id_finished_at ON sync_runs (source_id, finished_at)",
+        "CREATE INDEX IF NOT EXISTS index_sync_runs_finished_at ON sync_runs (finished_at)",
+    )
+
+/**
+ * v16 -> v17: the calendar (Travel).
+ *
+ * New table only, like every table migration before it: no rebuild, no
+ * defaults, no data to carry. Column order and affinities mirror
+ * `CalendarDateEntity.kt`; identity is (source, uid) because a feed's uid is
+ * unique only within that feed; index names are Room's generated
+ * `index_calendar_dates_<columns>` spellings.
+ */
+val MIGRATION_16_17_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS calendar_dates (
+            source TEXT NOT NULL,
+            feed_uid TEXT NOT NULL,
+            region TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            date TEXT NOT NULL,
+            starts_at INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            fetched_at INTEGER NOT NULL,
+            PRIMARY KEY(source, feed_uid)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_calendar_dates_region_starts_at ON calendar_dates (region, starts_at)",
+        "CREATE INDEX IF NOT EXISTS index_calendar_dates_starts_at ON calendar_dates (starts_at)",
+    )
+
+/**
+ * v17 -> v18: saving an item (bookmarks).
+ *
+ * `bookmarked_at` is a nullable epoch-ms stamp with **no DEFAULT**, per the
+ * Room-validation rule documented above: bytes on disk are the same for an
+ * absent value and a defaulted one, but Room compares declared defaults when it
+ * validates on open, so an added column carrying `DEFAULT 0` would fail there.
+ * Null already means the right thing — not saved — so there is no backfill.
+ *
+ * The index is declared on the entity too. Room compares the index *set*, so an
+ * index present only here would fail validation on open exactly like an
+ * undeclared default.
+ */
+val MIGRATION_17_18_STATEMENTS: List<String> =
+    listOf(
+        "ALTER TABLE events ADD COLUMN bookmarked_at INTEGER",
+        "CREATE INDEX IF NOT EXISTS index_events_bookmarked_at ON events (bookmarked_at)",
+    )
+
+/**
+ * v18 -> v19: Messages search — an FTS5 external-content index over
+ * `events(title, content)`, using the **trigram** tokenizer.
+ *
+ * ## Why FTS5, and why trigram
+ *
+ * Messages search must match **inside** a word: `rtel` has to find `airtel`,
+ * and `654` has to find `9876543210`. A token index cannot do that — it only
+ * knows whole tokens and prefixes. FTS5's trigram tokenizer indexes every
+ * three-character sequence, so a MATCH finds any sub-string of three or more
+ * characters; that is the infix behaviour this feature is for.
+ *
+ * The platform SQLite has FTS3/FTS4 but **no FTS5**, so the database is opened
+ * through `androidx.sqlite:sqlite-bundled` (SQLite 3.50.1, which ships fts5 and
+ * the trigram tokenizer) via `AppDatabase.setDriver` — see `build.gradle.kts`.
+ *
+ * ## Why the table is hand-written here
+ *
+ * Room cannot model an FTS5 external-content table with a custom tokenizer: it
+ * neither exports this table nor validates it on open. It is created by this
+ * migration as plain DDL, and `MigrationSchemaTest` is what asserts it exists
+ * and stays in sync — Room will not do either.
+ *
+ * ## External content: an index, not a copy
+ *
+ * `content='events', content_rowid='id'` makes the FTS table hold only the
+ * index; the indexed text is read back from `events` by rowid. So there is no
+ * second copy of a message that could drift — "one fact, one owner" holds. The
+ * price is that the index must be kept in step by hand, which is what the three
+ * triggers do: every INSERT / UPDATE / DELETE of `events` replays into the
+ * index. `rebuild` at the end indexes the rows that predate v19.
+ *
+ * The UPDATE trigger deletes with the **old** values and inserts the **new**
+ * ones: the external-content `'delete'` command needs the values that were
+ * indexed, so a plain replace would leave stale entries behind.
+ *
+ * ## Traps this avoids
+ *
+ * - The trigram tokenizer answers nothing for a MATCH shorter than three
+ *   characters. The read path falls back to `LIKE`, and that decision lives in
+ *   `core/search` (SmsSearch), never in SQL.
+ * - Room compares the index set and declared defaults on open; this migration
+ *   adds no column and no ordinary index to `events`, so nothing there moves.
+ * - User input never reaches this DDL. The MATCH expression is built and
+ *   quoted in `core/search` and bound as a parameter, never concatenated.
+ */
+val MIGRATION_18_19_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
+            title,
+            content,
+            content='events',
+            content_rowid='id',
+            tokenize='trigram'
+        )
+        """.trimIndent(),
+        // Keep the index in step with the table it indexes.
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_ai AFTER INSERT ON events BEGIN
+            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+        END
+        """.trimIndent(),
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_ad AFTER DELETE ON events BEGIN
+            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+        END
+        """.trimIndent(),
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_au AFTER UPDATE ON events BEGIN
+            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+        END
+        """.trimIndent(),
+        // Rows that predate the index. `rebuild` re-reads every row from the
+        // external content table, which is exactly the backfill needed.
+        "INSERT INTO events_fts(events_fts) VALUES('rebuild')",
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -421,6 +618,11 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         12 to MIGRATION_11_12_STATEMENTS,
         13 to MIGRATION_12_13_STATEMENTS,
         14 to MIGRATION_13_14_STATEMENTS,
+        15 to MIGRATION_14_15_STATEMENTS,
+        16 to MIGRATION_15_16_STATEMENTS,
+        17 to MIGRATION_16_17_STATEMENTS,
+        18 to MIGRATION_17_18_STATEMENTS,
+        19 to MIGRATION_18_19_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =
@@ -438,5 +640,15 @@ private fun migration(
     object : Migration(from, to) {
         override fun migrate(db: SupportSQLiteDatabase) {
             statements.forEach { db.execSQL(it) }
+        }
+
+        /**
+         * Required because the database is opened through a supplied driver
+         * (`BundledSQLiteDriver`, for FTS5). Room dispatches to this overload
+         * when a driver is set, and the base implementation throws
+         * `NotImplementedError` — so both paths must run the same statements.
+         */
+        override fun migrate(connection: SQLiteConnection) {
+            statements.forEach { connection.execSQL(it) }
         }
     }

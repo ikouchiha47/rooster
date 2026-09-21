@@ -91,6 +91,13 @@ class ArticleEnricherTest {
             limit: Int,
         ): List<TaggedEvent> = emptyList()
 
+        override suspend fun pageByTagItems(
+            tag: String,
+            cursorTs: Long?,
+            cursorId: Long,
+            limit: Int,
+        ): List<TaggedEvent> = emptyList()
+
         override fun observeCountByTag(tag: String): Flow<Int> = flowOf(0)
 
         override suspend fun dayHeadersByTag(tag: String): List<DayHeader> = emptyList()
@@ -122,6 +129,23 @@ class ArticleEnricherTest {
         ) {
             updated += id to content
         }
+
+        override suspend fun byDedupeKey(dedupeKey: String): EventEntity? = null
+
+        override suspend fun updateObservation(
+            ulid: String,
+            timestamp: Long,
+            title: String,
+            content: String,
+        ) = Unit
+
+        override suspend fun latestObservation(sourceId: String): EventEntity? = null
+
+        override fun observeLatestObservation(sourceId: String): kotlinx.coroutines.flow.Flow<EventEntity?> = kotlinx.coroutines.flow.flowOf(null)
+
+        override suspend fun latestObservations(sourceIds: List<String>): List<EventEntity> = emptyList()
+
+        override suspend fun observationsByPrefix(prefix: String): List<EventEntity> = emptyList()
     }
 
     private val summary = "OG".padEnd(120, 'o')

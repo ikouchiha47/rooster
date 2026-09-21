@@ -71,7 +71,7 @@ class MigrationSchemaTest {
 
     @Test
     fun `the exported schema describes exactly what we expect`() {
-        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules", "item_fields"), tables.keys)
+        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules", "item_fields", "kinds", "facets", "kind_facets", "sync_runs", "calendar_dates"), tables.keys)
         assertEquals(setOf("item_tags_current"), views.keys)
     }
 
@@ -402,7 +402,79 @@ class MigrationSchemaTest {
         }
     }
 
+    @Test
+    fun `the full migration chain creates the FTS search table and its sync triggers`() {
+        // Room cannot validate any of this: `events_fts` is a virtual table and
+        // the triggers are not entities, so neither appears in the exported
+        // schema. If this test did not exist, a broken v19 would only fail on a
+        // device. The exact-table-set assertion above is unchanged, which is why
+        // the FTS table is asserted separately rather than added to it.
+        withMigratedV2Database { db ->
+            val objects =
+                db
+                    .createStatement()
+                    .executeQuery(
+                        "SELECT name, type FROM sqlite_master " +
+                            "WHERE name IN ('events_fts', 'events_fts_ai', 'events_fts_ad', 'events_fts_au')",
+                    ).use { rs -> buildMap { while (rs.next()) put(rs.getString(1), rs.getString(2)) } }
+
+            assertEquals("events_fts is a table", "table", objects["events_fts"])
+            assertEquals("insert trigger", "trigger", objects["events_fts_ai"])
+            assertEquals("delete trigger", "trigger", objects["events_fts_ad"])
+            assertEquals("update trigger", "trigger", objects["events_fts_au"])
+        }
+    }
+
+    @Test
+    fun `v19 backfills existing rows and the triggers keep the index in sync`() {
+        withMigratedV2Database { db ->
+            // The seeded SMS body is "Rs 1214 debited"; a trigram MATCH can only
+            // find it if `rebuild` indexed rows that predate v19.
+            val smsId = scalarLong(db, "SELECT id FROM events WHERE source = 'sms'")
+            assertEquals(listOf(smsId), ftsRowIds(db, "\"1214\"*"))
+
+            // INSERT: a new message is searchable immediately.
+            db.createStatement().executeUpdate(
+                """
+                INSERT INTO events (ulid, dedupe_key, source, type, category, timestamp, title, content, entities)
+                VALUES ('n1', 'sms:n1', 'sms', 'inbox', 'OTP', 5000, 'AXISBK', 'airtel recharge 4321', '[]')
+                """.trimIndent(),
+            )
+            val n1 = scalarLong(db, "SELECT id FROM events WHERE ulid = 'n1'")
+            assertEquals(listOf(n1), ftsRowIds(db, "\"rtel\"*"))
+
+            // UPDATE: the new text is indexed and the old text is dropped, so no
+            // stale entry is left behind.
+            db.createStatement().executeUpdate("UPDATE events SET content = 'nothing to find' WHERE ulid = 'n1'")
+            assertTrue("old term must be gone after update", ftsRowIds(db, "\"rtel\"*").isEmpty())
+            assertEquals(listOf(n1), ftsRowIds(db, "\"noth\"*"))
+
+            // DELETE: the index entry goes with the row.
+            db.createStatement().executeUpdate("DELETE FROM events WHERE ulid = 'n1'")
+            assertTrue("term must be gone after delete", ftsRowIds(db, "\"noth\"*").isEmpty())
+        }
+    }
+
     // ----------------------------------------------------------------- helpers
+
+    /** Rowids the FTS index matches for an already-built MATCH expression. */
+    private fun ftsRowIds(
+        db: Connection,
+        expression: String,
+    ): List<Long> =
+        db.prepareStatement("SELECT rowid FROM events_fts WHERE events_fts MATCH ?").use { st ->
+            st.setString(1, expression)
+            st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getLong(1)) } }
+        }
+
+    private fun scalarLong(
+        db: Connection,
+        sql: String,
+    ): Long =
+        db.createStatement().executeQuery(sql).use { rs ->
+            assertTrue("expected one row from: $sql", rs.next())
+            rs.getLong(1)
+        }
 
     /**
      * Replays the chain to v10, inserts one row in the old `rules` registry,
