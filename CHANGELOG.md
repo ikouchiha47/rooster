@@ -7,6 +7,15 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs: record the search design (v19 FTS5, bundled driver)
+
+_2026-09-21_
+
+
+The search feature landed inside 72ec477, which was committed under a fix subject because the same files were being edited; this records what that commit actually contained. ARCHITECTURE.md gains 11.7: why the bundled SQLite driver is required (the platform library has no FTS5, verified by grepping the pulled libsqlite.so), why the index is FTS5 external-content with the trigram tokenizer (the requirement is infix: rtel must find airtel), why sync is done with triggers rather than app code, why queries are scoped to SMS in SQL while the index stays global, and why MigrationSchemaTest must assert the virtual table and triggers itself, since Room cannot export or validate either.
+
+It also records the trap that only showed on device: with a driver set, Room dispatches to Migration.migrate(SQLiteConnection), whose base implementation throws. A factory overriding only migrate(SupportSQLiteDatabase) passes the JVM schema test and crashes on the first real migration; Migrations.kt now overrides both.
+
 ## fix(messages): swipe and cancel in search results
 
 _2026-09-21_

@@ -541,6 +541,31 @@ Old tagger rows are pruned only after the new tagger is active and verified - ke
 2. `events.type` dropped; the duplicated rows go away with the old unique index, replaced by `dedupe_key`.
 3. New columns (`id` ULID, `dedupe_key`, `bookmarked`) backfilled; then re-ingest.
 
+### 11.7 Search (schema v19)
+
+Search is **infix**, not token-based: `rtel` must find `airtel`, and `654` must find
+`9876543210`. That requirement decides the whole design, because ordinary FTS matches
+whole tokens and prefix only.
+
+| Decision | Why |
+|---|---|
+| **Bundled SQLite driver** (`androidx.sqlite:sqlite-bundled`, SQLite 3.50.1) | The device's platform SQLite has FTS3/FTS4 but **not FTS5** (verified by grepping the pulled `/system/lib64/libsqlite.so`: `fts5` = 0 hits). Trigram is FTS5-only. |
+| **`events_fts`: FTS5, external content over `events(title, content)`**, `tokenize='trigram'` | Trigram indexes every 3-character sequence, which is what makes infix matching possible. External content means the index stores no second copy of a message. |
+| **Three triggers (`ai`/`ad`/`au`) + a `'rebuild'` backfill** | The cost of external content is hand-syncing. Triggers, not app code, so every future writer stays indexed — app-code sync only covers the writers you remember. |
+| **Queries scoped in SQL** (`source = 'sms'`) | The index is global; Messages search is not. There is deliberately **no global search**. |
+| **Pure query builder in `core/search`** | User input is quoted and escaped, each term becomes a prefix query, and used as-is by `MATCH` — untrusted input must not be able to change the query's meaning. Queries shorter than trigram's 3-character minimum fall back to an escaped `LIKE`. |
+| **`MigrationSchemaTest` asserts the FTS table and triggers itself** | Room cannot export a virtual table or triggers, so it cannot validate them; without an explicit assertion the migration would have no safety net. |
+
+**`migrate(SQLiteConnection)` must be overridden too.** With a driver set, Room dispatches
+to `Migration.migrate(SQLiteConnection)`, whose base implementation throws
+`NotImplementedError`. A factory that overrides only `migrate(SupportSQLiteDatabase)` runs
+fine in the JVM schema test (which executes raw SQL) and **crashes on device** the first
+time a real migration runs. `Migrations.kt` now overrides both overloads with the same
+statement lists.
+
+Known limits: no FTS5 spellfix (typo tolerance) — infix covers `rtel` but not a
+transposition like `airtle`; the FTS index is not yet used by any other screen.
+
 ---
 
 ## 12. Parked
