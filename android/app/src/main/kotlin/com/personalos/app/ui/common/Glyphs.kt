@@ -59,6 +59,8 @@ enum class Glyph {
     Stack,
     Card,
     Rules,
+    Bookmark,
+    BookmarkFilled,
 }
 
 @Composable
@@ -137,6 +139,9 @@ private fun DrawScope.drawGlyph(
     )
 
     fun path(block: Path.() -> Unit) = drawPath(Path().apply(block), tint, style = stroke)
+
+    /** The same shape, solid — for a state that is on rather than available. */
+    fun fill(block: Path.() -> Unit) = drawPath(Path().apply(block), tint)
 
     when (glyph) {
         Glyph.Back -> {
@@ -428,6 +433,24 @@ private fun DrawScope.drawGlyph(
             ln(4f, 18f, 14f, 18f)
             ring(19.5f, 18f, 2f)
         }
+        // A ribbon with a notch: outline when it can be saved, solid once it is.
+        Glyph.Bookmark -> bookmarkRibbon(s, ::path)
+        Glyph.BookmarkFilled -> bookmarkRibbon(s, ::fill)
+    }
+}
+
+/** The bookmark ribbon at 24-unit scale, drawn by [emit] (stroke or fill). */
+private fun DrawScope.bookmarkRibbon(
+    s: Float,
+    emit: (Path.() -> Unit) -> Unit,
+) {
+    emit {
+        moveTo(6.2f * s, 3.6f * s)
+        lineTo(17.8f * s, 3.6f * s)
+        lineTo(17.8f * s, 20.8f * s)
+        lineTo(12f * s, 15.4f * s)
+        lineTo(6.2f * s, 20.8f * s)
+        close()
     }
 }
 

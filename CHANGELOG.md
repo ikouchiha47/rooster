@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(messages): reveal-actions swipe, bookmark glyph
+
+_2026-09-21_
+
+
+The swipe did nothing: SwipeToDismissBox only fires confirmValueChange once the drag crosses its default threshold (half the row), so an ordinary swipe sprang back silently and no save was ever written - confirmed by zero rows carrying a stamp on the device. Replaced with an explicit reveal: the row slides left, stays open at a fixed reveal width, and closes only after you tap the action, so the movement is the receipt and the action is visible before you press it.
+
+Adds a drawn Bookmark/BookmarkFilled glyph to the flat set (ribbon with a notch) instead of a plus sign: outline when it can be saved, solid when it is. Also fixes the saved marker on the row, which was using the stack glyph.
+
+Verified: 534 tests, assembleDebug, ktlintCheck.
+
 ## feat(messages): saved tab and swipe-to-save
 
 _2026-09-21_

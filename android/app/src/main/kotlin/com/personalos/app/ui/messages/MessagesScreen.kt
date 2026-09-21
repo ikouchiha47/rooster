@@ -1,6 +1,9 @@
 package com.personalos.app.ui.messages
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,16 +14,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,9 +34,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
@@ -69,6 +73,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private const val PAGE_SIZE = 200
 private const val DAY_MS = 86_400_000L
@@ -307,12 +312,17 @@ private fun MessagesTabs(
     )
 }
 
+/** How far the row slides to reveal its actions. */
+private val REVEAL_WIDTH = 104.dp
+
 /**
- * A message row with swipe-left to save or unsave.
+ * A message row that slides left to **reveal** its action, stays open, and
+ * closes once you tap it.
  *
- * The swipe **acts and snaps back** rather than dismissing: the item is not
- * going away, its saved state is changing, and a row that vanished would look
- * like a delete. The revealed background states what the swipe will do.
+ * Deliberately not a swipe-to-act gesture: sliding something and having it
+ * spring back tells you nothing about whether it worked, and an action you can
+ * see before you press it is the whole point. The row comes back only after the
+ * action has run, so the movement is the receipt.
  */
 @Composable
 private fun SwipeableMessageRow(
@@ -320,42 +330,70 @@ private fun SwipeableMessageRow(
     saved: Boolean,
     onToggleSave: () -> Unit,
 ) {
-    val state =
-        rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                if (value == SwipeToDismissBoxValue.EndToStart) onToggleSave()
-                // Never dismiss: report the gesture, then spring back.
-                false
-            },
-        )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        backgroundContent = {
-            Row(
+    val revealPx = with(LocalDensity.current) { REVEAL_WIDTH.toPx() }
+    val offsetX = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    Box(Modifier.fillMaxWidth()) {
+        // Behind the row: revealed as it slides, tap-only.
+        Row(
+            modifier =
+                Modifier
+                    .matchParentSize()
+                    .background(RadarColors.paper3),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
                 modifier =
                     Modifier
-                        .fillMaxSize()
-                        .background(RadarColors.paper3)
-                        .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
+                        .width(REVEAL_WIDTH)
+                        .fillMaxHeight()
+                        .clickable {
+                            scope.launch {
+                                onToggleSave()
+                                offsetX.animateTo(0f)
+                            }
+                        },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
                 GlyphIcon(
-                    glyph = if (saved) Glyph.Stack else Glyph.Plus,
-                    tint = RadarColors.ink,
-                    size = 16.dp,
+                    glyph = if (saved) Glyph.BookmarkFilled else Glyph.Bookmark,
+                    tint = if (saved) CategoryColors.Teal else RadarColors.ink,
+                    size = 18.dp,
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     text = if (saved) "UNSAVE" else "SAVE",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.ink,
+                    style = RadarType.micro,
+                    color = RadarColors.ink2,
                 )
             }
-        },
-    ) {
-        MessageRow(entity, saved = saved)
+        }
+
+        Row(
+            modifier =
+                Modifier
+                    .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                    .pointerInput(revealPx) {
+                        detectHorizontalDragGestures(
+                            onHorizontalDrag = { _, dragAmount ->
+                                scope.launch {
+                                    offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-revealPx, 0f))
+                                }
+                            },
+                            onDragEnd = {
+                                scope.launch {
+                                    val open = offsetX.value < -revealPx / 2f
+                                    offsetX.animateTo(if (open) -revealPx else 0f)
+                                }
+                            },
+                        )
+                    },
+        ) {
+            MessageRow(entity, saved = saved)
+        }
     }
 }
 
@@ -475,7 +513,7 @@ private fun MessageRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (saved) {
                         // The saved mark sits with state, where the swipe acts.
-                        GlyphIcon(glyph = Glyph.Stack, tint = CategoryColors.Teal, size = 12.dp)
+                        GlyphIcon(glyph = Glyph.BookmarkFilled, tint = CategoryColors.Teal, size = 12.dp)
                         Spacer(Modifier.width(4.dp))
                     }
                     Chip(text = stateLabel(entity.type), color = stateColor(entity.type))
