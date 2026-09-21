@@ -1,4 +1,4 @@
-# ADR 0006: One source model, one health record, per-kind surfaces
+# ADR 0006: One source model, one run history, per-kind surfaces
 
 - Status: Proposed
 - Date: 2026-09-21
@@ -16,8 +16,18 @@
 | Ingest | catalog loop | `refreshRssSources`, `refreshSearchSources`, `refreshGaugeSources` | four bespoke paths |
 | View | `FeedRow(catalog status)` | `UserFeedsSection(sources)` | `includeSeeded` flag, `"Feeds"`/`"My feeds"` branch |
 
-This session added a **third** health record (`sync_runs`) and then glued the UI
-around the overlap (`includeSeeded`, URL matching) instead of removing one.
+`sync_runs` was then added **for run history** — a genuinely different fact, and
+one neither status flow could express: "no run in 3 days", a failure streak, or
+what happened yesterday all need rows, not a latest value. That addition was
+right.
+
+But it also **superseded** the other two: "when did this last run, and did it
+work" is now `max(finished_at)` per source. The mistake was stopping after the
+addition and leaving three answers to one question — and then gluing the UI
+around the overlap (`includeSeeded`, URL matching) instead of deleting one.
+
+So the redundancy is not history-versus-status; it is that a *history* makes
+two copies of *latest state* unnecessary.
 
 Consequences already observed:
 
@@ -36,12 +46,18 @@ Consequences already observed:
 data**, and seeded `sources` rows already are the model. Nothing reads
 `FeedCatalog` at runtime; an installation already has all eight feeds as rows.
 
-### 2. `sync_runs` is the single health record
+### 2. `sync_runs` is the single record: history, with latest state derived
 
-`FeedStatus`, `statuses`, `sourceStatuses`, the prefs status caches and
-`_lastSyncAt` are deleted. "When did this last run, did it work, how many items"
-is one query over one table, and it already covers every kind — including SMS,
-weather, FX and calendar, which the status flows never covered.
+`sync_runs` stays as written — one row per run, per source. What changes is that
+it becomes the **only** record: latest state is derived from it
+(`max(finished_at)` per source), so `FeedStatus`, `statuses`, `sourceStatuses`,
+the two prefs status caches and `_lastSyncAt` are deleted.
+
+The distinction that must not be lost: history and latest-state are different
+facts, and the history is the one that cannot be reconstructed. Latest state can.
+That is why the history is kept and the derived copies go — not the other way
+round. It also means every kind gets health for free, including SMS, weather, FX
+and calendar, which the status flows never covered.
 
 ### 3. One ingest path for every kind
 
@@ -90,7 +106,7 @@ interface KindAdapter {
     suspend fun ingest(source: SourceEntity, now: Long): Int
 }
 
-/** One row per run, per source — the only health record. */
+/** One row per run, per source — the only record; latest state derives from it. */
 data class SyncRun(sourceId, kind, startedAt, finishedAt, ok, itemsAdded, error)
 
 /** What every surface reads. */

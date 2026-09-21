@@ -7,6 +7,15 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## docs(adr): sync_runs is the history, not a redundant status copy
+
+_2026-09-21_
+
+
+The ADR described sync_runs as a third health record, which is wrong and unfair to the change: run history is a genuinely different fact that neither status flow could express - no run in three days, a failure streak, or what happened yesterday all need rows, not a latest value. Adding it was right.
+
+What was wrong is that it superseded the other two and they were left in place. Once history exists, when a source last ran is max(finished_at), so the two status flows and their prefs caches became two redundant copies of something derivable. The ADR now states that distinction: history is the fact that cannot be reconstructed, latest state can, so history is kept and the derived copies go.
+
 ## docs: ADR 0006 one source model, one health record, per-kind surfaces
 
 _2026-09-21_
