@@ -34,6 +34,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun bookmarkDao(): BookmarkDao
 
+    abstract fun messageDeleteDao(): MessageDeleteDao
+
     abstract fun itemFieldDao(): ItemFieldDao
 
     abstract fun kindDao(): KindDao

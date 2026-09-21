@@ -264,6 +264,13 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
                                                 }
                                             }
                                         },
+                                        onDelete = {
+                                            scope.launch {
+                                                // App copy only; the message on the device stays.
+                                                container.messageDeletes.remove(row.event.ulid)
+                                                items = items.filterNot { it.ulid == row.event.ulid }
+                                            }
+                                        },
                                     )
                             }
                         }
@@ -312,8 +319,10 @@ private fun MessagesTabs(
     )
 }
 
-/** How far the row slides to reveal its actions. */
-private val REVEAL_WIDTH = 104.dp
+/** How far the row slides to reveal its actions — one column each. */
+private val REVEAL_WIDTH = 168.dp
+
+private val ACTION_WIDTH = 84.dp
 
 /**
  * A message row that slides left to **reveal** its action, stays open, and
@@ -329,6 +338,7 @@ private fun SwipeableMessageRow(
     entity: EventEntity,
     saved: Boolean,
     onToggleSave: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val revealPx = with(LocalDensity.current) { REVEAL_WIDTH.toPx() }
     val offsetX = remember { Animatable(0f) }
@@ -344,32 +354,23 @@ private fun SwipeableMessageRow(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
-                modifier =
-                    Modifier
-                        .width(REVEAL_WIDTH)
-                        .fillMaxHeight()
-                        .clickable {
-                            scope.launch {
-                                onToggleSave()
-                                offsetX.animateTo(0f)
-                            }
-                        },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                GlyphIcon(
-                    glyph = if (saved) Glyph.BookmarkFilled else Glyph.Bookmark,
-                    tint = if (saved) CategoryColors.Teal else RadarColors.ink,
-                    size = 18.dp,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = if (saved) "UNSAVE" else "SAVE",
-                    style = RadarType.micro,
-                    color = RadarColors.ink2,
-                )
-            }
+            RowAction(
+                glyph = if (saved) Glyph.BookmarkFilled else Glyph.Bookmark,
+                label = if (saved) "UNSAVE" else "SAVE",
+                tint = if (saved) CategoryColors.Teal else RadarColors.ink,
+                onClick = {
+                    scope.launch {
+                        onToggleSave()
+                        offsetX.animateTo(0f)
+                    }
+                },
+            )
+            RowAction(
+                glyph = Glyph.Trash,
+                label = "DELETE",
+                tint = CategoryColors.Vermilion,
+                onClick = onDelete,
+            )
         }
 
         Row(
@@ -394,6 +395,29 @@ private fun SwipeableMessageRow(
         ) {
             MessageRow(entity, saved = saved)
         }
+    }
+}
+
+/** One revealed action: a glyph over its word, whole column tappable. */
+@Composable
+private fun RowAction(
+    glyph: Glyph,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .width(ACTION_WIDTH)
+                .fillMaxHeight()
+                .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        GlyphIcon(glyph = glyph, tint = tint, size = 18.dp)
+        Spacer(Modifier.height(2.dp))
+        Text(text = label, style = RadarType.micro, color = RadarColors.ink2)
     }
 }
 

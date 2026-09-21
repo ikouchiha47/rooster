@@ -186,6 +186,11 @@ class AppContainer(
         com.personalos.app.data
             .BookmarkRepository(database.bookmarkDao())
 
+    /** Removing the app's stored copy of an item (device copy untouched). */
+    val messageDeletes: com.personalos.app.data.MessageDeleteRepository =
+        com.personalos.app.data
+            .MessageDeleteRepository(database.messageDeleteDao())
+
     /**
      * The Watchers feed: fired matches with what matched. Reads through
      * [ruleWriter], so a fire's clause evaluation uses the same reader ingest did.

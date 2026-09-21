@@ -419,6 +419,24 @@ object Sql {
     /** Guarded: only user rows delete. Returns rows removed. */
     const val RULES_DELETE_USER_ONLY = "DELETE FROM rules WHERE id = :id AND seeded = 0"
 
+    // --------------------------------------------------------- removal
+    // Removing the app's stored copy of an item. Dependents are deleted by
+    // `item_id` (= events.ulid) before the event row, the same order the schema
+    // migrations use, so a partial failure cannot orphan rows.
+    //
+    // This touches **only the app's copy**: the message on the device is
+    // untouched, and offering to remove that too (WhatsApp's "also delete for
+    // everyone") is a separate capability, deliberately not built.
+    const val DELETE_ITEM_TAGS_BY_ITEM = "DELETE FROM item_tags WHERE item_id = :itemId"
+
+    const val DELETE_MENTIONS_BY_ITEM = "DELETE FROM mentions WHERE item_id = :itemId"
+
+    const val DELETE_ITEM_FIELDS_BY_ITEM = "DELETE FROM item_fields WHERE item_id = :itemId"
+
+    const val DELETE_ITEM_RULES_BY_ITEM = "DELETE FROM item_rules WHERE item_id = :itemId"
+
+    const val DELETE_EVENT_BY_ULID = "DELETE FROM events WHERE ulid = :ulid"
+
     // ---------------------------------------------------------------- saved
     // Bookmarks are a stamp on the item (1:0..1), so these are plain event
     // reads and one update — no join. `source` null means every saved item.

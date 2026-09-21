@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): delete the app's stored copy
+
+_2026-09-21_
+
+
+Swipe now reveals two actions: SAVE/UNSAVE and DELETE. DELETE removes the app's stored copy - the event plus its tags, mentions, typed fields and rule matches - and nothing else: the message on the device is untouched, and offering to remove that too (WhatsApp's delete-for-everyone) is a separate capability behind its own permission and confirmation, not a swipe. It is effectively permanent for that message because SmsSource holds a high-water mark, so it is not re-read; the one exception is resetMarkIfTableIsEmpty if the whole events table ever empties.
+
+Dependents are deleted by item_id before the event row, the same order the schema migrations use, so a partial failure cannot orphan rows. The sidecar deletes run unconditionally because they are idempotent. Adds a drawn Trash glyph to the flat set.
+
+Verified: 537 tests, assembleDebug, ktlintCheck.
+
 ## fix(messages): reveal-actions swipe, bookmark glyph
 
 _2026-09-21_
