@@ -37,6 +37,16 @@ object Sql {
 
     const val EVENTS_MAX_ID = "SELECT MAX(id) FROM events"
 
+    /**
+     * A change signal scoped to one source.
+     *
+     * [EVENTS_MAX_ID] is global: it ticks when *anything* lands, including a
+     * weather reading or an FX rate. A screen that shows one source must not be
+     * woken by another's writes, or it re-reads and rebuilds for changes it does
+     * not display — which is what made Messages flicker during a feed sync.
+     */
+    const val EVENTS_MAX_ID_BY_SOURCE = "SELECT MAX(id) FROM events WHERE source = :source"
+
     /** Messages is SMS — see [EVENTS_COUNT_BY_MODE]. */
     const val EVENTS_PAGE_BY_MODE =
         """
@@ -464,6 +474,80 @@ object Sql {
         """
         SELECT COUNT(*) FROM events
         WHERE bookmarked_at IS NOT NULL AND (:source IS NULL OR source = :source)
+        """
+
+    // --------------------------------------------------------- conversations
+    // Materialised per-sender rows for Messages (v20). See
+    // MIGRATION_19_20_STATEMENTS for how the table is kept true. Every read is
+    // scoped `source = 'sms'`: `events.title` is the sender only for SMS, so a
+    // grouping that ignored the source would turn a headline into a sender.
+
+    /**
+     * The Recent section: bounded, no cursor — recency order can move under
+     * writes, so it is never used to page. `pinned` first, then newest message.
+     */
+    const val CONVERSATIONS_RECENT =
+        """
+        SELECT c.*, e.content AS last_content
+        FROM conversations c
+        LEFT JOIN events e ON e.id = c.last_message_id
+        WHERE c.source = 'sms'
+          AND (:mode = 'all'
+               OR (:mode = 'inbox' AND c.inbox_count > 0)
+               OR (:mode = 'sent'  AND c.sent_count > 0)
+               OR (:mode = 'other' AND c.other_count > 0))
+        ORDER BY c.pinned DESC, c.last_message_id DESC
+        LIMIT :limit
+        """
+
+    /**
+     * The All section. Its cursor is the last `sender` of the previous page.
+     * Ordering is alphabetical because that order does not move when a message
+     * arrives — a recency order would shift rows under the cursor and skip or
+     * duplicate them. `pinned` is always 0 in this slice, so the sender
+     * comparison alone is an exact cursor; when pinning lands the cursor must
+     * carry `pinned` too. Its index is the primary key's `(source, sender)`.
+     */
+    const val CONVERSATIONS_ALL =
+        """
+        SELECT c.*, e.content AS last_content
+        FROM conversations c
+        LEFT JOIN events e ON e.id = c.last_message_id
+        WHERE c.source = 'sms'
+          AND (:mode = 'all'
+               OR (:mode = 'inbox' AND c.inbox_count > 0)
+               OR (:mode = 'sent'  AND c.sent_count > 0)
+               OR (:mode = 'other' AND c.other_count > 0))
+          AND (:cursor IS NULL OR c.sender > :cursor)
+        ORDER BY c.pinned DESC, c.sender ASC
+        LIMIT :limit
+        """
+
+    /** The tab badge while conversations are shown: conversations in that box. */
+    const val CONVERSATIONS_COUNT_BY_MODE =
+        """
+        SELECT COUNT(*) FROM conversations
+        WHERE source = 'sms'
+          AND (:mode = 'all'
+               OR (:mode = 'inbox' AND inbox_count > 0)
+               OR (:mode = 'sent'  AND sent_count > 0)
+               OR (:mode = 'other' AND other_count > 0))
+        """
+
+    /**
+     * One sender's thread: the existing `(timestamp, id)` keyset, filtered to
+     * SMS and the sender. Same ordering as the flat timeline, so the thread and
+     * the timeline cannot disagree about what is newest.
+     */
+    const val EVENTS_THREAD_PAGE =
+        """
+        SELECT * FROM events
+        WHERE source = 'sms' AND title = :sender
+          AND (:cursorTs IS NULL
+               OR timestamp < :cursorTs
+               OR (timestamp = :cursorTs AND id < :cursorId))
+        ORDER BY timestamp DESC, id DESC
+        LIMIT :limit
         """
 
     // ------------------------------------------------------------ messages search

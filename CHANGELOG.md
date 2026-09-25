@@ -7,6 +7,38 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages,calendar): grouped conversations and region directories
+
+_2026-09-26_
+
+Messages gains a grouped view: one row per sender, materialised in a new
+`conversations` table (v20) and maintained by triggers on `events`, with a
+bounded Recent head over an alphabetical, keyset-paged All list and a
+per-sender thread. The listing shows each group's **latest message** — read by
+joining `events` on `last_message_id`, so the text stays owned by `events` —
+beside the existing unread chip.
+
+Supporting changes:
+
+- Messages reads are scoped to `source = 'sms'` for their change signal, so a
+  non-SMS arrival no longer wakes the list; arrivals merge into the loaded page
+  instead of blanking it (MessageListMerge).
+- Gauge observation writes are atomic: the event row and its fields share one
+  transaction (Transactor).
+- Room cannot model the FTS5 table or any trigger, and migrations do not run on
+  a fresh install, so `events_fts` and the triggers were missing there. A
+  `DerivedObjectsCallback` now installs them on open, held to the migrations by
+  a drift test.
+
+The calendar picker's directories move behind the provider that owns them (a
+bundled list versus its own published pages), and Sources resolves a calendar
+run's region slug to its readable name.
+
+Verified on device: v19 -> v20 gives 741/741 conversations with counts
+reconciling to 2589 SMS rows, the insert/update/delete triggers keep a row
+correct, and the listing renders each sender's latest message. 659 tests, 0
+failures; ktlint clean.
+
 ## feat(calendar,travel): calendar tile and travel surfaces
 
 _2026-09-21_

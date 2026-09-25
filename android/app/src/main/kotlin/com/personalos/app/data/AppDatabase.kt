@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.sqlite.execSQL
 
 @Database(
-    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class],
+    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class, ConversationEntity::class],
     views = [ItemTagCurrent::class],
-    version = 19,
+    version = 20,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,6 +41,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun messageDeleteDao(): MessageDeleteDao
 
     abstract fun messageSearchDao(): MessageSearchDao
+
+    abstract fun conversationDao(): ConversationDao
 
     abstract fun itemFieldDao(): ItemFieldDao
 
@@ -71,6 +76,7 @@ abstract class AppDatabase : RoomDatabase() {
                         // driver, so the file on disk does not move.
                         .setDriver(BundledSQLiteDriver())
                         .addMigrations(*MIGRATIONS)
+                        .addCallback(DerivedObjectsCallback)
                         // v1 and v2 predate the exported schema baseline and never
                         // shipped, so they are the only versions allowed to reset.
                         // Everything from v3 on migrates and keeps its data.
@@ -79,5 +85,33 @@ abstract class AppDatabase : RoomDatabase() {
                 dbInstance = created
                 created
             }
+    }
+}
+
+/**
+ * Installs the objects Room cannot model as entities, whenever the database is
+ * opened: the `events_fts` table and its sync triggers, and the `conversations`
+ * triggers.
+ *
+ * On an upgrade the migrations create them. On a **fresh install** Room creates
+ * the schema directly at the current version and **no migration runs**, so
+ * without this those objects simply would not exist — which is how search was
+ * broken on a fresh install while working on every upgraded device. Every
+ * statement is `IF NOT EXISTS`, so on an upgrade path this is a cheap no-op.
+ *
+ * The DDL is shared with the migrations ([DERIVED_OBJECT_STATEMENTS]), so the
+ * two paths cannot drift; a test asserts they agree.
+ *
+ * Both callback overloads are overridden because Room dispatches the
+ * `SQLiteConnection` one when a driver is set (as here) and the
+ * `SupportSQLiteDatabase` one on the platform path; running both is harmless.
+ */
+internal object DerivedObjectsCallback : RoomDatabase.Callback() {
+    override fun onOpen(db: SupportSQLiteDatabase) {
+        DERIVED_OBJECT_STATEMENTS.forEach { db.execSQL(it) }
+    }
+
+    override fun onOpen(connection: SQLiteConnection) {
+        DERIVED_OBJECT_STATEMENTS.forEach { connection.execSQL(it) }
     }
 }

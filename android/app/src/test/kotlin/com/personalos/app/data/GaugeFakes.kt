@@ -272,11 +272,24 @@ object GaugeFakes {
     fun writer(
         events: FakeEventDao,
         fields: FakeFieldDao,
+        transactor: com.personalos.app.data.Transactor = PassThroughTransactor(),
     ): ObservationWriter =
         ObservationWriter(
             events,
             fields,
             TagWriter(StubTagDao(), FixedTagger()),
             RuleWriter(StubRuleDao(), StubMatchDao(), StubTagDao(), StubMentionDao(), fields),
+            transactor,
         )
+
+    /** Tests have no database, so the block simply runs; correctness of Room's
+     *  rollback is Room's, and one observation is one unit either way. */
+    class PassThroughTransactor : com.personalos.app.data.Transactor {
+        var calls = 0
+
+        override suspend fun <T> inTransaction(block: suspend () -> T): T {
+            calls++
+            return block()
+        }
+    }
 }

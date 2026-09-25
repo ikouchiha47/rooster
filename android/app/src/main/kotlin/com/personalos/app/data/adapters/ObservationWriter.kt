@@ -26,6 +26,12 @@ class ObservationWriter(
     private val fieldDao: ItemFieldDao,
     private val tagWriter: TagWriter,
     private val ruleWriter: RuleWriter,
+    /**
+     * One observation is an `events` row **plus** the `item_fields` that belong
+     * to it, and the two must land together: a reader between them would see a
+     * sample with no fields, and `item_fields` has no timestamp to re-notify it.
+     */
+    private val transactor: com.personalos.app.data.Transactor,
     private val bucketMs: Long = DEFAULT_BUCKET_MS,
 ) {
     data class Observation(
@@ -73,8 +79,20 @@ class ObservationWriter(
                     url = null,
                     ingestedAt = now,
                 )
-            val inserted = eventDao.insertAll(listOf(row))
-            if (inserted.firstOrNull() == -1L) {
+            // The row and its fields are one fact, so they commit together: a
+            // reader must never find a fresh observation with no fields, and
+            // `item_fields` carries no timestamp to re-notify it afterwards.
+            val landed =
+                transactor.inTransaction {
+                    val inserted = eventDao.insertAll(listOf(row))
+                    if (inserted.firstOrNull() == -1L) {
+                        false
+                    } else {
+                        writeFields(row.ulid, observation)
+                        true
+                    }
+                }
+            if (!landed) {
                 // Lost a race with a concurrent bucket write: fall through to update.
                 val raced = eventDao.byDedupeKey(dedupeKey)
                 if (raced != null) {
@@ -97,19 +115,20 @@ class ObservationWriter(
         existing: EventEntity,
         observation: Observation,
     ) {
+        // Both writes in one transaction: the row and its fields are one fact,
+        // and the field set is exact (deleted first), so a reader can never see
+        // the new timestamp with the previous sample's values — or with none.
         runCatching {
-            eventDao.updateObservation(
-                ulid = existing.ulid,
-                timestamp = observation.timestamp,
-                title = observation.title,
-                content = observation.content,
-            )
+            transactor.inTransaction {
+                eventDao.updateObservation(
+                    ulid = existing.ulid,
+                    timestamp = observation.timestamp,
+                    title = observation.title,
+                    content = observation.content,
+                )
+                writeFields(existing.ulid, observation)
+            }
         }.onFailure { Log.w(TAG, "observation update failed for ${existing.ulid}", it) }
-        runCatching {
-            val rows = observation.fields.map { (name, value) -> value.toEntity(existing.ulid, name) }
-            fieldDao.deleteForItem(existing.ulid)
-            fieldDao.replaceAll(rows)
-        }.onFailure { Log.w(TAG, "observation field replace failed for ${existing.ulid}", it) }
         runCatching {
             ruleWriter.write(existing.toRuleItemSeed().copy(title = observation.title, content = observation.content))
         }.onFailure { Log.w(TAG, "observation rule eval failed for ${existing.ulid}", it) }
@@ -131,12 +150,29 @@ class ObservationWriter(
                 ),
             )
         }.onFailure { Log.w(TAG, "observation tag failed for ${row.ulid}", it) }
-        runCatching {
-            val rows = observation.fields.map { (name, value) -> value.toEntity(row.ulid, name) }
-            fieldDao.replaceAll(rows)
-        }.onFailure { Log.w(TAG, "observation field write failed for ${row.ulid}", it) }
+        // Fields are not written here: they committed with the row, inside the
+        // insert transaction, so the row and its values are never observable
+        // apart. Tags and rules follow, outside it — they are additive and must
+        // not hold a write transaction open.
         runCatching { ruleWriter.write(RuleItemSeed(itemId = row.ulid, sourceId = row.source, title = row.title, content = row.content)) }
             .onFailure { Log.w(TAG, "observation rule eval failed for ${row.ulid}", it) }
+    }
+
+    /**
+     * The observation's fields as a **set**: cleared first, then written.
+     *
+     * `REPLACE` upserts the keys it is given but never removes keys a previous
+     * sample wrote, so without the delete an item would keep a value the current
+     * sample never carried. One definition, used by both the insert and the
+     * update path — both of which run inside a transaction.
+     */
+    private suspend fun writeFields(
+        ulid: String,
+        observation: Observation,
+    ) {
+        val rows = observation.fields.map { (name, value) -> value.toEntity(ulid, name) }
+        fieldDao.deleteForItem(ulid)
+        fieldDao.replaceAll(rows)
     }
 
     companion object {

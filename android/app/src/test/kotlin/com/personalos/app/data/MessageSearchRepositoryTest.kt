@@ -15,6 +15,8 @@ class MessageSearchRepositoryTest {
         var likePattern: String? = null
         var limit: Int? = null
 
+        override fun observeMaxIdForSource(source: String): kotlinx.coroutines.flow.Flow<Long?> = kotlinx.coroutines.flow.flowOf(null)
+
         override suspend fun searchMatch(
             match: String,
             limit: Int,

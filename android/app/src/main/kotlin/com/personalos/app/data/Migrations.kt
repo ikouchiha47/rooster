@@ -519,6 +519,48 @@ val MIGRATION_17_18_STATEMENTS: List<String> =
     )
 
 /**
+ * The FTS objects Room cannot model.
+ *
+ * `events_fts` is an FTS5 external-content virtual table with a custom
+ * tokenizer, and its three triggers are ordinary SQL triggers — Room can export
+ * neither, so neither is an entity. That has a consequence beyond validation:
+ * **migrations do not run on a fresh install** (Room creates the entities
+ * directly), so anything created only in a migration is missing there. These
+ * statements are therefore both the migration's DDL *and* what
+ * [com.personalos.app.data.AppDatabase] installs on open — one definition, two
+ * paths, because the alternative is a fresh install with no search index.
+ */
+internal val FTS_OBJECT_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
+            title,
+            content,
+            content='events',
+            content_rowid='id',
+            tokenize='trigram'
+        )
+        """.trimIndent(),
+        // Keep the index in step with the table it indexes.
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_ai AFTER INSERT ON events BEGIN
+            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+        END
+        """.trimIndent(),
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_ad AFTER DELETE ON events BEGIN
+            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+        END
+        """.trimIndent(),
+        """
+        CREATE TRIGGER IF NOT EXISTS events_fts_au AFTER UPDATE ON events BEGIN
+            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
+            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+        END
+        """.trimIndent(),
+    )
+
+/**
  * v18 -> v19: Messages search — an FTS5 external-content index over
  * `events(title, content)`, using the **trigram** tokenizer.
  *
@@ -564,38 +606,238 @@ val MIGRATION_17_18_STATEMENTS: List<String> =
  * - User input never reaches this DDL. The MATCH expression is built and
  *   quoted in `core/search` and bound as a parameter, never concatenated.
  */
+
 val MIGRATION_18_19_STATEMENTS: List<String> =
+    FTS_OBJECT_STATEMENTS +
+        // Rows that predate the index. `rebuild` re-reads every row from the
+        // external content table, which is exactly the backfill needed. Not in
+        // [DERIVED_OBJECT_STATEMENTS]: on a fresh install there is nothing to
+        // rebuild, and it would run on every open.
+        listOf("INSERT INTO events_fts(events_fts) VALUES('rebuild')")
+
+/**
+ * v19 -> v20: materialised conversations for the Messages screen.
+ *
+ * ## Why a table, not a view
+ *
+ * `GROUP BY events.title` for `source = 'sms'` is what answers "one row per
+ * sender". It scans `events`: 2,588 messages today, and the whole grouping takes
+ * 0.064s. That is a scan this screen would pay on every open and every arrival,
+ * for a shape that changes only when a message lands. So the grouped rows are
+ * **materialised** in `conversations`, and read as a plain table.
+ *
+ * ## Why triggers, not writers
+ *
+ * The alternative is for every writer (SMS ingest, bookmarking, removal) to
+ * call a maintenance method after touching `events`. That is a rule a future
+ * writer forgets. Triggers on `events` make the table a consequence of the
+ * writes that already happen, so `events` stays the one owner of the message
+ * and `conversations` is derived from it, never a second copy.
+ *
+ * ## `events.title` is the sender only for SMS
+ *
+ * For `source = 'sms'`, `events.title` is the address as stored
+ * (`VA-WBGBNK-S`, `+919830611292`, `1909`). For every other source it is a
+ * headline or a place name, so both the backfill and every trigger are scoped
+ * `source = 'sms'`. Grouping across sources would turn a headline into a sender.
+ *
+ * ## Order matters: backfill before triggers
+ *
+ * The backfill `INSERT ... SELECT` runs **before** the triggers are created.
+ * With the triggers already in place, every row the backfill inserted would be
+ * replayed through them and counted a second time.
+ *
+ * ## Update and delete recompute, they do not decrement
+ *
+ * An `UPDATE` or `DELETE` can make the newest message disappear, so the
+ * `last_at` / `last_message_id` maxima must be re-derived from what remains.
+ * Both triggers recompute the affected sender's aggregate in full. `UPDATE`
+ * recomputes **both** the old and the new `(source, title)` groups, because
+ * changing `title` moves a message between conversations. If a conversation has
+ * no messages left, its row is deleted — a conversation is not a fact that
+ * outlives its messages.
+ *
+ * `pinned` is deliberately **not** in the recompute's `SET` list: it belongs to
+ * the conversation, not to any message, so recomputing counts must not clear it.
+ * There is no pin UI in this slice; the column exists only for ordering.
+ *
+ * ## Traps this avoids
+ *
+ * - Room cannot model or validate a trigger, so neither the `conversations`
+ *   table's triggers nor their behaviour appear in the exported schema. The
+ *   `MigrationSchemaTest` asserts they exist, and `ConversationTriggerTest` runs
+ *   insert/update/delete against a real SQLite and checks the counts.
+ * - The upsert uses `MAX(last_at, excluded.last_at)` / `MAX(last_message_id,
+ *   excluded.last_message_id)`: `last_at` is the newest `timestamp` and
+ *   `last_message_id` the newest `id`, and they can diverge when an item arrives
+ *   carrying an older publish time.
+ * - `ON CONFLICT(source, sender)` needs the composite primary key to exist;
+ *   it is declared on the entity too, so Room validates it on open.
+ * - No `DEFAULT` clauses (Room compares declared defaults); the backfill writes
+ *   every column explicitly.
+ */
+private val CONVERSATION_BASE_STATEMENTS: List<String> =
     listOf(
         """
-        CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
-            title,
-            content,
-            content='events',
-            content_rowid='id',
-            tokenize='trigram'
+        CREATE TABLE IF NOT EXISTS conversations (
+            source TEXT NOT NULL,
+            sender TEXT NOT NULL,
+            last_at INTEGER NOT NULL,
+            last_message_id INTEGER NOT NULL,
+            msg_count INTEGER NOT NULL,
+            inbox_count INTEGER NOT NULL,
+            sent_count INTEGER NOT NULL,
+            other_count INTEGER NOT NULL,
+            pinned INTEGER NOT NULL,
+            PRIMARY KEY(source, sender)
         )
         """.trimIndent(),
-        // Keep the index in step with the table it indexes.
+        // Backfill BEFORE the triggers - see the note above.
         """
-        CREATE TRIGGER IF NOT EXISTS events_fts_ai AFTER INSERT ON events BEGIN
-            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
-        END
+        INSERT INTO conversations
+            (source, sender, last_at, last_message_id, msg_count, inbox_count, sent_count, other_count, pinned)
+        SELECT source,
+               title,
+               MAX(timestamp),
+               MAX(id),
+               COUNT(*),
+               SUM(type = 'inbox'),
+               SUM(type = 'sent'),
+               SUM(type NOT IN ('inbox', 'sent')),
+               0
+        FROM events
+        WHERE source = 'sms'
+        GROUP BY source, title
         """.trimIndent(),
-        """
-        CREATE TRIGGER IF NOT EXISTS events_fts_ad AFTER DELETE ON events BEGIN
-            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
-        END
-        """.trimIndent(),
-        """
-        CREATE TRIGGER IF NOT EXISTS events_fts_au AFTER UPDATE ON events BEGIN
-            INSERT INTO events_fts(events_fts, rowid, title, content) VALUES ('delete', old.id, old.title, old.content);
-            INSERT INTO events_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
-        END
-        """.trimIndent(),
-        // Rows that predate the index. `rebuild` re-reads every row from the
-        // external content table, which is exactly the backfill needed.
-        "INSERT INTO events_fts(events_fts) VALUES('rebuild')",
     )
+
+/**
+ * The three triggers, kept as their own list so a **fresh install** gets them
+ * too. Room creates the schema directly at the current version when there is no
+ * database file, so no migration runs and the DDL below would never execute;
+ * [ConversationTriggersCallback] installs the same statements on open, idempotently
+ * (`IF NOT EXISTS`). One spelling of the triggers, used by both paths.
+ */
+internal val CONVERSATION_TRIGGER_STATEMENTS: List<String> =
+    listOf(
+        // INSERT: create the conversation or bump it. The maxima keep both keys
+        // correct when events arrive in a different order than they publish.
+        """
+        CREATE TRIGGER IF NOT EXISTS conversations_ai AFTER INSERT ON events
+        WHEN new.source = 'sms'
+        BEGIN
+            INSERT INTO conversations
+                (source, sender, last_at, last_message_id, msg_count, inbox_count, sent_count, other_count, pinned)
+            VALUES
+                (new.source, new.title, new.timestamp, new.id, 1,
+                 CASE WHEN new.type = 'inbox' THEN 1 ELSE 0 END,
+                 CASE WHEN new.type = 'sent'  THEN 1 ELSE 0 END,
+                 CASE WHEN new.type NOT IN ('inbox', 'sent') THEN 1 ELSE 0 END,
+                 0)
+            ON CONFLICT(source, sender) DO UPDATE SET
+                last_at = MAX(last_at, excluded.last_at),
+                last_message_id = MAX(last_message_id, excluded.last_message_id),
+                msg_count = msg_count + excluded.msg_count,
+                inbox_count = inbox_count + excluded.inbox_count,
+                sent_count = sent_count + excluded.sent_count,
+                other_count = other_count + excluded.other_count;
+        END
+        """.trimIndent(),
+        // UPDATE: recompute the old and the new (source, title) groups; changing
+        // title moves a message between conversations.
+        """
+        CREATE TRIGGER IF NOT EXISTS conversations_au
+        AFTER UPDATE OF source, title, timestamp, type ON events
+        WHEN old.source = 'sms' OR new.source = 'sms'
+        BEGIN
+            DELETE FROM conversations
+            WHERE source = old.source AND sender = old.title AND old.source = 'sms'
+              AND NOT EXISTS (SELECT 1 FROM events WHERE source = old.source AND title = old.title);
+
+            INSERT INTO conversations
+                (source, sender, last_at, last_message_id, msg_count, inbox_count, sent_count, other_count, pinned)
+            SELECT events.source, events.title, MAX(events.timestamp), MAX(events.id), COUNT(*),
+                   SUM(events.type = 'inbox'), SUM(events.type = 'sent'),
+                   SUM(events.type NOT IN ('inbox', 'sent')), 0
+            FROM events
+            WHERE events.source = old.source AND events.title = old.title AND old.source = 'sms'
+            HAVING COUNT(*) > 0
+            ON CONFLICT(source, sender) DO UPDATE SET
+                last_at = excluded.last_at,
+                last_message_id = excluded.last_message_id,
+                msg_count = excluded.msg_count,
+                inbox_count = excluded.inbox_count,
+                sent_count = excluded.sent_count,
+                other_count = excluded.other_count;
+
+            DELETE FROM conversations
+            WHERE source = new.source AND sender = new.title AND new.source = 'sms'
+              AND NOT EXISTS (SELECT 1 FROM events WHERE source = new.source AND title = new.title);
+
+            INSERT INTO conversations
+                (source, sender, last_at, last_message_id, msg_count, inbox_count, sent_count, other_count, pinned)
+            SELECT events.source, events.title, MAX(events.timestamp), MAX(events.id), COUNT(*),
+                   SUM(events.type = 'inbox'), SUM(events.type = 'sent'),
+                   SUM(events.type NOT IN ('inbox', 'sent')), 0
+            FROM events
+            WHERE events.source = new.source AND events.title = new.title AND new.source = 'sms'
+            HAVING COUNT(*) > 0
+            ON CONFLICT(source, sender) DO UPDATE SET
+                last_at = excluded.last_at,
+                last_message_id = excluded.last_message_id,
+                msg_count = excluded.msg_count,
+                inbox_count = excluded.inbox_count,
+                sent_count = excluded.sent_count,
+                other_count = excluded.other_count;
+        END
+        """.trimIndent(),
+        // DELETE: the last message may be gone, so recompute from what remains -
+        // and remove the conversation row entirely when nothing remains.
+        """
+        CREATE TRIGGER IF NOT EXISTS conversations_ad AFTER DELETE ON events
+        WHEN old.source = 'sms'
+        BEGIN
+            DELETE FROM conversations
+            WHERE source = old.source AND sender = old.title
+              AND NOT EXISTS (SELECT 1 FROM events WHERE source = old.source AND title = old.title);
+
+            INSERT INTO conversations
+                (source, sender, last_at, last_message_id, msg_count, inbox_count, sent_count, other_count, pinned)
+            SELECT events.source, events.title, MAX(events.timestamp), MAX(events.id), COUNT(*),
+                   SUM(events.type = 'inbox'), SUM(events.type = 'sent'),
+                   SUM(events.type NOT IN ('inbox', 'sent')), 0
+            FROM events
+            WHERE events.source = old.source AND events.title = old.title
+            HAVING COUNT(*) > 0
+            ON CONFLICT(source, sender) DO UPDATE SET
+                last_at = excluded.last_at,
+                last_message_id = excluded.last_message_id,
+                msg_count = excluded.msg_count,
+                inbox_count = excluded.inbox_count,
+                sent_count = excluded.sent_count,
+                other_count = excluded.other_count;
+        END
+        """.trimIndent(),
+    )
+
+/** Table + backfill + triggers, in that order: the backfill must precede them. */
+val MIGRATION_19_20_STATEMENTS: List<String> =
+    CONVERSATION_BASE_STATEMENTS + CONVERSATION_TRIGGER_STATEMENTS
+
+/**
+ * Everything that exists in the database but **not as an entity**.
+ *
+ * Installed on every open, and created by the migrations that introduced each
+ * object. A drift test asserts the migration path and this list agree, so
+ * upgraded and fresh installs cannot end up with different schemas — which is
+ * exactly how search came to be missing on fresh installs while working fine on
+ * every upgraded device.
+ *
+ * Declared after the two lists it joins, because a top-level `val` cannot
+ * reference one declared below it.
+ */
+internal val DERIVED_OBJECT_STATEMENTS: List<String> =
+    FTS_OBJECT_STATEMENTS + CONVERSATION_TRIGGER_STATEMENTS
 
 /**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
@@ -623,6 +865,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         17 to MIGRATION_16_17_STATEMENTS,
         18 to MIGRATION_17_18_STATEMENTS,
         19 to MIGRATION_18_19_STATEMENTS,
+        20 to MIGRATION_19_20_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

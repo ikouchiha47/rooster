@@ -209,6 +209,15 @@ class AppContainer(
             .MessageSearchRepository(database.messageSearchDao())
 
     /**
+     * Messages conversations: the materialised per-sender rows (v20). One owner
+     * of the grouped read; the Messages screen and its thread both read through
+     * it.
+     */
+    val conversations: com.personalos.app.data.ConversationRepository =
+        com.personalos.app.data
+            .ConversationRepository(database.conversationDao())
+
+    /**
      * The Watchers feed: fired matches with what matched. Reads through
      * [ruleWriter], so a fire's clause evaluation uses the same reader ingest did.
      */
@@ -325,11 +334,26 @@ class AppContainer(
             .CachedBody(cache)
 
     /**
+     * The region picker's directories: the provider owns the list, this supplies
+     * the cached fetch. One instance, so an opened picker does not mean a request.
+     */
+    val calendarDirectory: com.personalos.app.data.CalendarDirectory =
+        com.personalos.app.data
+            .CalendarDirectory(cachedBody)
+
+    /**
      * ADR 0005 T8: gauge observation writes — upsert-by-bucket, latest wins.
      * Counters never touch this writer (`IGNORE` + freeze stays theirs).
      */
     val observationWriter: ObservationWriter =
-        ObservationWriter(database.eventDao(), database.itemFieldDao(), tagWriter, ruleWriter)
+        ObservationWriter(
+            database.eventDao(),
+            database.itemFieldDao(),
+            tagWriter,
+            ruleWriter,
+            com.personalos.app.data
+                .RoomTransactor(database),
+        )
 
     /** ADR 0005 T19: tiles read the store through here, never a provider list. */
     val observationRepository: ObservationRepository =
