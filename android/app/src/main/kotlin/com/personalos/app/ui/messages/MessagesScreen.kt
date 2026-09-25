@@ -48,6 +48,7 @@ import com.personalos.app.core.Chars
 import com.personalos.app.core.SmsClass
 import com.personalos.app.core.SmsClassifier
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.ConversationRepository
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.SmsSource
@@ -81,6 +82,20 @@ import kotlin.math.roundToInt
 private const val PAGE_SIZE = 200
 private const val DAY_MS = 86_400_000L
 
+/**
+ * Rows kept in memory. A merge drops the oldest beyond this, never the newest,
+ * so a busy inbox cannot grow the loaded list without bound.
+ */
+private const val LOADED_CAP = 1_000
+
+/**
+ * The ordering the store uses (`ORDER BY timestamp DESC, id DESC`), so a merge
+ * cannot disagree with the query about which row is "first". `id` is the
+ * autoincrement row id, not the ULID — the same key the query orders by.
+ */
+private val newestMessageFirst: Comparator<EventEntity> =
+    compareByDescending<EventEntity> { it.timestamp }.thenByDescending { it.id }
+
 // Hoisted formatter: created once, never per row.
 private val TIME_FMT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
@@ -95,7 +110,10 @@ private sealed interface MsgRow {
 }
 
 @Composable
-fun MessagesScreen(modifier: Modifier = Modifier) {
+fun MessagesScreen(
+    modifier: Modifier = Modifier,
+    onOpenConversation: (String) -> Unit = {},
+) {
     val context = LocalContext.current
     val container = LocalAppContainer.current
     val database = remember { AppDatabase.getInstance(context) }
@@ -103,6 +121,11 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val mode = messagesTabAt(selectedTab).mode()
+
+    // The body is conversations by default; the flat timeline is one toggle away,
+    // so day-bucketing is never lost. Saved and search stay flat either way:
+    // they are messages, not conversations.
+    var conversationsView by remember { mutableStateOf(true) }
 
     val listState = rememberLazyListState()
     var items by remember { mutableStateOf<List<EventEntity>>(emptyList()) }
@@ -124,11 +147,22 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
     var results by remember { mutableStateOf<List<EventEntity>>(emptyList()) }
     val searchListState = rememberLazyListState()
 
-    // Cursor (keyset) pagination: first page on tab change.
-    // Reload the first page when new events land, so the list is live.
-    val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
+    // Two different triggers, deliberately kept apart:
+    //  - the tab changed  → this is a different list, so resetting is correct;
+    //  - a message landed → this is the *same* list plus rows; merging keeps
+    //    every composed row alive instead of blanking and refilling.
+    //
+    // The signal is scoped to SMS. The global MAX(id) ticks for a weather
+    // reading or an FX rate too, and waking this screen for those is what made
+    // it flicker during a feed sync.
+    val smsMaxId by database
+        .messageSearchDao()
+        .observeMaxIdForSource(SmsSource.SOURCE_ID)
+        .collectAsStateWithLifecycle(initialValue = null)
+    var loadedOnce by remember { mutableStateOf(false) }
 
-    LaunchedEffect(mode, maxId) {
+    LaunchedEffect(mode) {
+        loadedOnce = false
         items = emptyList()
         cursorTs = null
         cursorId = 0L
@@ -151,6 +185,29 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
             if (first.size < PAGE_SIZE) endReached = true
         }
         loading = false
+        loadedOnce = true
+    }
+
+    // A message landed. Merge the newest page into the list that is already on
+    // screen: no blanking, no `loading` flip, and the reader's rows are never
+    // torn down. Skipped while search results are showing, because those are a
+    // different list with a different order.
+    LaunchedEffect(smsMaxId) {
+        if (!loadedOnce || committed != null) return@LaunchedEffect
+        val fresh =
+            if (mode == null) {
+                container.bookmarks.saved(source = SmsSource.SOURCE_ID, limit = PAGE_SIZE)
+            } else {
+                dao.page(mode, null, 0L, PAGE_SIZE)
+            }
+        items =
+            mergeArrivals(
+                current = items,
+                arrivals = fresh,
+                key = { it.ulid },
+                newestFirst = newestMessageFirst,
+                cap = LOADED_CAP,
+            )
     }
 
     // Re-read the saved flags for the loaded page, so the glyph and the swipe
@@ -253,6 +310,7 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
         ) {
             MessagesAppBar(
                 dao = dao,
+                conversationsView = conversationsView,
                 onSearch = {
                     searchOpen = !searchOpen
                     if (!searchOpen) {
@@ -262,6 +320,7 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
                         results = emptyList()
                     }
                 },
+                onToggleView = { conversationsView = !conversationsView },
             )
             if (searchOpen) {
                 Box(
@@ -316,7 +375,7 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
                 }
             }
             if (committed == null) {
-                MessagesTabs(dao, selectedTab, onSelect = { selectedTab = it })
+                MessagesTabs(container.conversations, dao, conversationsView, selectedTab, onSelect = { selectedTab = it })
                 SyncLine(
                     left = "Push + in-app inbox",
                     right = "Quiet hours 23:00${Chars.EN_DASH}07:00",
@@ -341,6 +400,16 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
                             // actions apply, so it renders the same row.
                             onToggleSave = { ulid -> scope.launch { toggleSave(ulid) } },
                             onDelete = { ulid -> scope.launch { deleteMessage(ulid) } },
+                        )
+
+                    // Conversations are the body for the box tabs. Saved (mode ==
+                    // null) and search stay flat: they are not conversations.
+                    conversationsView && mode != null ->
+                        ConversationsBody(
+                            repository = container.conversations,
+                            mode = mode,
+                            smsMaxId = smsMaxId,
+                            onOpenConversation = onOpenConversation,
                         )
 
                     rows.isEmpty() -> EmptyInbox(Modifier.fillMaxSize())
@@ -388,13 +457,21 @@ fun MessagesScreen(modifier: Modifier = Modifier) {
 @Composable
 private fun MessagesAppBar(
     dao: EventDao,
+    conversationsView: Boolean,
     onSearch: () -> Unit,
+    onToggleView: () -> Unit,
 ) {
     val unread by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
     RadarAppBar(
         title = "Messages",
         sub = "Notifications ${Chars.MIDDLE_DOT} $unread unread",
         actions = {
+            // Grouped conversations <-> flat timeline. Day-bucketing lives in the
+            // timeline, so it stays one tap away rather than being lost.
+            GlyphActionButton(
+                glyph = if (conversationsView) Glyph.Stack else Glyph.Chat,
+                onClick = onToggleView,
+            )
             GlyphActionButton(Glyph.Search, onClick = onSearch)
             GlyphActionButton(Glyph.Dots, onClick = { })
         },
@@ -403,19 +480,33 @@ private fun MessagesAppBar(
 
 @Composable
 private fun MessagesTabs(
+    conversations: ConversationRepository,
     dao: EventDao,
+    conversationsView: Boolean,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
 ) {
     val container = LocalAppContainer.current
-    val all by dao.observeCountByMode("all").collectAsStateWithLifecycle(initialValue = 0)
-    val inbox by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
-    val sent by dao.observeCountByMode("sent").collectAsStateWithLifecycle(initialValue = 0)
-    val other by dao.observeCountByMode("other").collectAsStateWithLifecycle(initialValue = 0)
     val saved by container.bookmarks.observeSavedCount(SmsSource.SOURCE_ID).collectAsStateWithLifecycle(initialValue = 0)
 
+    // The count shown belongs to what the body is listing: conversations while
+    // grouped, messages while flat. Saved is the same either way — it is not a box.
+    val counts =
+        if (conversationsView) {
+            val all by conversations.observeCountByMode("all").collectAsStateWithLifecycle(initialValue = 0)
+            val inbox by conversations.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
+            val sent by conversations.observeCountByMode("sent").collectAsStateWithLifecycle(initialValue = 0)
+            val other by conversations.observeCountByMode("other").collectAsStateWithLifecycle(initialValue = 0)
+            listOf(all, inbox, sent, other, saved)
+        } else {
+            val all by dao.observeCountByMode("all").collectAsStateWithLifecycle(initialValue = 0)
+            val inbox by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
+            val sent by dao.observeCountByMode("sent").collectAsStateWithLifecycle(initialValue = 0)
+            val other by dao.observeCountByMode("other").collectAsStateWithLifecycle(initialValue = 0)
+            listOf(all, inbox, sent, other, saved)
+        }
+
     // Labels come from the tab model, so the strip and the loader cannot disagree.
-    val counts = listOf(all, inbox, sent, other, saved)
     TabStrip(
         items = MessagesTab.entries.mapIndexed { index, tab -> TabSpec(tab.label, counts[index]) },
         selectedIndex = selectedIndex,

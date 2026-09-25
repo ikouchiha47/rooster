@@ -107,6 +107,12 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
         }
         HardRule()
 
+        // Resolve a run's source to the name a person reads. The run stores
+        // `source_id`: a ULID for a user row, `seed:search:…` for a seed —
+        // identities, not labels. Radar's Events panel resolves the same fact,
+        // and two views must not disagree about what to call it.
+        val nameById = remember(sources) { sources.associate { it.id to it.name } }
+
         LazyColumn(Modifier.fillMaxSize()) {
             item {
                 Text(
@@ -125,7 +131,7 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
             // both views over one fact cannot drift.
             item { WidgetHeader(title = "Sync activity", note = "${syncRuns.size} sources") }
             items(syncRunKinds(syncRuns), key = { "kind-${it.kind}" }) { run ->
-                SyncRunRow(run)
+                SyncRunRow(run, label = runSourceLabel(run, nameById))
             }
 
             item { SectionGap() }
@@ -179,6 +185,26 @@ private fun MicroLabel(text: String) {
 }
 
 /**
+ * What to call a run's source: its stored name when it is a registry row, the
+ * region's readable name when it is a calendar (the slug `india/west-bengal`
+ * reads as `West Bengal`), and the raw id only as a last resort.
+ *
+ * Pure, so the naming rule is testable rather than scattered through the row.
+ */
+internal fun runSourceLabel(
+    run: com.personalos.app.data.SyncRunEntity,
+    nameById: Map<String, String>,
+): String {
+    val name = nameById[run.sourceId] ?: return run.sourceId
+    return if (run.kind == "calendar") {
+        com.personalos.app.core.calendar.CalendarDirectoryParser
+            .displayName(name)
+    } else {
+        name
+    }
+}
+
+/**
  * One row per kind that has ever run: the most recent run of that kind. Kinds
  * are ordered the way the services read (feeds, topics, sms, weather, fx,
  * device); a kind with no run yet simply has no row.
@@ -210,7 +236,10 @@ internal fun syncKindLabel(kind: String): String =
     }
 
 @Composable
-private fun SyncRunRow(run: com.personalos.app.data.SyncRunEntity) {
+private fun SyncRunRow(
+    run: com.personalos.app.data.SyncRunEntity,
+    label: String,
+) {
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier =
@@ -233,7 +262,7 @@ private fun SyncRunRow(run: com.personalos.app.data.SyncRunEntity) {
                     maxLines = 1,
                 )
                 Text(
-                    text = run.error ?: "${run.sourceId} ${Chars.MIDDLE_DOT} ${ago(run.finishedAt)}",
+                    text = run.error ?: "$label ${Chars.MIDDLE_DOT} ${ago(run.finishedAt)}",
                     style = RadarType.microPlain,
                     color = if (run.ok) RadarColors.ink3 else CategoryColors.Vermilion,
                     maxLines = 1,

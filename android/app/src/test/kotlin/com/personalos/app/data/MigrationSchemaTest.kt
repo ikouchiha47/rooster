@@ -71,7 +71,7 @@ class MigrationSchemaTest {
 
     @Test
     fun `the exported schema describes exactly what we expect`() {
-        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules", "item_fields", "kinds", "facets", "kind_facets", "sync_runs", "calendar_dates"), tables.keys)
+        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules", "item_fields", "kinds", "facets", "kind_facets", "sync_runs", "calendar_dates", "conversations"), tables.keys)
         assertEquals(setOf("item_tags_current"), views.keys)
     }
 
@@ -452,6 +452,63 @@ class MigrationSchemaTest {
             // DELETE: the index entry goes with the row.
             db.createStatement().executeUpdate("DELETE FROM events WHERE ulid = 'n1'")
             assertTrue("term must be gone after delete", ftsRowIds(db, "\"noth\"*").isEmpty())
+        }
+    }
+
+    @Test
+    fun `the full migration chain creates the conversations table and its triggers`() {
+        // Room cannot validate any of this: `conversations` is an entity but the
+        // triggers are not, so they never appear in the exported schema. Without
+        // this assertion a broken v20 would only fail on a device.
+        withMigratedV2Database { db ->
+            val objects =
+                db
+                    .createStatement()
+                    .executeQuery(
+                        "SELECT name, type FROM sqlite_master " +
+                            "WHERE name IN ('conversations', 'conversations_ai', 'conversations_au', 'conversations_ad')",
+                    ).use { rs -> buildMap { while (rs.next()) put(rs.getString(1), rs.getString(2)) } }
+
+            assertEquals("conversations is a table", "table", objects["conversations"])
+            assertEquals("insert trigger", "trigger", objects["conversations_ai"])
+            assertEquals("update trigger", "trigger", objects["conversations_au"])
+            assertEquals("delete trigger", "trigger", objects["conversations_ad"])
+        }
+    }
+
+    @Test
+    fun `v20 backfills one conversation per sms sender and ignores other sources`() {
+        withMigratedV2Database { db ->
+            // The chain seeds one SMS row (`VM-HDFCBK-S`, inbox) and two RSS
+            // rows. Only the SMS row is a conversation: a headline is not a
+            // sender.
+            val rows =
+                db
+                    .createStatement()
+                    .executeQuery(
+                        "SELECT source, sender, last_at, last_message_id, msg_count, inbox_count, sent_count, other_count, pinned " +
+                            "FROM conversations ORDER BY sender",
+                    ).use { rs ->
+                        buildList {
+                            while (rs.next()) {
+                                add(
+                                    listOf(
+                                        rs.getString(1),
+                                        rs.getString(2),
+                                        rs.getLong(3).toString(),
+                                        rs.getLong(4).toString(),
+                                        rs.getInt(5).toString(),
+                                        rs.getInt(6).toString(),
+                                        rs.getInt(7).toString(),
+                                        rs.getInt(8).toString(),
+                                        rs.getInt(9).toString(),
+                                    ),
+                                )
+                            }
+                        }
+                    }
+
+            assertEquals(listOf(listOf("sms", "VM-HDFCBK-S", "2000", "3", "1", "1", "0", "0", "0")), rows)
         }
     }
 

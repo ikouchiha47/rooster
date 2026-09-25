@@ -115,7 +115,7 @@ class CalendarKindAdapterTest {
             val durga = dao.rows.values.single { it.name == "Durga Puja, Maha Saptami" }
             assertEquals("india/west-bengal", durga.region)
             assertEquals("regional", durga.kind)
-            assertEquals("calendar:india/west-bengal", durga.source)
+            assertEquals("calendar:officeholidays:india/west-bengal", durga.source)
             assertTrue("epoch ms at UTC midnight", durga.startsAt > 0)
             val national = dao.rows.values.single { it.name == "Gandhi Jayanti" }
             assertEquals("national", national.kind)
@@ -164,7 +164,7 @@ class CalendarKindAdapterTest {
             val dao = FakeCalendarDao()
             val adapter = CalendarKindAdapter(dao, CachedBody(FakeCalendarCache()), fetch = { feed })
             adapter.ingest(source("india/west-bengal"), now = 9_000L)
-            assertEquals("calendar:india/west-bengal", dao.prunedSource)
+            assertEquals("calendar:officeholidays:india/west-bengal", dao.prunedSource)
             assertEquals(9_000L, dao.prunedBefore)
         }
 }

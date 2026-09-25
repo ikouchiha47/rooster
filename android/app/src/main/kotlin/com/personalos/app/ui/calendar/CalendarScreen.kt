@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
+import com.personalos.app.core.calendar.CalendarDirectoryParser
 import com.personalos.app.data.CalendarDateEntity
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
@@ -59,6 +60,8 @@ fun CalendarScreen(
     val regions by container.calendarRepository.followedRegions().collectAsStateWithLifecycle(initialValue = emptyList())
     val upcoming by container.calendarRepository.upcoming().collectAsStateWithLifecycle(initialValue = emptyList())
     val months = remember(upcoming) { groupIntoCalendarMonths(upcoming) }
+    // Region slugs are stored; the labels shown here come from each provider.
+    val regionLabels = remember(sources) { calendarRegionLabels(sources) }
 
     Column(
         modifier =
@@ -106,7 +109,7 @@ fun CalendarScreen(
                         )
                     }
                     items(month.items, key = { "${it.source}:${it.feedUid}" }) { row ->
-                        ObservanceRow(row)
+                        ObservanceRow(row, regionLabel = regionLabels[row.source])
                     }
                 }
             }
@@ -116,9 +119,17 @@ fun CalendarScreen(
     }
 }
 
-/** Shared with Travel's Calendar tab, so both surfaces draw observances the same way. */
+/**
+ * Shared with Travel's Calendar tab, so both surfaces draw observances the same
+ * way. [regionLabel] is the provider's display name for the row's region; when
+ * absent (a caller that has no source list), the slug is at least made readable.
+ */
 @Composable
-internal fun ObservanceRow(row: CalendarDateEntity) {
+internal fun ObservanceRow(
+    row: CalendarDateEntity,
+    regionLabel: String? = null,
+) {
+    val region = regionLabel ?: CalendarDirectoryParser.displayName(row.region)
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier =
@@ -143,7 +154,7 @@ internal fun ObservanceRow(row: CalendarDateEntity) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${row.kind.uppercase(Locale.ENGLISH)} ${Chars.MIDDLE_DOT} ${row.region}",
+                    text = "${row.kind.uppercase(Locale.ENGLISH)} ${Chars.MIDDLE_DOT} $region",
                     style = RadarType.microPlain,
                     color = RadarColors.ink3,
                     maxLines = 1,

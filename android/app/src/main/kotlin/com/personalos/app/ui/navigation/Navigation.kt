@@ -25,6 +25,7 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.home.HomeScreen
 import com.personalos.app.ui.me.MeScreen
+import com.personalos.app.ui.messages.ConversationThreadScreen
 import com.personalos.app.ui.messages.MessagesScreen
 import com.personalos.app.ui.money.MoneyScreen
 import com.personalos.app.ui.news.NewsScreen
@@ -85,6 +86,11 @@ sealed interface Destination {
         val eventId: Long,
     ) : Destination
 
+    /** One sender's SMS thread. Carries the stored sender address. */
+    data class Conversation(
+        val sender: String,
+    ) : Destination
+
     /** Seven-day forecast for one configured place. */
     data class Forecast(
         val place: String,
@@ -119,6 +125,8 @@ private fun routeFor(destination: Destination): String =
         is Destination.Wallet -> "wallet"
         is Destination.Me -> "me"
         is Destination.Article -> "article/${destination.eventId}"
+        // A sender address can carry a `+`, spaces or a `-`, so encode it.
+        is Destination.Conversation -> "conversation/${Uri.encode(destination.sender)}"
         // Place names can contain spaces, so the segment is encoded on the way in.
         is Destination.Forecast -> "forecast/${Uri.encode(destination.place)}"
         is Destination.Placeholder -> "placeholder/${destination.serviceName}"
@@ -162,7 +170,23 @@ fun AppNavHost(
             )
         }
         composable("services") { ServicesScreen(onNavigate = { openFromGrid(navController, it) }) }
-        composable("messages") { MessagesScreen() }
+        composable("messages") {
+            MessagesScreen(
+                onOpenConversation = { sender ->
+                    navigateToDetail(navController, Destination.Conversation(sender))
+                },
+            )
+        }
+        composable(
+            route = "conversation/{sender}",
+            arguments = listOf(navArgument("sender") { type = NavType.StringType }),
+        ) { entry ->
+            val sender = entry.arguments?.getString("sender") ?: return@composable
+            ConversationThreadScreen(
+                sender = Uri.decode(sender),
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable(
             route = "radar?tab={tab}",
             arguments =

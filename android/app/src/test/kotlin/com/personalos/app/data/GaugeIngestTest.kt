@@ -283,6 +283,8 @@ class GaugeIngestTest {
                     fields,
                     TagWriter(StubTagDao(), FixedTagger()),
                     RuleWriter(StubRuleDao(), StubMatchDao(), StubTagDao(), StubMentionDao(), fields),
+                    com.personalos.app.data.GaugeFakes
+                        .PassThroughTransactor(),
                     bucketMs = 3_600_000L,
                 )
             val firstHour = 1_726_531_200_000L
@@ -399,6 +401,43 @@ class GaugeIngestTest {
         assertTrue(Sql.EVENTS_PAGE_BY_MODE.contains("source = 'sms'"))
         assertTrue(Sql.EVENTS_COUNT_BY_MODE.contains("source = 'sms'"))
     }
+
+    @Test
+    fun `an in-bucket observation writes its row and fields in one transaction`() =
+        runBlocking {
+            val events = FakeEventDao()
+            val fields = FakeFieldDao()
+            val tx = GaugeFakes.PassThroughTransactor()
+            val writer =
+                ObservationWriter(
+                    events,
+                    fields,
+                    TagWriter(StubTagDao(), FixedTagger()),
+                    RuleWriter(StubRuleDao(), StubMatchDao(), StubTagDao(), StubMentionDao(), fields),
+                    tx,
+                )
+            val hour = 1_726_531_200_000L
+
+            fun obs(v: Double) =
+                ObservationWriter.Observation(
+                    identity = "weather:bengaluru",
+                    timestamp = hour + 1_000L,
+                    title = "Bengaluru",
+                    content = "$v",
+                    topicTag = "weather",
+                    fields = mapOf("temp_c" to FieldValue.Num(v)),
+                )
+
+            writer.write(obs(31.0), now = hour)
+            val afterInsert = tx.calls
+            // Same bucket: this is the update path, where the row and the field
+            // set are rewritten together and must not be observable apart.
+            writer.write(obs(31.2), now = hour)
+            assertTrue(
+                "the row update and its fields are one unit",
+                tx.calls > afterInsert,
+            )
+        }
 
     @Test
     fun `series window reads one source and field capped`() {
