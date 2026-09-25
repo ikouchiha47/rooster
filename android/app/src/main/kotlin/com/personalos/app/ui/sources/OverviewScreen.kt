@@ -3,6 +3,7 @@ package com.personalos.app.ui.sources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
@@ -26,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personalos.app.core.Chars
-import com.personalos.app.core.feed.FeedStatus
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.ui.common.HardRule
 import com.personalos.app.ui.common.LocalAppContainer
@@ -270,64 +272,6 @@ private fun SyncRunRow(
         }
         SoftRule()
     }
-}
-
-@Composable
-private fun FeedRow(status: FeedStatus) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            StatusDot(status)
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = status.name,
-                    style = RadarType.serifTitle,
-                    color = RadarColors.ink,
-                    maxLines = 1,
-                )
-                Text(
-                    text = status.lastError?.let { "${status.host} · $it" } ?: status.host,
-                    style = RadarType.microPlain,
-                    color = if (status.lastError != null) CategoryColors.Vermilion else RadarColors.ink3,
-                    maxLines = 1,
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = ago(status.lastOkAt),
-                    style = RadarType.monoSmall,
-                    color = RadarColors.ink2,
-                )
-                Text(
-                    text = "${status.itemCount} NEW",
-                    style = RadarType.micro,
-                    color = RadarColors.ink3,
-                )
-            }
-        }
-        SoftRule()
-    }
-}
-
-@Composable
-internal fun StatusDot(status: FeedStatus?) {
-    val color =
-        when {
-            status == null || status.neverSynced -> RadarColors.ruleDot
-            status.ok -> Ok
-            else -> CategoryColors.Vermilion
-        }
-    Box(
-        Modifier
-            .size(7.dp)
-            .background(color),
-    )
 }
 
 @Composable
