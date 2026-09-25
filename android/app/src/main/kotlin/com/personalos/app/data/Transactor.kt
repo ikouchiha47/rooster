@@ -1,7 +1,7 @@
 package com.personalos.app.data
 
 import androidx.room.RoomDatabase
-import androidx.room.withTransaction
+import androidx.room.useWriterConnection
 
 /**
  * Runs a set of writes as one unit.
@@ -20,9 +20,24 @@ interface Transactor {
     suspend fun <T> inTransaction(block: suspend () -> T): T
 }
 
-/** The Room implementation: all-or-nothing, with the rollback Room provides. */
+/**
+ * The Room implementation: all-or-nothing, with the rollback Room provides.
+ *
+ * It goes through [useWriterConnection] on purpose. `RoomDatabase.withTransaction`
+ * is the *platform* transaction: it ends at `beginTransaction()`, which asks for
+ * a `SupportSQLiteOpenHelper` — the very thing a database opened with a driver
+ * (this app uses `BundledSQLiteDriver` for FTS5) does not have. On the device
+ * that surfaced as weather and fx never writing an observation, each run
+ * failing with "Cannot return a SupportSQLiteOpenHelper…". The driver's own
+ * `Transactor` is the transaction API that exists in driver mode.
+ */
 class RoomTransactor(
     private val database: RoomDatabase,
 ) : Transactor {
-    override suspend fun <T> inTransaction(block: suspend () -> T): T = database.withTransaction { block() }
+    override suspend fun <T> inTransaction(block: suspend () -> T): T =
+        database.useWriterConnection { writer ->
+            // IMMEDIATE, like Room's own write transaction: take the write lock
+            // up front rather than upgrading mid-transaction.
+            writer.withTransaction(androidx.room.Transactor.SQLiteTransactionType.IMMEDIATE) { block() }
+        }
 }

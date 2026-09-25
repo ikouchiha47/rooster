@@ -7,6 +7,28 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(data): transact on the driver, so weather and fx write again
+
+_2026-09-26_
+
+Weather and fx stopped writing observations: every run was recorded `ok = false`
+with "Cannot return a SupportSQLiteOpenHelper since no
+SupportSQLiteOpenHelper.Factory was configured with Room."
+
+`RoomTransactor` used `RoomDatabase.withTransaction`, which is the platform
+transaction — it ends at `beginTransaction()`, which asks for a
+`SupportSQLiteOpenHelper`. A database opened with a driver (this app sets
+`BundledSQLiteDriver` for FTS5) has none, so the transaction could not begin and
+the write was lost. Only weather and fx were hit, because they are the only
+kinds that write through `ObservationWriter`/`RoomTransactor`.
+
+It now uses `useWriterConnection { it.withTransaction(IMMEDIATE) { … } }`, the
+transaction API that exists in driver mode, so the event row and its fields are
+again committed as one unit.
+
+Verified on device: every weather and fx run succeeds, new observations carry
+their fields, and no weather/fx observation has zero fields.
+
 ## feat(messages,calendar): grouped conversations and region directories
 
 _2026-09-26_
