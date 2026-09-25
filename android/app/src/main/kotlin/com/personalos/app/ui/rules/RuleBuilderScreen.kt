@@ -40,11 +40,17 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.personalos.app.core.feed.FeedCatalog
+import com.personalos.app.core.mention.MentionKind
+import com.personalos.app.core.rules.FieldNames
 import com.personalos.app.core.rules.FieldOp
 import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.TextTarget
+import com.personalos.app.core.sources.SourceKeys
+import com.personalos.app.core.sources.SourceSpecs
 import com.personalos.app.core.tag.TagGroups
 import com.personalos.app.data.RulePreview
+import com.personalos.app.data.SourceEntity
 import com.personalos.app.data.UnavailableReason
 import com.personalos.app.ui.common.BackButton
 import com.personalos.app.ui.common.FlatButton
@@ -77,6 +83,9 @@ fun RuleBuilderScreen(
     val scope = rememberCoroutineScope()
     val rules by container.ruleRepository.observe().collectAsState(initial = emptyList())
     val rule = rules.find { it.id == ruleId }
+
+    val sourceEntities by container.sourceRepository.observe().collectAsState(initial = emptyList())
+    val sourceChoices = remember(sourceEntities) { sourceChoices(sourceEntities) }
 
     var draft by remember(rule) {
         mutableStateOf(
@@ -181,6 +190,7 @@ fun RuleBuilderScreen(
             draft.predicates.forEachIndexed { index, predicate ->
                 PredicateRow(
                     predicate = predicate,
+                    sourceChoices = sourceChoices,
                     onChange = { draft = draft.copy(predicates = draft.predicates.toMutableList().apply { set(index, it) }) },
                     onRemove = { draft = draft.copy(predicates = draft.predicates.toMutableList().apply { removeAt(index) }) },
                 )
@@ -359,6 +369,7 @@ private fun CompositionLabel(composition: RuleDraft.Composition) {
 @Composable
 private fun PredicateRow(
     predicate: PredicateDraft,
+    sourceChoices: List<SourceChoice>,
     onChange: (PredicateDraft) -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -376,7 +387,8 @@ private fun PredicateRow(
                 current = predicate.typeLabel(),
                 options = predicateTypeOptions(),
                 onSelect = { type ->
-                    onChange(createDefaultPredicate(type))
+                    val defaultSource = sourceChoices.firstOrNull()?.source ?: ""
+                    onChange(createDefaultPredicate(type, defaultSource))
                 },
                 modifier = Modifier.width(100.dp),
             )
@@ -400,13 +412,16 @@ private fun PredicateRow(
                     Text(text = "is news", style = RadarType.body, color = RadarColors.ink2)
 
                 is PredicateDraft.Mention -> {
-                    SmallTextField(
-                        value = predicate.kind,
-                        hint = "kind",
-                        onChange = { onChange(predicate.copy(kind = it)) },
-                        modifier = Modifier.width(80.dp),
+                    // Mention kind is closed: only place and party exist today (MentionKind).
+                    // A free-text kind would silently never match because no extractor produces it.
+                    KindDropdown(
+                        current = predicate.kind,
+                        onSelect = { onChange(predicate.copy(kind = it)) },
                     )
                     Spacer(Modifier.width(4.dp))
+                    // Mention value is free text: places and parties are not exposed through
+                    // the container, so a picker would need new plumbing. The kind restriction
+                    // alone prevents the "silently never matches" bug for the predicate type.
                     SmallTextField(
                         value = predicate.value,
                         hint = "value",
@@ -415,20 +430,23 @@ private fun PredicateRow(
                     )
                 }
 
-                is PredicateDraft.Source ->
-                    SmallTextField(
-                        value = predicate.sourceId,
-                        hint = "source id",
-                        onChange = { onChange(predicate.copy(sourceId = it)) },
+                is PredicateDraft.Source -> {
+                    // Source is closed: a source id no producer uses silently never matches.
+                    // The choices are the real event sources (SMS, catalog feeds, user sources).
+                    SourceDropdown(
+                        current = predicate.sourceId,
+                        choices = sourceChoices,
+                        onSelect = { onChange(predicate.copy(sourceId = it)) },
                         modifier = Modifier.weight(1f),
                     )
+                }
 
                 is PredicateDraft.Field -> {
-                    SmallTextField(
-                        value = predicate.name,
-                        hint = "name",
-                        onChange = { onChange(predicate.copy(name = it)) },
-                        modifier = Modifier.width(80.dp),
+                    // Field name is closed: only names a producer writes can match anything.
+                    // A name outside FieldNames.SUPPLIED silently never matches (ADR 0003 §13).
+                    FieldNameDropdown(
+                        current = predicate.name,
+                        onSelect = { onChange(predicate.copy(name = it)) },
                     )
                     Spacer(Modifier.width(4.dp))
                     OpDropdown(
@@ -594,6 +612,114 @@ private fun TargetDropdown(
                     text = { Text(target.serialName, style = RadarType.body) },
                     onClick = {
                         onSelect(target)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceDropdown(
+    current: String,
+    choices: List<SourceChoice>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val currentLabel = choices.find { it.source == current }?.displayName ?: current.ifBlank { "choose" }
+    Box(
+        modifier =
+            modifier
+                .background(RadarColors.paper, RoundedCornerShape(2.dp))
+                .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 6.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = currentLabel,
+            style = RadarType.small,
+            color = if (current.isBlank()) RadarColors.ink3 else RadarColors.ink,
+            maxLines = 1,
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            choices.forEach { choice ->
+                DropdownMenuItem(
+                    text = { Text(choice.displayName, style = RadarType.body) },
+                    onClick = {
+                        onSelect(choice.source)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KindDropdown(
+    current: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    // Closed set: only the constants MentionKind defines today.
+    val options = listOf(MentionKind.PLACE, MentionKind.PARTY)
+    Box(
+        modifier =
+            Modifier
+                .background(RadarColors.paper, RoundedCornerShape(2.dp))
+                .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 6.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = current.ifBlank { "kind" },
+            style = RadarType.small,
+            color = if (current.isBlank()) RadarColors.ink3 else RadarColors.ink,
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, style = RadarType.body) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FieldNameDropdown(
+    current: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    // Closed set: only FieldNames.SUPPLIED can match anything (ADR 0003 §13).
+    val options = FieldNames.SUPPLIED.toList()
+    Box(
+        modifier =
+            Modifier
+                .width(90.dp)
+                .background(RadarColors.paper, RoundedCornerShape(2.dp))
+                .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 6.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = current.ifBlank { "name" },
+            style = RadarType.small,
+            color = if (current.isBlank()) RadarColors.ink3 else RadarColors.ink,
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, style = RadarType.body) },
+                    onClick = {
+                        onSelect(option)
                         expanded = false
                     },
                 )
@@ -911,14 +1037,17 @@ private fun PredicateDraft.typeLabel(): String =
 
 private fun predicateTypeOptions(): List<String> = listOf("subject", "nature", "marker", "mention", "source", "field", "text")
 
-private fun createDefaultPredicate(type: String): PredicateDraft =
+private fun createDefaultPredicate(
+    type: String,
+    defaultSource: String = "",
+): PredicateDraft =
     when (type) {
         "subject" -> PredicateDraft.Subject(TagGroups.SUBJECTS.firstOrNull() ?: "")
         "nature" -> PredicateDraft.Nature(TagGroups.NATURES.firstOrNull() ?: "")
         "marker" -> PredicateDraft.Marker
-        "mention" -> PredicateDraft.Mention("place", "")
-        "source" -> PredicateDraft.Source("")
-        "field" -> PredicateDraft.Field("", FieldOp.EQ, FieldValue.Str(""))
+        "mention" -> PredicateDraft.Mention(MentionKind.PLACE, "")
+        "source" -> PredicateDraft.Source(defaultSource)
+        "field" -> PredicateDraft.Field(FieldNames.SUPPLIED.firstOrNull() ?: "", FieldOp.EQ, FieldValue.Str(""))
         "text" -> PredicateDraft.Text("", TextTarget.ANY)
         else -> PredicateDraft.Unsupported
     }
@@ -957,3 +1086,44 @@ private fun opSymbol(op: FieldOp): String =
         FieldOp.GTE -> ">="
         FieldOp.CONTAINS -> "contains"
     }
+
+/**
+ * One selectable source in the rule builder.
+ *
+ * [source] is the real `events.source` string (`sms`, `rss:thehindu-top`,
+ * `userrss:…`, `gnews:…`). [displayName] is what the dropdown shows.
+ */
+data class SourceChoice(
+    val source: String,
+    val displayName: String,
+)
+
+/**
+ * Builds the closed set of source choices for the rule builder.
+ *
+ * Sources are the only things that can produce events, so a `source` predicate
+ * over an id no producer uses silently never matches. The set is therefore
+ * closed: every choice maps to a real producer (SMS, a catalog feed, or a user
+ * source resolved through [SourceKeys]).
+ */
+fun sourceChoices(sourceEntities: List<SourceEntity>): List<SourceChoice> {
+    val choices = mutableListOf<SourceChoice>()
+
+    // SMS is a hard-coded producer; it is not a row in the source store.
+    choices.add(SourceChoice("sms", "SMS"))
+
+    // Catalog feeds write `rss:<id>`; they are not user-editable rows.
+    FeedCatalog.SEEDS.forEach { seed ->
+        val sourceString = "${FeedCatalog.SOURCE_PREFIX}${seed.id}"
+        choices.add(SourceChoice(sourceString, seed.name))
+    }
+
+    // User sources resolve through SourceKeys to their real event source string.
+    sourceEntities.forEach { entity ->
+        val spec = runCatching { SourceSpecs.parse(entity.kind, entity.specJson) }.getOrNull() ?: return@forEach
+        val sourceString = SourceKeys.sourceFor(entity.id, spec)
+        choices.add(SourceChoice(sourceString, entity.name))
+    }
+
+    return choices
+}

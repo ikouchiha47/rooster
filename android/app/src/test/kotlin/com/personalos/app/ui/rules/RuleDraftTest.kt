@@ -1,5 +1,7 @@
 package com.personalos.app.ui.rules
 
+import com.personalos.app.core.mention.MentionKind
+import com.personalos.app.core.rules.FieldNames
 import com.personalos.app.core.rules.FieldOp
 import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.TextTarget
@@ -146,5 +148,73 @@ class RuleDraftTest {
         assertEquals("source is sms", PredicateDraft.Source("sms").summary())
         assertEquals("amount > 10000", PredicateDraft.Field("amount", FieldOp.GT, FieldValue.Num(10000.0)).summary())
         assertEquals("""text(any) ~ "bandh"""", PredicateDraft.Text("bandh", TextTarget.ANY).summary())
+    }
+
+    @Test
+    fun `field predicate is invalid when name is outside supplied set`() {
+        val valid = PredicateDraft.Field("amount", FieldOp.GT, FieldValue.Num(100.0))
+        val invalid = PredicateDraft.Field("unknown", FieldOp.EQ, FieldValue.Str("x"))
+        assertTrue(valid.isValid())
+        assertFalse(invalid.isValid())
+    }
+
+    @Test
+    fun `mention predicate is invalid when kind is outside mention kind constants`() {
+        val valid = PredicateDraft.Mention(MentionKind.PLACE, "Kolkata")
+        val invalid = PredicateDraft.Mention("unknown", "Kolkata")
+        assertTrue(valid.isValid())
+        assertFalse(invalid.isValid())
+    }
+
+    @Test
+    fun `restricted field predicate still emits parsable json`() {
+        val draft =
+            RuleDraft(
+                name = "A",
+                composition = RuleDraft.Composition.ALL,
+                predicates = listOf(PredicateDraft.Field("sender", FieldOp.CONTAINS, FieldValue.Str("bank"))),
+                push = true,
+                position = 0L,
+            )
+        val json = draft.toConditionJson()
+        com.personalos.app.core.rules.ConditionJson
+            .parse(json)
+    }
+
+    @Test
+    fun `restricted mention predicate still emits parsable json`() {
+        val draft =
+            RuleDraft(
+                name = "A",
+                composition = RuleDraft.Composition.ALL,
+                predicates = listOf(PredicateDraft.Mention(MentionKind.PLACE, "Kolkata")),
+                push = true,
+                position = 0L,
+            )
+        val json = draft.toConditionJson()
+        com.personalos.app.core.rules.ConditionJson
+            .parse(json)
+    }
+
+    @Test
+    fun `restricted source predicate still emits parsable json`() {
+        val draft =
+            RuleDraft(
+                name = "A",
+                composition = RuleDraft.Composition.ALL,
+                predicates = listOf(PredicateDraft.Source("sms")),
+                push = true,
+                position = 0L,
+            )
+        val json = draft.toConditionJson()
+        com.personalos.app.core.rules.ConditionJson
+            .parse(json)
+    }
+
+    @Test
+    fun `field names supplied is the exact closed set`() {
+        // Guard against a future change that accidentally widens or narrows
+        // the set without updating the UI dropdown.
+        assertEquals(setOf("sender", "amount"), FieldNames.SUPPLIED)
     }
 }

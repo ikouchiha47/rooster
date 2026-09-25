@@ -32,6 +32,7 @@ import com.personalos.app.ui.news.NewsScreen
 import com.personalos.app.ui.radar.RadarScreen
 import com.personalos.app.ui.rss.RssScreen
 import com.personalos.app.ui.rules.RuleBuilderScreen
+import com.personalos.app.ui.rules.RuleReadOnlyScreen
 import com.personalos.app.ui.rules.RulesScreen
 import com.personalos.app.ui.services.ServicesScreen
 import com.personalos.app.ui.settings.SettingsScreen
@@ -104,6 +105,11 @@ sealed interface Destination {
     data class RuleBuilder(
         val ruleId: String? = null,
     ) : Destination
+
+    /** Inspect a bundled (seeded) rule in read-only mode. */
+    data class RuleReadOnly(
+        val ruleId: String,
+    ) : Destination
 }
 
 private fun routeFor(destination: Destination): String =
@@ -136,6 +142,7 @@ private fun routeFor(destination: Destination): String =
             } else {
                 "ruleBuilder"
             }
+        is Destination.RuleReadOnly -> "ruleReadOnly/${destination.ruleId}"
     }
 
 @Composable
@@ -149,6 +156,7 @@ fun AppNavHost(
             RulesScreen(
                 onNewRule = { navigateToDetail(navController, Destination.RuleBuilder()) },
                 onEditRule = { rule -> navigateToDetail(navController, Destination.RuleBuilder(rule.id)) },
+                onInspectRule = { rule -> navigateToDetail(navController, Destination.RuleReadOnly(rule.id)) },
                 onBack = backOrNull(navController),
             )
         }
@@ -166,6 +174,16 @@ fun AppNavHost(
             RuleBuilderScreen(
                 ruleId = id,
                 onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = "ruleReadOnly/{ruleId}",
+            arguments = listOf(navArgument("ruleId") { type = NavType.StringType }),
+        ) { entry ->
+            val id = entry.arguments?.getString("ruleId") ?: return@composable
+            RuleReadOnlyScreen(
+                ruleId = id,
                 onBack = { navController.popBackStack() },
             )
         }
