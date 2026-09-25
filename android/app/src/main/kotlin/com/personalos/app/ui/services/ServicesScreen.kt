@@ -44,9 +44,9 @@ fun ServicesScreen(
         listOf(
             TabSpec("All", total),
             TabSpec("Radar", SERVICE_GROUPS[0].tiles.size),
-            TabSpec("News", SERVICE_GROUPS[1].tiles.size),
+            TabSpec("Feeds", SERVICE_GROUPS[1].tiles.size),
             TabSpec("M&M", SERVICE_GROUPS[2].tiles.size),
-            TabSpec("Media", SERVICE_GROUPS[3].tiles.size),
+            TabSpec("Daily", SERVICE_GROUPS[3].tiles.size),
             TabSpec("App", SERVICE_GROUPS[4].tiles.size),
         )
 
@@ -148,7 +148,7 @@ data class ServiceGroup(
 private val SERVICE_GROUPS: List<ServiceGroup> =
     listOf(
         ServiceGroup(
-            title = "Radar & monitoring",
+            title = "Radar & Monitoring",
             accent = CategoryColors.Vermilion,
             tiles =
                 listOf(
@@ -159,18 +159,17 @@ private val SERVICE_GROUPS: List<ServiceGroup> =
                 ),
         ),
         ServiceGroup(
-            title = "News & topics",
+            title = "Feeds",
             accent = CategoryColors.Indigo,
             tiles =
                 listOf(
-                    TileSpec("News", CategoryColors.Indigo, Glyph.News),
                     TileSpec("Topics", CategoryColors.Chartreuse, Glyph.Tag, darkGlyph = true),
                     TileSpec("RSS", CategoryColors.Indigo, Glyph.Rss),
                     TileSpec("Social", CategoryColors.Periwinkle, Glyph.Chat),
                 ),
         ),
         ServiceGroup(
-            title = "Money & travel",
+            title = "Money & Travel",
             accent = CategoryColors.Teal,
             tiles =
                 listOf(
@@ -178,18 +177,19 @@ private val SERVICE_GROUPS: List<ServiceGroup> =
                     TileSpec("Travel", CategoryColors.Mustard, Glyph.Plane, darkGlyph = true),
                     TileSpec("Cards", CategoryColors.Plum, Glyph.Card),
                     TileSpec("Wallet", CategoryColors.Cyan, Glyph.Wallet),
+                    TileSpec("Places", CategoryColors.Rust, Glyph.Place),
                 ),
         ),
         ServiceGroup(
-            title = "Media & daily",
+            title = "Daily",
             accent = CategoryColors.Cyan,
             tiles =
                 listOf(
+                    TileSpec("News", CategoryColors.Indigo, Glyph.News),
                     TileSpec("Radio", CategoryColors.Cyan, Glyph.Broadcast),
                     TileSpec("Weather", CategoryColors.Chartreuse, Glyph.CloudRain),
                     TileSpec("Calendar", CategoryColors.Rust, Glyph.Clock),
                     TileSpec("Notes", RadarColors.ink, Glyph.Note),
-                    TileSpec("Places", CategoryColors.Rust, Glyph.Place),
                 ),
         ),
         ServiceGroup(

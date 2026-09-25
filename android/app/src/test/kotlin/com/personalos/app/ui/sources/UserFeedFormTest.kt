@@ -11,7 +11,7 @@ import org.junit.Test
  * The add-a-feed form's local guards, pinned: a bad URL or a duplicate never
  * reaches the network, and the duplicate check ignores a trailing slash.
  */
-class UserFeedsSectionTest {
+class UserFeedFormTest {
     private fun source(
         name: String,
         url: String,

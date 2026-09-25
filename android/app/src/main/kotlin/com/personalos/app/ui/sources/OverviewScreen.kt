@@ -3,7 +3,6 @@ package com.personalos.app.ui.sources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,9 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
@@ -26,7 +23,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personalos.app.core.Chars
@@ -44,18 +40,21 @@ import com.personalos.app.ui.theme.RadarType
 import kotlinx.coroutines.launch
 
 /**
- * Sources: the health of every feed, plus what the store actually holds.
+ * Overview: the health of every feed, plus what the store actually holds.
  *
  * This screen only reads and manually triggers the ingest - all fetching lives
  * in FeedIngestor, reached here the same way the background worker reaches it.
  */
 @Composable
-fun SourcesScreen(modifier: Modifier = Modifier) {
+fun OverviewScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
     val statuses by container.feeds.statuses.collectAsState()
+    val sourceStatuses by container.feeds.sourceStatuses.collectAsState()
+    val allStatuses = statuses + sourceStatuses
+
     val database = remember { AppDatabase.getInstance(context) }
     val totalItems by database.eventDao().observeCount().collectAsState(initial = 0)
     val tagCounts by database.itemTagDao().observeTagCounts().collectAsState(initial = emptyList())
@@ -83,7 +82,7 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "Sources", style = RadarType.serifH1, color = RadarColors.ink)
+            Text(text = "Overview", style = RadarType.serifH1, color = RadarColors.ink)
             Spacer(Modifier.weight(1f))
             Text(
                 text = if (syncing) "SYNCING" else "SYNC",
@@ -117,7 +116,7 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
             item {
                 Text(
                     text =
-                        "${compactNumber(statuses.size)} FEEDS ${Chars.MIDDLE_DOT} " +
+                        "${compactNumber(allStatuses.size)} FEEDS ${Chars.MIDDLE_DOT} " +
                             "${compactNumber(totalItems)} ITEMS ${Chars.MIDDLE_DOT} " +
                             "${compactNumber(tagCounts.size)} TAGS",
                     style = RadarType.micro,
@@ -138,15 +137,10 @@ fun SourcesScreen(modifier: Modifier = Modifier) {
             item {
                 WidgetHeader(
                     title = "Feeds",
-                    note = "${statuses.count { it.ok }}/${statuses.size} ok",
+                    note = "${allStatuses.count { it.ok }}/${allStatuses.size} ok",
                 )
             }
-            items(statuses, key = { it.id }) { status -> FeedRow(status) }
-
-            item { SectionGap() }
-            // Adding and managing feeds. Seeded rows are not repeated here:
-            // their health is the catalog feed list above, so one feed is one row.
-            item { UserFeedsSection(sources = sources) }
+            items(allStatuses, key = { it.id }) { status -> FeedRow(status) }
 
             item { SectionGap() }
             item {
@@ -359,18 +353,5 @@ private fun CountRow(
             Text(text = right.toString(), style = RadarType.monoSmall, color = RadarColors.ink2)
         }
         SoftRule()
-    }
-}
-
-internal val Ok = Color(0xFF2F6B3A)
-
-internal fun ago(at: Long): String {
-    if (at <= 0L) return "NEVER"
-    val delta = System.currentTimeMillis() - at
-    return when {
-        delta < 60_000L -> "NOW"
-        delta < 3_600_000L -> "${delta / 60_000L}M"
-        delta < 86_400_000L -> "${delta / 3_600_000L}H"
-        else -> "${delta / 86_400_000L}D"
     }
 }

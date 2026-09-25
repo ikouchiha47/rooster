@@ -35,7 +35,7 @@ import com.personalos.app.ui.rules.RuleBuilderScreen
 import com.personalos.app.ui.rules.RulesScreen
 import com.personalos.app.ui.services.ServicesScreen
 import com.personalos.app.ui.settings.SettingsScreen
-import com.personalos.app.ui.sources.SourcesScreen
+import com.personalos.app.ui.sources.OverviewScreen
 import com.personalos.app.ui.travel.TravelScreen
 import com.personalos.app.ui.wallet.WalletScreen
 import com.personalos.app.ui.watchers.WatchersScreen
@@ -230,7 +230,7 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
-        composable("sources") { SourcesScreen() }
+        composable("sources") { OverviewScreen() }
         composable("watchers") { WatchersScreen(onBack = backOrNull(navController)) }
         composable("calendar") { CalendarScreen(onBack = backOrNull(navController)) }
         composable("travel") {
