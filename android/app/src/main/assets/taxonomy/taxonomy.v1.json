@@ -1,0 +1,111 @@
+{
+  "id": "bundled-v1",
+  "version": 1,
+  "note": "The tag vocabulary as data. A tag is defined once: its zero-shot `description` (embedding rung) and its `terms` (lexicon rung). Downloaded overrides merge over this by `tag`. `derivations` is reserved: relations computed from facts (L3), not inferred.",
+  "tags": [
+    {
+      "tag": "weather",
+      "group": "subject",
+      "owner": "embedding",
+      "description": "weather, rain, floods, storms, a natural disaster",
+      "terms": "flood|floods|flooding|cyclone|earthquake|quake|landslide|heatwave|heat_wave|monsoon|heavy_rain|rainfall|storm|drought|humidity|temperature|thunderstorm|cold_wave"
+    },
+    {
+      "tag": "finance",
+      "group": "subject",
+      "owner": "embedding",
+      "description": "finance, money, stock markets, banking, loans, interest rates",
+      "terms": "sensex|nifty|rupee|stock|stocks|shares|share_price|market_share|market|markets|rbi|sebi|inflation|gdp|ipo|bond|bonds|mutual_fund|equity|earnings|bse|nse|portfolio|tariff"
+    },
+    {
+      "tag": "tech",
+      "group": "subject",
+      "owner": "embedding",
+      "description": "technology, gadgets, software, artificial intelligence, cybersecurity",
+      "terms": "gadget|smartphone|semiconductor|chip|chips|software|developer|cybersecurity|robot|robotics|artificial_intelligence|machine_learning|startup|cloud|firmware"
+    },
+    {
+      "tag": "travel",
+      "group": "subject",
+      "owner": "embedding",
+      "description": "travel, flights, trains, hotels, tourism, tickets and bookings",
+      "terms": "travel|flight|flights|train|railway|tourism|tourist|visa|hotel|holiday|vacation|festival|carnival|itinerary|airline"
+    },
+    {
+      "tag": "festival",
+      "group": "subject",
+      "owner": "lexicon",
+      "description": "a festival, a religious holiday or a cultural celebration",
+      "terms": "durga_puja|durga_pujas|puja|pujas|diwali|deepavali|pongal|onam|bihu|ganesh_chaturthi|navratri|dussehra|dasara|holi|eid|ramadan|christmas|lohri|makara_sankranti|ugadi|gudi_padwa|vishu|baisakhi|raksha_bandhan|janmashtami|maha_shivratri|chhath|karva_chauth|kumbh_mela|rath_yatra"
+    },
+    {
+      "tag": "games",
+      "group": "subject",
+      "owner": "lexicon",
+      "description": "sports, games, matches, tournaments, cricket",
+      "terms": "cricket|football|soccer|hockey|badminton|tennis|kabaddi|motogp|moto_gp|f1|formula_1|formula_one|olympics|olympic|paralympic|paralympics|olympiad|asiad|asian_games|asia_cup|commonwealth_games|south_asian_games|national_games|world_cup|ipl|isl|pkl|odi|t20|t20i|test_match|wicket|batsman|bowler|innings|ranji|champions_trophy|grand_slam|wimbledon|us_open|french_open|australian_open|atp|wta|davis_cup|thomas_cup|uber_cup|all_england|table_tennis|squash|snooker|billiards|chess|chess_olympiad|premier_league|la_liga|bundesliga|serie_a|i_league|fifa|uefa|champions_league|europa_league|copa_america|afc_asian_cup|archery|athletics|swimming|diving|gymnastics|sailing|rowing|canoe|fencing|judo|karate|taekwondo|wushu|boxing|wrestling|weightlifting|golf|rugby|rugby_sevens|basketball|3x3_basketball|volleyball|beach_volleyball|baseball|softball|handball|cycling|surfing|skateboarding|climbing|triathlon|trampoline|modern_pentathlon|equestrian|lacrosse|flag_football|sepaktakraw|kho_kho|skiing|skating|figure_skating|ice_hockey|snowboard|curling|biathlon|bobsleigh|luge|ski_jumping|ufc|wwe|grand_prix|marathon|diamond_league|esports|bgmi|medal|tournament|championship"
+    },
+    {
+      "tag": "paper",
+      "group": "subject",
+      "owner": "lexicon",
+      "description": "a newspaper or a publication",
+      "terms": "arxiv|preprint|doi|peer-reviewed|journal|dataset|methodology|researchers|empirical"
+    },
+    {
+      "tag": "expense",
+      "group": "nature",
+      "owner": "embedding",
+      "description": "a bill, a payment, a debit or credit, a recharge, a transaction with an amount",
+      "terms": "bill|bills|recharge|debited|credited|upi|payment|paid|invoice|emi|subscription|renewal|grocery|groceries|rent|utilities|wallet"
+    },
+    {
+      "tag": "promo",
+      "group": "nature",
+      "owner": "embedding",
+      "description": "a promotional offer, a discount, a cashback or a marketing message",
+      "terms": "offer|offers|discount|cashback|sale|coupon|promo_code|flat_off|freebie|limited_period|buy_one_get_one"
+    },
+    {
+      "tag": "incident",
+      "group": "nature",
+      "owner": "embedding",
+      "description": "an accident, an outage, a strike, a disruption or something that went wrong",
+      "terms": "outage|downtime|maintenance|disrupted|disruption|restored|service_interruption|degradation|not_working|down|flood|floods|flooding|cyclone|earthquake|landslide|evacuated|evacuation|casualties|death_toll|relief_camp|washed_away|submerged|inundated"
+    },
+    {
+      "tag": "personal",
+      "group": "nature",
+      "owner": "embedding",
+      "description": "a personal message from an individual person",
+      "terms": ""
+    },
+    {
+      "tag": "official",
+      "group": "nature",
+      "owner": "lexicon",
+      "description": "an official notice from a government or an organisation",
+      "terms": "circular|notification|advisory|gazette|government_order|tender|public_notice|press_release"
+    }
+  ],
+  "markers": [
+    {
+      "tag": "news",
+      "description": "editorial content from a news source"
+    }
+  ],
+  "derivations": [
+    {
+      "tag": "local",
+      "from": ["place"],
+      "when": "place ≈ my present or home place",
+      "note": "L3 relation, not inferred. Reserved for the fact/relation engine."
+    },
+    {
+      "tag": "travel",
+      "from": ["incident", "place"],
+      "when": "incident ∧ place ∧ movement-relevant(place, me)",
+      "note": "L3 relation. Replaces the old lexicon term: a bank strike is incident, not travel."
+    }
+  ]
+}

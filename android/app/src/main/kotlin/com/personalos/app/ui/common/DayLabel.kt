@@ -1,32 +1,34 @@
 package com.personalos.app.ui.common
 
-import java.text.SimpleDateFormat
+import com.personalos.app.core.time.UserZone
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.Date
 import java.util.Locale
 
-/** One day, in milliseconds. */
+/**
+ * One day, in milliseconds. For *ranges* that are genuinely 24 hours; day
+ * **buckets** never use it — a local day is not always 24h under DST, so they go
+ * through [UserZone].
+ */
 const val DAY_MS = 86_400_000L
 
-private val DAY_LABEL_FMT = SimpleDateFormat("EEE d MMM", Locale.getDefault())
+private val DAY_LABEL_FMT = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
 
 private val WEEKDAY_FMT = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
 
 /**
  * Day bucket label: `Today` / `Yesterday` / `Mon 8 Sep`.
  *
- * One definition for every timeline in the app. Radar and Messages still carry
- * private copies of this from before it was shared - they should be folded into
- * this file so there is a single source.
+ * The day is the **user's local day** ([UserZone]), so "Today" means the phone's
+ * today, not UTC's — the two disagreed after local midnight before this.
  */
 fun dayLabel(timestamp: Long): String {
-    val bucket = timestamp / DAY_MS
-    val today = System.currentTimeMillis() / DAY_MS
-    return when (bucket) {
-        today -> "Today"
-        today - 1 -> "Yesterday"
-        else -> DAY_LABEL_FMT.format(Date(timestamp))
+    val day = UserZone.dayStart(timestamp)
+    return when (day) {
+        UserZone.dayStartOffset(0) -> "Today"
+        UserZone.dayStartOffset(-1) -> "Yesterday"
+        else -> DAY_LABEL_FMT.withZone(UserZone.current).format(Instant.ofEpochMilli(timestamp))
     }
 }
 
@@ -34,7 +36,12 @@ fun dayLabel(timestamp: Long): String {
 fun dayLabelRight(
     label: String,
     timestamp: Long,
-): String = if (label == "Today" || label == "Yesterday") DAY_LABEL_FMT.format(Date(timestamp)) else ""
+): String =
+    if (label == "Today" || label == "Yesterday") {
+        DAY_LABEL_FMT.withZone(UserZone.current).format(Instant.ofEpochMilli(timestamp))
+    } else {
+        ""
+    }
 
 /**
  * One day bucket of an already time-ordered timeline, newest first.
@@ -48,12 +55,11 @@ data class DayGroup<T>(
 )
 
 /**
- * Sequential day-bucketing for a time-ordered list.
+ * Sequential day-bucketing for a time-ordered list, in the user's zone.
  *
- * A new group starts wherever the [DAY_MS] bucket changes, so input order is
- * kept and a day that arrives in two runs (it cannot, the lists are ordered,
- * but cheap to be safe) stays two groups rather than being merged across
- * other days. Pure, so it is unit-tested without composing.
+ * A new group starts wherever the **local** day changes, so input order is kept
+ * and a day that arrives in two runs stays two groups. Pure, so it is unit-tested
+ * without composing.
  */
 fun <T> groupIntoDays(
     rows: List<T>,
@@ -63,7 +69,7 @@ fun <T> groupIntoDays(
     var current = Long.MIN_VALUE
     var bucket = mutableListOf<T>()
     for (row in rows) {
-        val day = timestampOf(row) / DAY_MS * DAY_MS
+        val day = UserZone.dayStart(timestampOf(row))
         if (bucket.isNotEmpty() && day != current) {
             out.add(DayGroup(current, bucket))
             bucket = mutableListOf()
@@ -78,11 +84,11 @@ fun <T> groupIntoDays(
 /**
  * Short label for a forecast row, from an ISO date: `TODAY`, else `THU`.
  *
- * Weather rows are one line per day and the date is already implied by position,
- * so only the weekday earns the space. Unparseable input falls back to the raw
- * string rather than throwing.
+ * The comparison is against the user's *local* today ([UserZone]), not the
+ * device's, so a forecast for the 2nd reads `TODAY` when it is the 2nd where the
+ * user is. Unparseable input falls back to the raw string rather than throwing.
  */
 fun forecastDayLabel(isoDate: String): String {
     val date = runCatching { LocalDate.parse(isoDate) }.getOrNull() ?: return isoDate
-    return if (date == LocalDate.now()) "TODAY" else date.format(WEEKDAY_FMT).uppercase(Locale.getDefault())
+    return if (date == LocalDate.now(UserZone.current)) "TODAY" else date.format(WEEKDAY_FMT).uppercase(Locale.getDefault())
 }

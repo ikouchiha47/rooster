@@ -33,9 +33,11 @@ import com.personalos.app.data.SmsSource
 import com.personalos.app.ui.common.Chip
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.HardRule
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import java.text.SimpleDateFormat
@@ -134,12 +136,10 @@ fun ConversationThreadScreen(
             title = sender,
             accent = RadarColors.ink,
             onBack = onBack,
-            subtitle = {
-                Text(
-                    text = "${items.size} messages ${Chars.MIDDLE_DOT} SMS only",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.paper4,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            trailing = {
+                HeaderMeta(
+                    "${compactNumber(items.size)} messages ${Chars.MIDDLE_DOT} SMS only",
+                    Modifier.padding(end = 8.dp),
                 )
             },
         )

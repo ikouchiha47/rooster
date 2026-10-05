@@ -36,6 +36,10 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun ruleFireDao(): RuleFireDao
 
+    abstract fun ruleBackfillDao(): RuleBackfillDao
+
+    abstract fun retagDao(): RetagDao
+
     abstract fun bookmarkDao(): BookmarkDao
 
     abstract fun messageDeleteDao(): MessageDeleteDao

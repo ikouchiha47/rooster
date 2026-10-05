@@ -1,5 +1,6 @@
 package com.personalos.app.ui.news
 
+import com.personalos.app.core.time.UserZone
 import com.personalos.app.data.DayHeader
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.TaggedEvent
@@ -7,6 +8,7 @@ import com.personalos.app.data.work.SyncScheduler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -14,6 +16,12 @@ import org.junit.Test
  * counts drift above the last seen head, and sections wire headers to pages.
  */
 class NewsSectionsTest {
+    // `todayStartMs` is the user's local day; pin UTC so epoch-day arithmetic holds here.
+    @Before
+    fun pinUtc() {
+        UserZone.set("UTC")
+    }
+
     @Test
     fun `the bucket width is the single sync-schedule value`() {
         assertEquals(SyncScheduler.DEFAULT_INTERVAL_MINUTES, SyncScheduler.SYNC_GROUP_MINUTES)

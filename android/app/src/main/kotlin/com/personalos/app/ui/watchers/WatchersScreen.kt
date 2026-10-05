@@ -1,6 +1,7 @@
 package com.personalos.app.ui.watchers
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,8 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,7 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.RuleFire
+import com.personalos.app.data.RuleFirePage
+import com.personalos.app.data.RuleFireRepository
 import com.personalos.app.data.RuleWithFires
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
@@ -34,11 +40,15 @@ import com.personalos.app.ui.common.SectionHeader
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 private val TIME_FMT = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+/** The day a fire happened, so a feed item is not just an undated clock time. */
+private val DAY_FMT = SimpleDateFormat("dd MMM", Locale.getDefault())
 
 /**
  * Watchers: every rule and what it caught.
@@ -79,13 +89,8 @@ fun WatchersScreen(
             title = "Watchers",
             accent = CategoryColors.Teal,
             onBack = onBack,
-            subtitle = {
-                Text(
-                    text = header,
-                    style = RadarType.labelMicro,
-                    color = RadarColors.paper4,
-                )
-            },
+            // The same shape as News, via the one component that owns it.
+            trailing = { HeaderMeta(header, Modifier.padding(end = 8.dp)) },
         )
 
         if (groups.isEmpty()) {
@@ -98,14 +103,102 @@ fun WatchersScreen(
             return@Column
         }
 
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(ordered, key = { "rule-${it.rule.id}" }) { group ->
-                RuleBlock(group)
+        val scope = rememberCoroutineScope()
+        // Per rule: the fires loaded after the first page, the cursor for the next
+        // page, whether there is no more, and whether a load is in flight. Keyed by
+        // rule id, because a LazyColumn's header and its item list are separate
+        // composables that cannot share a `remember` scope.
+        val extra = remember { mutableStateMapOf<String, List<RuleFire>>() }
+        val cursor = remember { mutableStateMapOf<String, Pair<Long, String>>() }
+        val done = remember { mutableStateMapOf<String, Boolean>() }
+        val loading = remember { mutableStateMapOf<String, Boolean>() }
+
+        // `weight(1f)`, not `fillMaxSize()`: under a header, fillMaxSize sizes the
+        // list to the whole parent, so its bottom hangs off-screen and the last
+        // rows cannot be reached. weight takes the space left below the header.
+        //
+        // Each rule's header is a `stickyHeader`, so it pins to the top while that
+        // rule's fires scroll under it; the next rule's header pushes it off.
+        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+            ordered.forEach { group ->
+                val id = group.rule.id
+                val shown = group.fires + extra[id].orEmpty()
+                val isExpanded = extra[id].orEmpty().isNotEmpty()
+                val remaining = (group.total - shown.size).coerceAtLeast(0)
+                val canLoadMore = remaining > 0 && done[id] != true
+
+                stickyHeader(key = "rule-$id") {
+                    // The contract control lives *in the header*: it is sticky, so
+                    // "show less" stays reachable while a long expanded section
+                    // scrolls, instead of sitting under hundreds of rows.
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(RadarColors.paper2)
+                            .clickable(enabled = isExpanded) {
+                                extra.remove(id)
+                                cursor.remove(id)
+                                done.remove(id)
+                            },
+                    ) {
+                        SectionHeader(
+                            title = group.rule.name,
+                            accent = CategoryColors.Teal,
+                            note = if (isExpanded) "show less" else ruleNote(group),
+                            onInk = false,
+                        )
+                    }
+                }
+                if (shown.isEmpty()) {
+                    item(key = "empty-$id") {
+                        Text(
+                            text = "No matches yet.",
+                            style = RadarType.microPlain,
+                            color = RadarColors.ink3,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                } else {
+                    items(items = shown, key = { "fire-$id-${it.itemId}" }) { fire ->
+                        FireRow(fire)
+                    }
+                    if (canLoadMore) {
+                        item(key = "more-$id") {
+                            MoreRow(if (loading[id] == true) "loading" else "+$remaining more") {
+                                if (loading[id] == true) return@MoreRow
+                                // The next page starts after the last fire already shown.
+                                val start =
+                                    cursor[id]
+                                        ?: group.fires.lastOrNull()?.let { it.itemTimestamp to it.itemId }
+                                        ?: return@MoreRow
+                                loading[id] = true
+                                scope.launch {
+                                    val page =
+                                        runCatching {
+                                            container.ruleFires
+                                                .forRulePage(id, start.first, start.second, RuleFireRepository.PAGE_SIZE)
+                                        }.getOrDefault(RuleFirePage(emptyList(), null, null))
+                                    // Append to the *extra* list, not to `shown` (which
+                                    // already contains these): re-adding the first page
+                                    // is a duplicate key, and a LazyColumn crash.
+                                    extra[id] = extra[id].orEmpty() + page.fires
+                                    if (page.hasMore && page.nextTs != null && page.nextId != null) {
+                                        cursor[id] = page.nextTs to page.nextId
+                                    } else {
+                                        done[id] = true
+                                    }
+                                    loading[id] = false
+                                }
+                            }
+                        }
+                    }
+                }
+                item(key = "gap-$id") { Spacer(Modifier.height(6.dp)) }
             }
             item {
                 Box(Modifier.padding(8.dp)) {
                     Text(
-                        text = "Fires are appended once at ingest and read here; nothing is re-evaluated.",
+                        text = "Fires are written at ingest and backfilled for rules added later; read-only here.",
                         style = RadarType.microPlain,
                         color = RadarColors.ink3,
                     )
@@ -115,27 +208,22 @@ fun WatchersScreen(
     }
 }
 
+/** The one tap between a rule's five and the rest of them. */
 @Composable
-private fun RuleBlock(group: RuleWithFires) {
-    Column(Modifier.fillMaxWidth()) {
-        SectionHeader(
-            title = group.rule.name,
-            accent = CategoryColors.Teal,
-            note = ruleNote(group),
-            onInk = false,
-        )
-        if (group.fires.isEmpty()) {
-            Text(
-                text = "No matches yet.",
-                style = RadarType.microPlain,
-                color = RadarColors.ink3,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            )
-        } else {
-            group.fires.forEach { FireRow(it) }
-        }
-        Spacer(Modifier.height(6.dp))
-    }
+private fun MoreRow(
+    text: String,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = text,
+        style = RadarType.labelMicro,
+        color = CategoryColors.Teal,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
@@ -146,12 +234,21 @@ private fun FireRow(fire: RuleFire) {
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 5.dp),
     ) {
-        Text(
-            text = TIME_FMT.format(Date(fire.matchedAt)),
-            style = RadarType.monoSmall,
-            color = RadarColors.ink3,
-            modifier = Modifier.width(44.dp),
-        )
+        // The item's time, not the match's: a backfilled fire is written now while
+        // its item may be days old, so the match time would put a whole backfill
+        // "today" and sort it as simultaneous.
+        Column(modifier = Modifier.width(46.dp)) {
+            Text(
+                text = TIME_FMT.format(Date(fire.itemTimestamp)),
+                style = RadarType.monoSmall,
+                color = RadarColors.ink3,
+            )
+            Text(
+                text = DAY_FMT.format(Date(fire.itemTimestamp)),
+                style = RadarType.monoSmall,
+                color = RadarColors.ink3,
+            )
+        }
         Spacer(Modifier.width(6.dp))
         Box(
             Modifier

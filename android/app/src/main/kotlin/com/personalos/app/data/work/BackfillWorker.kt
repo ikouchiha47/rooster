@@ -29,16 +29,79 @@ class BackfillWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val container = AppContainer(applicationContext)
-        val retagged = runCatching { container.retagger.run() }.getOrDefault(0)
-        val places = runCatching { container.placesSeeder.seed() }.getOrDefault(0)
-        val parties = runCatching { container.partySeeder.seed() }.getOrDefault(0)
-        val sources = runCatching { container.sourceSeeder.seed() }.getOrDefault(0)
-        val rules = runCatching { container.ruleSeeder.seed() }.getOrDefault(0)
-        val cleaned = runCatching { cleanStopwordedMentions() }.getOrDefault(0)
-        val mentions = runCatching { container.mentionWriter.backfill() }.getOrDefault(0)
-        Log.i(TAG, "backfill done: +$retagged tags, +$places places, +$parties parties, +$sources sources, +$rules rules, -$cleaned stale mentions, +$mentions mentions")
+        val version = inputData.getLong(BackfillVersion.KEY, 0L)
+        if (!BackfillVersion.isCurrent(applicationContext, version)) {
+            Log.i(TAG, "backfill superseded (v$version)")
+            return Result.success()
+        }
+        val container = AppContainer.get(applicationContext)
+        Log.i(TAG, "backfill start")
+        // Upgrade the tagger first: if the embedding model is already on disk, the
+        // retag below uses the policy tagger, so the store improves on launch.
+        // Logged as its own step: loading a 171 MB model is the slow part, and if
+        // this is where a run stalls, the log must say so rather than go silent.
+        val upgradeStartedAt = System.currentTimeMillis()
+        val upgraded = step(false) { container.upgradeTagger() }
+        Log.i(TAG, "tagger upgrade: embedding=$upgraded (${System.currentTimeMillis() - upgradeStartedAt}ms)")
+        // After the load, drop any model file the active bundle no longer names —
+        // a runtime swap self-heals here rather than leaving the old weights.
+        val pruned = step(0) { container.pruneModels() }
+        Log.i(TAG, "model prune: -$pruned files")
+        // The retag is no longer here: each source family is its own RetagWorker job,
+        // so a large family cannot hold up a small one.
+        val places = step(0) { container.placesSeeder.seed() }
+        val parties = step(0) { container.partySeeder.seed() }
+        val sources = step(0) { container.sourceSeeder.seed() }
+        val rules = step(0) { container.ruleSeeder.seed() }
+        val cleaned = step(0) { cleanStopwordedMentions() }
+        val mentions = step(0) { container.mentionWriter.backfill() }
+        val swept = step(0) { sweepRuleBackfillsOnce() }
+        Log.i(TAG, "backfill done: embedding=$upgraded, +$places places, +$parties parties, +$sources sources, +$rules rules, -$cleaned stale mentions, +$mentions mentions, $swept rule backfills")
         return Result.success()
+    }
+
+    /**
+     * Runs one step, logging and falling back on an ordinary failure but **letting
+     * cancellation through**.
+     *
+     * A bare `runCatching` catches `CancellationException` too, so a clean stop
+     * (WorkManager cancelling the worker, or a newer run replacing it) became a
+     * misleading "+0 tags" and a dead coroutine carried on. Cancellation is not a
+     * failure — it must propagate so the worker is treated as cancelled and the
+     * persisted cursor is what the next run resumes from.
+     */
+    private suspend fun <T> step(
+        fallback: T,
+        block: suspend () -> T,
+    ): T =
+        try {
+            block()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "backfill step failed", e)
+            fallback
+        }
+
+    /**
+     * Once per install/update, enqueue a backfill for every enabled rule so a
+     * rule that predates the backfill feature — a bundled seed, most of all —
+     * still reports what it would have caught. Gated so it is enqueued once, not
+     * on every launch; from then on rule add/edit enqueues. Actual work happens
+     * in [RuleBackfillWorker], in the background.
+     */
+    private suspend fun sweepRuleBackfillsOnce(): Int {
+        val cache = PrefsStringCache(applicationContext)
+        if (cache.read(RULE_SWEEP_KEY)?.value == RULE_SWEEP_DONE) return 0
+        val rules =
+            AppDatabase
+                .getInstance(applicationContext)
+                .ruleDao()
+                .all()
+                .filter { it.enabled }
+        rules.forEach { SyncScheduler.enqueueRuleBackfill(applicationContext, it.id, it.updatedAt ?: it.createdAt) }
+        cache.write(RULE_SWEEP_KEY, RULE_SWEEP_DONE, System.currentTimeMillis())
+        return rules.size
     }
 
     /**
@@ -63,5 +126,8 @@ class BackfillWorker(
         const val TAG = "BackfillWorker"
         private const val CLEANUP_KEY = "mentions:stopwords-cleaned-v1"
         private const val DONE = "1"
+
+        private const val RULE_SWEEP_KEY = "rules:backfill-swept"
+        private const val RULE_SWEEP_DONE = "1"
     }
 }

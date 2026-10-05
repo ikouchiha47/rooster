@@ -38,7 +38,29 @@ object Tags {
 }
 
 /** Strategy family of a tagger; stored alongside its version (docs §11.3). */
-enum class TaggerKind { REGEX, HEURISTIC, ML, CASCADE, LLM }
+enum class TaggerKind {
+    REGEX,
+    HEURISTIC,
+    ML,
+    CASCADE,
+    LLM,
+    ;
+
+    /**
+     * Capability order, used to choose which tagger is "current". A stronger rung
+     * must never lose the flag to a weaker one: a sync worker that only has the
+     * heuristic must not demote the cascade a backfill activated, or
+     * `item_tags_current` would report the weaker tags.
+     */
+    val rank: Int
+        get() =
+            when (this) {
+                REGEX, HEURISTIC -> 0
+                ML -> 1
+                CASCADE -> 2
+                LLM -> 3
+            }
+}
 
 data class TagInput(
     val text: String,
@@ -75,4 +97,12 @@ interface Tagger {
     val version: Int
 
     suspend fun tag(input: TagInput): TagResult
+
+    /**
+     * Tags many items at once. The default is one-by-one; an ML tagger overrides
+     * it to send a whole chunk through the model in a single run (batched
+     * inference), which is where an embedding runtime earns its keep. Same
+     * results as calling [tag] per item; only the cost changes.
+     */
+    suspend fun tagAll(inputs: List<TagInput>): List<TagResult> = inputs.map { tag(it) }
 }

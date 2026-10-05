@@ -47,7 +47,11 @@ object SyncScheduler {
     private const val PARTY_UNIQUE_NAME = "party-sync"
     private const val SMS_UNIQUE_NAME = "sms-sync"
     private const val PARTY_MANUAL_NAME = "party-resync-now"
-    private const val BACKFILL_UNIQUE_NAME = "launch-backfill"
+    internal const val BACKFILL_UNIQUE_NAME = "launch-backfill"
+
+    /** Tags every backfill unit (core + one per family) so status can list them all. */
+    internal const val BACKFILL_TAG = "backfill"
+    private const val RULE_BACKFILL_PREFIX = "rule-backfill:"
     private const val BACKOFF_MINUTES = 15L
 
     /** Party lists change per election cycle, not per hour: yearly is plenty. */
@@ -168,19 +172,77 @@ object SyncScheduler {
         ).build()
 
     /**
-     * Launch catch-up, run once per install/update rather than stacked: KEEP
-     * means a second launch while one backfill runs is a no-op, and the chain
-     * inside is cursor-gated so any restart resumes. No network constraint —
-     * this is local store work (seeds, retag, mention backfill).
+     * Launch catch-up, as one core job plus **one job per source family**.
+     *
+     * Versioned, latest wins: every enqueue bumps [BackfillVersion] and stamps each
+     * unit with it, and `REPLACE`s the unit under its own name. A unit carrying an
+     * older version exits before doing anything — so there is no cancel race, and a
+     * superseded run never loads the model. Per family so a large family (feeds)
+     * cannot hold up a small one (SMS), and each can be inspected on its own.
+     *
+     * All units share the `backfill` tag, so status is one query. No network
+     * constraint — this is local store work (seeds, upgrade, retag).
      */
-    fun enqueueBackfillOnce(context: Context) {
-        val request = OneTimeWorkRequestBuilder<BackfillWorker>().build()
+    fun enqueueBackfill(context: Context) {
+        val version = BackfillVersion.bump(context)
+        val workManager = WorkManager.getInstance(context)
+
+        workManager.enqueueUniqueWork(
+            BACKFILL_UNIQUE_NAME,
+            ExistingWorkPolicy.REPLACE,
+            OneTimeWorkRequestBuilder<BackfillWorker>()
+                .setInputData(androidx.work.workDataOf(BackfillVersion.KEY to version))
+                .addTag(BACKFILL_TAG)
+                .build(),
+        )
+
+        RetagFamilies.ALL.forEach { family ->
+            workManager.enqueueUniqueWork(
+                RetagFamilies.uniqueName(family),
+                ExistingWorkPolicy.REPLACE,
+                OneTimeWorkRequestBuilder<RetagWorker>()
+                    .setInputData(
+                        androidx.work.workDataOf(
+                            RetagWorker.KEY_FAMILY to family,
+                            BackfillVersion.KEY to version,
+                        ),
+                    ).addTag(BACKFILL_TAG)
+                    .build(),
+            )
+        }
+    }
+
+    /**
+     * Backfill one rule over recent history, once, in the background.
+     *
+     * Unique per rule and `REPLACE`, so editing a rule supersedes a queued or
+     * in-flight run for the older condition rather than both running; the
+     * backfill's own cursor still lets a *retry* resume. No network constraint —
+     * this is all local store work.
+     */
+    fun enqueueRuleBackfill(
+        context: Context,
+        ruleId: String,
+        generation: Long,
+    ) {
+        val request =
+            OneTimeWorkRequestBuilder<RuleBackfillWorker>()
+                .setInputData(
+                    androidx.work.workDataOf(
+                        RuleBackfillWorker.KEY_RULE_ID to ruleId,
+                        RuleBackfillWorker.KEY_GENERATION to generation,
+                    ),
+                ).setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    BACKOFF_MINUTES,
+                    TimeUnit.MINUTES,
+                ).build()
 
         WorkManager
             .getInstance(context)
             .enqueueUniqueWork(
-                BACKFILL_UNIQUE_NAME,
-                ExistingWorkPolicy.KEEP,
+                "$RULE_BACKFILL_PREFIX$ruleId",
+                ExistingWorkPolicy.REPLACE,
                 request,
             )
     }

@@ -163,8 +163,21 @@ class HeuristicTaggerTest {
     @Test
     fun `id and version describe the implementation`() {
         assertEquals(TaggerKind.HEURISTIC, tagger.kind)
-        assertEquals(9, tagger.version)
-        assertEquals("heuristic-v9", tagger.id)
+        assertEquals(TagVersions.HEURISTIC, tagger.version)
+        assertEquals("heuristic-v${TagVersions.HEURISTIC}", tagger.id)
+    }
+
+    @Test
+    fun `a bank strike is not travel`() {
+        // The bootstrap's travel list carried bare `strike|bandh`, so a *bank*
+        // strike tagged travel (heuristic-v9). Travel is the embedder's call now;
+        // a strike is an incident at a place, and neither word is a travel term.
+        val result =
+            tags(
+                "Bank Unions announced 3 days Strike from 28 to 30 Sep; Branches shall function on Sunday",
+                declaredTags = setOf(Tags.NEWS),
+            )
+        assertFalse("a bank strike is not travel", result.contains(Tags.TRAVEL))
     }
 
     // ---------------------------------------------------------------- finance

@@ -3,7 +3,7 @@ package com.personalos.app.core.tag
 /**
  * Rung 0 of the tagger ladder: a compiled lexicon plus source priors.
  *
- * The **vocabulary is injected, not owned** — see [TermSource] and [TermStore].
+ * The **vocabulary is injected, not owned** — see [TagVocabularySource] and [TagVocabulary].
  * Adding a festival, a sport, or eventually a treaty is a new term source or a data
  * edit; it has never needed to be a change to this file
  * (docs/CODE-DESIGN-GUIDELINES.md §2).
@@ -15,8 +15,8 @@ package com.personalos.app.core.tag
  * the same [Tagger] interface without any tile changing.
  */
 class HeuristicTagger(
-    private val lexicon: () -> Map<String, Regex> = TermStore(listOf(BundledTermSource))::lexicon,
-    override val version: Int = 9,
+    private val lexicon: () -> Map<String, Regex> = TagVocabulary(listOf(BundledVocabulary))::lexicon,
+    override val version: Int = TagVersions.HEURISTIC,
 ) : Tagger {
     override val id: String = "${TaggerKind.HEURISTIC.name.lowercase()}-v$version"
 

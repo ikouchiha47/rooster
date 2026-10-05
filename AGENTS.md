@@ -69,6 +69,15 @@ cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest ktlintCheck
 
 All three must pass. If you cannot verify a claim, say so rather than asserting it.
 
+**`ktlintFormat` is the Kotlin `gofmt` + `goimports`.** It does not only fix
+whitespace: it also **orders imports and removes unused ones** (`import-ordering`,
+`no-unused-imports`). So there is no separate "goimports" step — and you must run
+`ktlintFormat` *before* `ktlintCheck`, or hand-written code that is logically
+correct still fails the gate on import order / unused imports. Do not hand-sort
+imports and do not leave an unused import "for now"; run the formatter. (`ktfmt`
+and Spotless are the other options; the IDE's "Optimize Imports" does the same
+interactively, but the gate is ktlint.)
+
 ## Verify claims about device state with data, not guesswork
 
 - Real element bounds: `adb -s 0006934AH000333 shell uiautomator dump /sdcard/ui.xml`

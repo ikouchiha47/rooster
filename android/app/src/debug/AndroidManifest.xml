@@ -6,6 +6,12 @@
   Invoke with:
     adb shell am broadcast -a com.personalos.app.FORCE_SYNC \
         -n com.personalos.app/.debug.ForceSyncReceiver
+
+  The notify receiver takes string extras "body" and "severity", and a long
+  extra "ttl" (ms). See DebugNotifyReceiver. Example:
+
+    adb shell am broadcast -a com.personalos.app.DEBUG_NOTIFY \
+        -n com.personalos.app/.debug.DebugNotifyReceiver
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
@@ -15,6 +21,42 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="com.personalos.app.FORCE_SYNC" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".debug.DebugNotifyReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.DEBUG_NOTIFY" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".debug.ForceBackfillReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.FORCE_BACKFILL" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".debug.ForceModelDownloadReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.DOWNLOAD_MODELS" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".debug.BackfillStatusReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.BACKFILL_STATUS" />
             </intent-filter>
         </receiver>
     </application>

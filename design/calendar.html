@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Calendar</title>
+<script>try{var __f=localStorage.getItem("personalo-font")||"noto";document.documentElement.setAttribute("data-font",__f);}catch(e){document.documentElement.setAttribute("data-font","noto");}</script>
+<link rel="stylesheet" href="style.css">
+<script src="fontswitch.js" defer></script>
+<style>
+  /* --- calendar-only additions. Tokens, radius (2px), 1px rules only. --- */
+  .phone__screen { overflow-y: auto; scrollbar-width: none; }
+  .phone__screen::-webkit-scrollbar { display: none; }
+  .phone__screen .device { min-height: 100%; border: 0; }
+
+  .monthnav {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 5px 8px; border-bottom: 1px solid var(--rule); background: var(--paper-2);
+  }
+  .monthnav__t { font-family: var(--display); font-size: var(--fs-h3); font-weight: 700; letter-spacing: .02em; }
+  .monthnav__s { font-size: var(--fs-micro); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .monthnav__arrows { display: flex; gap: 4px; }
+
+  .dow {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid var(--rule); background: var(--paper-3);
+  }
+  .dow span {
+    padding: 3px 0; text-align: center;
+    font-size: 9px; font-weight: 700; letter-spacing: .1em; color: var(--ink-2);
+  }
+
+  .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--paper-2); }
+  .mcell {
+    min-height: 54px; padding: 2px 3px 3px;
+    border-right: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper-2);
+  }
+  .mcell:nth-child(7n) { border-right: 0; }
+  .mcell.is-dim { background: var(--paper-3); }
+  .mcell.is-dim .mcell__d { color: var(--ink-3); }
+  .mcell__d {
+    display: inline-block; min-width: 17px; text-align: center;
+    font-family: var(--mono); font-size: var(--fs-tiny); font-weight: 700;
+    font-variant-numeric: tabular-nums; line-height: 1.5;
+  }
+  .mcell.is-today .mcell__d { background: var(--ink); color: var(--paper-2); border-radius: 2px; padding: 0 2px; }
+  .mcell.is-hol .mcell__d { color: var(--rust); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+  .tick { height: 3px; margin-top: 2px; background: var(--c, var(--ink)); }
+  .mcell__more { margin-top: 2px; font-size: 8px; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); }
+  .mcell.is-sel { outline: 2px solid var(--rust); outline-offset: -2px; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 4px 10px;
+    padding: 5px 8px; border-bottom: 1px solid var(--rule); background: var(--paper-3);
+    font-size: var(--fs-micro); letter-spacing: .04em; color: var(--ink-2);
+  }
+  .legend i { display: inline-block; width: 10px; height: 6px; margin-right: 4px; background: var(--c); vertical-align: 0; }
+
+  .allday { border-bottom: 1px solid var(--rule); }
+  .allday__row {
+    display: grid; grid-template-columns: 40px 1fr; align-items: center;
+    border-left: 3px solid var(--cat, var(--ink)); border-bottom: 1px dotted var(--rule-dot);
+    background: var(--paper-3); padding: 5px 8px 5px 0;
+  }
+  .allday__row:last-child { border-bottom: 0; }
+  .allday__k {
+    text-align: center; font-size: 8px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .allday__t { font-family: var(--serif); font-size: var(--fs-small); font-weight: 700; line-height: 1.25; }
+  .allday__m { font-size: var(--fs-micro); color: var(--ink-3); letter-spacing: .03em; }
+
+  .nowline { display: flex; align-items: center; gap: 6px; padding: 0 8px 0 48px; background: var(--paper-2); }
+  .nowline::before { content: ""; width: 7px; height: 7px; background: var(--verm); flex: 0 0 auto; }
+  .nowline::after { content: ""; flex: 1; border-top: 1px solid var(--verm); }
+
+  .chk {
+    flex: 0 0 auto; width: 14px; height: 14px;
+    border: 1px solid var(--ink); border-radius: 2px; background: var(--paper-2);
+    display: grid; place-content: center;
+    font-size: 10px; font-weight: 700; line-height: 1; color: var(--paper-2);
+  }
+  .chk.is-done { background: var(--ink); }
+  .remrow {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 8px; border-bottom: 1px solid var(--rule-soft);
+    border-left: 3px solid var(--teal); background: var(--paper-2);
+  }
+  .remrow.is-done .remrow__t { text-decoration: line-through; color: var(--ink-3); }
+  .remrow__t { font-size: var(--fs-small); font-weight: 600; line-height: 1.3; }
+  .remrow__m { margin-top: 1px; font-size: var(--fs-micro); color: var(--ink-3); letter-spacing: .03em; }
+
+  .composer {
+    display: flex; gap: 6px; padding: 6px 8px;
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    background: var(--paper-3);
+  }
+
+  .minis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; background: var(--paper-2); }
+  .mini { border: 1px solid var(--ink); background: var(--paper-2); }
+  .mini.is-now { outline: 2px solid var(--rust); outline-offset: -1px; }
+  .mini__h {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 3px 6px; border-bottom: 1px solid var(--rule-soft); background: var(--paper-3);
+  }
+  .mini__t { font-size: var(--fs-micro); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .mini__c { font-family: var(--mono); font-size: 9px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .mini__g {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    padding: 3px 4px 1px; text-align: center;
+    font-family: var(--mono); font-size: 8.5px; line-height: 1.7; font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+  .mini__g b { font-weight: 700; }
+  .mini__g .h { color: var(--rust); font-weight: 700; text-decoration: underline; }
+  .mini__g .m { color: var(--indigo); font-weight: 700; }
+  .mini__g .b { color: var(--plum); font-weight: 700; }
+  .mini__g .r { color: var(--teal); font-weight: 700; }
+  .mini__g .t { background: var(--ink); color: var(--paper-2); border-radius: 2px; }
+  .mini__f { padding: 3px 6px 4px; border-top: 1px dotted var(--rule-dot); }
+  .mini__first {
+    font-size: 9px; color: var(--ink-2); letter-spacing: .02em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mini__first b { color: var(--ink); }
+  .dens { display: flex; gap: 2px; margin-top: 3px; }
+  .dens i { height: 5px; flex: 1; background: var(--paper-4); }
+  .dens i.f-h { background: var(--rust); }
+  .dens i.f-m { background: var(--indigo); }
+  .dens i.f-b { background: var(--plum); }
+  .dens i.f-r { background: var(--teal); }
+  .dens i.f-n { background: var(--mustard); }
+
+  .keyrow { display: flex; align-items: center; gap: 6px; }
+  .ro-flag {
+    font-size: 8px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    border: 1px solid var(--ink-3); border-radius: 2px; color: var(--ink-2); padding: 1px 4px; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="viewer">
+
+  <!-- ================= FRAME 1 · MONTH ================= -->
+  <div class="phone" id="v-month">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar">
+          <span class="sysbar__time">09:44</span>
+          <span class="sysbar__icons">
+            <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+            <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+            <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+          </span>
+        </div>
+        <header class="appbar">
+          <div class="appmark" style="background:var(--rust)">PR</div>
+          <div class="appbar__t">
+            <h1 class="appbar__title">Calendar</h1>
+            <div class="appbar__sub">Planner · Tue 20 Oct</div>
+          </div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Add event">
+              <svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button class="iconbtn" aria-label="More options">
+              <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+            </button>
+          </div>
+        </header>
+        <div class="sec sec--ink" style="--accent:var(--rust)">
+          <span class="sec__bar"></span>
+          <span class="sec__t">October 2026</span>
+          <span class="sec__sp"></span>
+          <span class="sec__n">1 region · 48 upcoming</span>
+        </div>
+        <div class="tabs" role="tablist">
+          <button class="tab is-active" role="tab" data-goto="v-month">Month</button>
+          <button class="tab" role="tab" data-goto="v-day">Day<span class="tab__n">9</span></button>
+          <button class="tab" role="tab" data-goto="v-year">Year</button>
+        </div>
+      </div>
+
+      <div class="monthnav">
+        <span class="monthnav__t">‹&nbsp; October &nbsp;›</span>
+        <span class="monthnav__s">2026 · week starts Mon</span>
+        <span class="monthnav__arrows"><button class="btn btn--sm">Today</button></span>
+      </div>
+      <div class="dow"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+      <div class="mgrid">
+        <div class="mcell is-dim"><span class="mcell__d">28</span></div>
+        <div class="mcell is-dim"><span class="mcell__d">29</span><div class="tick" style="--c:var(--teal)"></div></div>
+        <div class="mcell is-dim"><span class="mcell__d">30</span></div>
+        <div class="mcell"><span class="mcell__d">1</span><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell"><span class="mcell__d">2</span><div class="tick" style="--c:var(--mustard)"></div><div class="tick" style="--c:var(--teal)"></div></div>
+        <div class="mcell"><span class="mcell__d">3</span></div>
+        <div class="mcell"><span class="mcell__d">4</span><div class="tick" style="--c:var(--plum)"></div></div>
+        <div class="mcell"><span class="mcell__d">5</span></div>
+        <div class="mcell"><span class="mcell__d">6</span><div class="tick" style="--c:var(--indigo)"></div><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell"><span class="mcell__d">7</span><div class="tick" style="--c:var(--teal)"></div></div>
+        <div class="mcell"><span class="mcell__d">8</span></div>
+        <div class="mcell"><span class="mcell__d">9</span><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell"><span class="mcell__d">10</span><div class="tick" style="--c:var(--plum)"></div><div class="tick" style="--c:var(--mustard)"></div></div>
+        <div class="mcell"><span class="mcell__d">11</span></div>
+        <div class="mcell"><span class="mcell__d">12</span><div class="tick" style="--c:var(--teal)"></div></div>
+        <div class="mcell"><span class="mcell__d">13</span><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell"><span class="mcell__d">14</span></div>
+        <div class="mcell"><span class="mcell__d">15</span><div class="tick" style="--c:var(--indigo)"></div><div class="tick" style="--c:var(--teal)"></div><div class="mcell__more">+2</div></div>
+        <div class="mcell"><span class="mcell__d">16</span></div>
+        <div class="mcell"><span class="mcell__d">17</span><div class="tick" style="--c:var(--mustard)"></div></div>
+        <div class="mcell"><span class="mcell__d">18</span><div class="tick" style="--c:var(--rust)"></div><div class="mcell__more">Maha Saptami</div></div>
+        <div class="mcell"><span class="mcell__d">19</span><div class="tick" style="--c:var(--rust)"></div><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell is-today is-sel is-hol"><span class="mcell__d">20</span><div class="tick" style="--c:var(--rust)"></div><div class="tick" style="--c:var(--indigo)"></div><div class="tick" style="--c:var(--plum)"></div><div class="mcell__more">+2</div></div>
+        <div class="mcell"><span class="mcell__d">21</span><div class="tick" style="--c:var(--teal)"></div><div class="tick" style="--c:var(--mustard)"></div></div>
+        <div class="mcell"><span class="mcell__d">22</span></div>
+        <div class="mcell"><span class="mcell__d">23</span><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell"><span class="mcell__d">24</span><div class="tick" style="--c:var(--plum)"></div></div>
+        <div class="mcell"><span class="mcell__d">25</span></div>
+        <div class="mcell"><span class="mcell__d">26</span><div class="tick" style="--c:var(--teal)"></div></div>
+        <div class="mcell"><span class="mcell__d">27</span><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell"><span class="mcell__d">28</span></div>
+        <div class="mcell"><span class="mcell__d">29</span><div class="tick" style="--c:var(--mustard)"></div></div>
+        <div class="mcell"><span class="mcell__d">30</span><div class="tick" style="--c:var(--indigo)"></div></div>
+        <div class="mcell"><span class="mcell__d">31</span><div class="tick" style="--c:var(--plum)"></div><div class="tick" style="--c:var(--teal)"></div></div>
+        <div class="mcell is-dim"><span class="mcell__d">1</span></div>
+      </div>
+
+      <div class="legend">
+        <span><i style="--c:var(--rust)"></i>Holiday · read-only</span>
+        <span><i style="--c:var(--indigo)"></i>Meeting</span>
+        <span><i style="--c:var(--plum)"></i>Birthday · yearly</span>
+        <span><i style="--c:var(--teal)"></i>Reminder · due</span>
+        <span><i style="--c:var(--mustard)"></i>Note</span>
+      </div>
+
+      <div class="sec" style="--accent:var(--rust)">
+        <span class="sec__bar"></span>
+        <span class="sec__t">Tue 20 Oct · selected</span>
+        <span class="sec__sp"></span>
+        <span class="sec__n">5 items</span>
+      </div>
+      <div class="list-row" style="--cat:var(--rust)">
+        <div>
+          <div class="list-row__t">Vijaya Dashami <span class="ro-flag">Read-only</span></div>
+          <div class="list-row__m">Holiday · India / West Bengal · all day</div>
+        </div>
+        <span class="chip chip--mute">Holiday</span>
+      </div>
+      <div class="list-row" style="--cat:var(--indigo)">
+        <div>
+          <div class="list-row__t">Standup 09:30–10:00 · 1:1 with Priya 12:00</div>
+          <div class="list-row__m">2 meetings · next in 46 min</div>
+        </div>
+        <span class="chip chip--news">2 mtg</span>
+      </div>
+      <div class="list-row" style="--cat:var(--plum)">
+        <div>
+          <div class="list-row__t">Aarav&rsquo;s birthday · turns 9</div>
+          <div class="list-row__m">Yearly · all day · cake at 19:00</div>
+        </div>
+        <span class="chip chip--tech">Yearly</span>
+      </div>
+      <div class="list-row" style="--cat:var(--teal)">
+        <div>
+          <div class="list-row__t">Pay electricity bill · Submit assignment</div>
+          <div class="list-row__m">2 reminders · 1 overdue</div>
+        </div>
+        <button class="btn btn--sm">Open day</button>
+      </div>
+
+      <footer class="foot">Month sample · ticks = kind colour · today inverted</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="home.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="services.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg><span class="navitem__l">Services</span></a>
+        <a class="navitem" href="messages.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg><span class="navitem__l">Messages</span></a>
+        <a class="navitem" href="blank.html?s=Wallet"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="blank.html?s=Me"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">Month — October 2026</div>
+  </div>
+
+  <!-- ================= FRAME 2 · DAY ================= -->
+  <div class="phone" id="v-day">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar">
+          <span class="sysbar__time">09:44</span>
+          <span class="sysbar__icons">
+            <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+            <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+            <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+          </span>
+        </div>
+        <header class="appbar">
+          <div class="appmark" style="background:var(--rust)">PR</div>
+          <div class="appbar__t">
+            <h1 class="appbar__title">Calendar</h1>
+            <div class="appbar__sub">Planner · Tue 20 Oct</div>
+          </div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Add event">
+              <svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button class="iconbtn" aria-label="More options">
+              <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+            </button>
+          </div>
+        </header>
+        <div class="sec sec--ink" style="--accent:var(--rust)">
+          <span class="sec__bar"></span>
+          <span class="sec__t">Tue 20 Oct 2026</span>
+          <span class="sec__sp"></span>
+          <span class="sec__n">1 region · 48 upcoming</span>
+        </div>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-goto="v-month">Month</button>
+          <button class="tab is-active" role="tab" data-goto="v-day">Day<span class="tab__n">9</span></button>
+          <button class="tab" role="tab" data-goto="v-year">Year</button>
+        </div>
+      </div>
+
+      <div class="daymark"><span>Today</span><span class="daymark__sp"></span><span>Tue 20 Oct · 9 items</span></div>
+
+      <div class="sec" style="--accent:var(--rust)">
+        <span class="sec__bar"></span>
+        <span class="sec__t">All day</span>
+        <span class="sec__sp"></span>
+        <span class="sec__n">2 items</span>
+      </div>
+      <div class="allday">
+        <div class="allday__row" style="--cat:var(--rust)">
+          <div class="allday__k">Hol</div>
+          <div>
+            <div class="keyrow" style="gap:6px"><span class="allday__t">Vijaya Dashami</span><span class="ro-flag">Read-only</span></div>
+            <div class="allday__m">HOLIDAY · provider feed · India / West Bengal · cannot edit, can hide</div>
+          </div>
+        </div>
+        <div class="allday__row" style="--cat:var(--plum)">
+          <div class="allday__k">▲ Yr</div>
+          <div>
+            <div class="allday__t">Aarav&rsquo;s birthday · turns 9</div>
+            <div class="allday__m">BIRTHDAY · recurs yearly 20 Oct · cake at home 19:00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec sec--ink" style="--accent:var(--indigo)">
+        <span class="sec__bar"></span>
+        <span class="sec__t">Timed</span>
+        <span class="sec__sp"></span>
+        <span class="sec__n">3 meetings</span>
+      </div>
+      <article class="event" style="--cat:var(--indigo)">
+        <div class="event__gut"><div class="event__time">09:30</div><div class="event__date">10:00</div></div>
+        <div class="event__body">
+          <div class="event__top"><span class="src">You · Work</span><span class="chip chip--news">Meeting</span></div>
+          <h3 class="event__title">Standup 09:30–10:00</h3>
+          <div class="event__meta"><span>ROOM <b>Meet · standup</b></span><span>DUR <b>30 min</b></span><span>WITH <b>team</b></span></div>
+        </div>
+      </article>
+      <div class="nowline"><span style="font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--verm)">NOW 09:44</span></div>
+      <article class="event" style="--cat:var(--indigo)">
+        <div class="event__gut"><div class="event__time">12:00</div><div class="event__date">12:30</div></div>
+        <div class="event__body">
+          <div class="event__top"><span class="src">You · Work</span><span class="chip chip--news">Meeting</span></div>
+          <h3 class="event__title">1:1 with Priya</h3>
+          <p class="event__content">Perf review notes + Q4 staffing. Bring the promotion draft.</p>
+          <div class="event__meta"><span>ROOM <b>3F · Cabin 2</b></span><span>DUR <b>30 min</b></span></div>
+        </div>
+      </article>
+      <article class="event" style="--cat:var(--indigo)">
+        <div class="event__gut"><div class="event__time">19:00</div><div class="event__date">20:30</div></div>
+        <div class="event__body">
+          <div class="event__top"><span class="src">Family</span><span class="chip chip--news">Meeting</span></div>
+          <h3 class="event__title">Birthday dinner · Aarav</h3>
+          <div class="event__meta"><span>LOC <b>Home</b></span><span>WITH <b>Mum, Dad</b></span></div>
+        </div>
+      </article>
+
+      <div class="sec" style="--accent:var(--teal)">
+        <span class="sec__bar"></span>
+        <span class="sec__t">Reminders</span>
+        <span class="sec__sp"></span>
+        <span class="sec__n">1 due · 1 done</span>
+      </div>
+      <div class="remrow">
+        <span class="chk" role="checkbox" aria-checked="false" aria-label="Pay electricity bill not done"></span>
+        <div>
+          <div class="remrow__t">Pay electricity bill · ₹1,840</div>
+          <div class="remrow__m">DUE TODAY 18:00 · CESC · <b style="color:var(--verm)">overdue in 8h</b></div>
+        </div>
+      </div>
+      <div class="remrow is-done">
+        <span class="chk is-done" role="checkbox" aria-checked="true" aria-label="Submit assignment done">✓</span>
+        <div>
+          <div class="remrow__t">Submit assignment · DBMS set 7</div>
+          <div class="remrow__m">DONE 08:15 · was due today 10:00</div>
+        </div>
+      </div>
+
+      <div class="sec sec--ink" style="--accent:var(--mustard)">
+        <span class="sec__bar"></span>
+        <span class="sec__t">Notes on this day</span>
+        <span class="sec__sp"></span>
+        <span class="sec__n">1 note · 1 carries a date</span>
+      </div>
+      <div class="note" style="border-bottom:1px solid var(--rule-soft)">
+        <div class="keyrow" style="margin-bottom:3px"><span class="chip chip--travel">Note</span><span class="upper dim">pinned to Tue 20 Oct</span></div>
+        Pandal-hopping route: Maddox → Suruchi → Chetla. Park at Rashbehari, metro back after 22:00.
+        Crowd notes from last year attached — leave right after dinner, before visarjan rush.
+        <div style="margin-top:4px;padding-top:4px;border-top:1px dotted var(--rule-dot)" class="keyrow">
+          <span class="chk" role="checkbox" aria-checked="false" aria-label="Note reminder not done"></span>
+          <span style="font-family:var(--sans);font-size:var(--fs-micro);letter-spacing:.03em;color:var(--ink)">☐ Remind Wed 21 Oct 09:00 · book taxi</span>
+        </div>
+      </div>
+
+      <div class="composer">
+        <button class="btn btn--solid btn--sm">+ Event</button>
+        <button class="btn btn--sm">+ Reminder</button>
+        <button class="btn btn--sm">+ Note</button>
+        <span style="flex:1"></span>
+        <span class="upper dim" style="align-self:center">one planner</span>
+      </div>
+
+      <footer class="foot">Day sample · all 4 kinds + dated note coexist</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="home.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="services.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg><span class="navitem__l">Services</span></a>
+        <a class="navitem" href="messages.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg><span class="navitem__l">Messages</span></a>
+        <a class="navitem" href="blank.html?s=Wallet"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="blank.html?s=Me"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">Day — Tue 20 Oct agenda</div>
+  </div>
+
+  <!-- ================= FRAME 3 · YEAR ================= -->
+  <div class="phone" id="v-year">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar">
+          <span class="sysbar__time">09:44</span>
+          <span class="sysbar__icons">
+            <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+            <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+            <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+          </span>
+        </div>
+        <header class="appbar">
+          <div class="appmark" style="background:var(--rust)">PR</div>
+          <div class="appbar__t">
+            <h1 class="appbar__title">Calendar</h1>
+            <div class="appbar__sub">Planner · 2026 overview</div>
+          </div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Add event">
+              <svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button class="iconbtn" aria-label="More options">
+              <svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+            </button>
+          </div>
+        </header>
+        <div class="sec sec--ink" style="--accent:var(--rust)">
+          <span class="sec__bar"></span>
+          <span class="sec__t">Year 2026</span>
+          <span class="sec__sp"></span>
+          <span class="sec__n">1 region · 48 upcoming</span>
+        </div>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-goto="v-month">Month</button>
+          <button class="tab" role="tab" data-goto="v-day">Day<span class="tab__n">9</span></button>
+          <button class="tab is-active" role="tab" data-goto="v-year">Year</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span><i style="--c:var(--rust)"></i>Holiday</span>
+        <span><i style="--c:var(--indigo)"></i>Meeting</span>
+        <span><i style="--c:var(--plum)"></i>Birthday</span>
+        <span><i style="--c:var(--teal)"></i>Reminder</span>
+        <span><i style="--c:var(--mustard)"></i>Note</span>
+        <span class="dim">· numerals tinted by first kind on that date</span>
+      </div>
+
+      <div class="minis">
+        <div class="mini"><div class="mini__h"><span class="mini__t">Jan</span><span class="mini__c">31 · 4 ev</span></div>
+          <div class="mini__g"><span></span><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span class="m">14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span class="h">26</span><span>27</span><span class="b">28</span><span>29</span><span>30</span><span>31</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>1 Jan</b> · New Year (hol)</div><div class="dens"><i class="f-h"></i><i class="f-m"></i><i></i><i></i><i class="f-b"></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Feb</span><span class="mini__c">28 · 2 ev</span></div>
+          <div class="mini__g"><span></span><span></span><span></span><span></span><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span class="m">14</span><span>15</span><span>16</span><span>17</span><span>18</span><span class="r">19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>14 Feb</b> · conf call (mtg)</div><div class="dens"><i class="f-m"></i><i class="f-r"></i><i></i><i></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Mar</span><span class="mini__c">31 · 5 ev</span></div>
+          <div class="mini__g"><span></span><span></span><span></span><span></span><span></span><span></span><b>1</b><span>2</span><span>3</span><span class="h">4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span class="m">10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span class="b">22</span><span>23</span><span>24</span><span>25</span><span>26</span><span class="r">27</span><span>28</span><span>29</span><span>30</span><span>31</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>4 Mar</b> · Holi (hol)</div><div class="dens"><i class="f-h"></i><i class="f-m"></i><i class="f-b"></i><i class="f-r"></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Apr</span><span class="mini__c">30 · 4 ev</span></div>
+          <div class="mini__g"><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span class="h">14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span class="b">20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span class="m">28</span><span>29</span><span>30</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>14 Apr</b> · Poila Boishakh (hol)</div><div class="dens"><i class="f-h"></i><i class="f-b"></i><i class="f-m"></i><i></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">May</span><span class="mini__c">31 · 3 ev</span></div>
+          <div class="mini__g"><span></span><span></span><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span class="m">8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span class="r">23</span><span>24</span><span class="h">25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>8 May</b> · sprint demo (mtg)</div><div class="dens"><i class="f-m"></i><i class="f-r"></i><i class="f-h"></i><i></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Jun</span><span class="mini__c">30 · 2 ev</span></div>
+          <div class="mini__g"><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span class="b">12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span class="m">25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>12 Jun</b> · Dad&rsquo;s birthday</div><div class="dens"><i class="f-b"></i><i class="f-m"></i><i></i><i></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Jul</span><span class="mini__c">31 · 4 ev</span></div>
+          <div class="mini__g"><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span class="r">8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span class="m">15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>8 Jul</b> · renew domain (rem)</div><div class="dens"><i class="f-r"></i><i class="f-m"></i><i class="f-n"></i><i></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Aug</span><span class="mini__c">31 · 6 ev</span></div>
+          <div class="mini__g"><span></span><span></span><span></span><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span class="h">15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span class="b">23</span><span>24</span><span>25</span><span class="m">26</span><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>15 Aug</b> · Independence Day</div><div class="dens"><i class="f-h"></i><i class="f-b"></i><i class="f-m"></i><i class="f-r"></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Sep</span><span class="mini__c">30 · 4 ev</span></div>
+          <div class="mini__g"><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span class="m">7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span class="h">14</span><span>15</span><span>16</span><span class="b">17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>7 Sep</b> · design review (mtg)</div><div class="dens"><i class="f-m"></i><i class="f-h"></i><i class="f-b"></i><i></i><i></i><i></i></div></div></div>
+        <div class="mini is-now"><div class="mini__h"><span class="mini__t">Oct ★ now</span><span class="mini__c">31 · 9 ev</span></div>
+          <div class="mini__g"><span></span><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span class="h">18</span><span class="h">19</span><span class="t">20</span><span class="r">21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>18 Oct</b> · Maha Saptami (hol)</div><div class="dens"><i class="f-h"></i><i class="f-m"></i><i class="f-b"></i><i class="f-r"></i><i class="f-n"></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Nov</span><span class="mini__c">30 · 5 ev</span></div>
+          <div class="mini__g"><span></span><span></span><span></span><span></span><span></span><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span class="m">5</span><span>6</span><span>7</span><span class="h">8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span class="b">15</span><span>16</span><span>17</span><span>18</span><span>19</span><span class="r">20</span><span>21</span><span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>5 Nov</b> · release cut (mtg)</div><div class="dens"><i class="f-m"></i><i class="f-h"></i><i class="f-b"></i><i class="f-r"></i><i></i><i></i></div></div></div>
+        <div class="mini"><div class="mini__h"><span class="mini__t">Dec</span><span class="mini__c">31 · 7 ev</span></div>
+          <div class="mini__g"><span></span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span><span>24</span><span class="h">25</span><span>26</span><span>27</span><span class="b">28</span><span>29</span><span>30</span><span>31</span></div>
+          <div class="mini__f"><div class="mini__first">FIRST <b>25 Dec</b> · Christmas (hol)</div><div class="dens"><i class="f-h"></i><i class="f-b"></i><i class="f-m"></i><i></i><i></i><i></i></div></div></div>
+      </div>
+
+      <div class="sec" style="--accent:var(--teal)">
+        <span class="sec__bar"></span>
+        <span class="sec__t">Sources &amp; transfer</span>
+        <span class="sec__sp"></span>
+        <span class="sec__n">1 region on</span>
+      </div>
+      <div class="list-row" style="--cat:var(--teal)">
+        <div>
+          <div class="list-row__t">Holidays · India / West Bengal</div>
+          <div class="list-row__m">Provider feed · 24 days in 2026 · read-only · synced 06:00</div>
+        </div>
+        <span class="chip chip--mute">On</span>
+      </div>
+      <div class="list-row" style="--cat:var(--indigo)">
+        <div>
+          <div class="list-row__t">Import from Google Calendar</div>
+          <div class="list-row__m">One-time pull · meetings + reminders merge as yours, editable</div>
+        </div>
+        <button class="btn btn--sm">Import</button>
+      </div>
+      <div class="list-row" style="--cat:var(--ink)">
+        <div>
+          <div class="list-row__t" style="font-weight:400">Export · ICS file <span class="dim">· your items only, never provider holidays</span></div>
+          <div class="list-row__m">Offline-first · stays on device unless you export</div>
+        </div>
+        <span class="upper dim">ICS ↧</span>
+      </div>
+
+      <footer class="foot">Year sample · density = kind mix · first-event hint per month</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="home.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="services.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg><span class="navitem__l">Services</span></a>
+        <a class="navitem" href="messages.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg><span class="navitem__l">Messages</span></a>
+        <a class="navitem" href="blank.html?s=Wallet"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="blank.html?s=Me"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">Year — 2026 density + first events</div>
+  </div>
+
+</div>
+<script>
+  document.querySelectorAll('.tab[data-goto]').forEach(function (t) {
+    t.addEventListener('click', function () {
+      var el = document.getElementById(t.getAttribute('data-goto'));
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  document.querySelectorAll('.chk[role="checkbox"]').forEach(function (c) {
+    c.addEventListener('click', function () {
+      var done = c.classList.toggle('is-done');
+      c.setAttribute('aria-checked', done ? 'true' : 'false');
+      c.textContent = done ? '✓' : '';
+      var row = c.closest('.remrow');
+      if (row) row.classList.toggle('is-done', done);
+    });
+  });
+</script>
+</body>
+</html>

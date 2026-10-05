@@ -1,7 +1,9 @@
 package com.personalos.app.ui.common
 
+import com.personalos.app.core.time.UserZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -9,6 +11,13 @@ import org.junit.Test
  * sequential, order-preserving, one group per bucket run.
  */
 class DayGroupsTest {
+    // Bucketing is the user's local day now; pin UTC so the epoch-day arithmetic
+    // below is the assertion. The time-zone behaviour itself is `UserZoneTest`.
+    @Before
+    fun pinUtc() {
+        UserZone.set("UTC")
+    }
+
     @Test
     fun `empty list groups to nothing`() {
         assertTrue(groupIntoDays(emptyList<Long>()) { it }.isEmpty())

@@ -218,12 +218,14 @@ class SmsSourceTest {
         override suspend fun tagsForItems(itemIds: List<String>): List<ItemTagRow> = emptyList()
     }
 
-    private class FakeRuleDao : RuleDao {
-        override fun observeAll(): Flow<List<RuleEntity>> = flowOf(emptyList())
+    private class FakeRuleDao(
+        private val rules: List<RuleEntity> = emptyList(),
+    ) : RuleDao {
+        override fun observeAll(): Flow<List<RuleEntity>> = flowOf(rules.toList())
 
-        override suspend fun all(): List<RuleEntity> = emptyList()
+        override suspend fun all(): List<RuleEntity> = rules.toList()
 
-        override suspend fun count(): Int = 0
+        override suspend fun count(): Int = rules.size
 
         override suspend fun insertAll(rules: List<RuleEntity>): List<Long> = rules.map { 1L }
 
@@ -247,11 +249,16 @@ class SmsSourceTest {
     }
 
     private class FakeItemRuleDao : ItemRuleDao {
-        override fun observeAll(): Flow<List<ItemRuleEntity>> = flowOf(emptyList())
+        val rows = mutableListOf<ItemRuleEntity>()
 
-        override suspend fun all(): List<ItemRuleEntity> = emptyList()
+        override fun observeAll(): Flow<List<ItemRuleEntity>> = flowOf(rows.toList())
 
-        override suspend fun insertAll(matches: List<ItemRuleEntity>): List<Long> = matches.map { 1L }
+        override suspend fun all(): List<ItemRuleEntity> = rows.toList()
+
+        override suspend fun insertAll(matches: List<ItemRuleEntity>): List<Long> {
+            rows += matches
+            return matches.map { 1L }
+        }
     }
 
     private class FakeItemFieldDao : ItemFieldDao {
@@ -291,6 +298,8 @@ class SmsSourceTest {
         reader: SmsReader,
         mark: SmsSyncMark = FakeMark(),
         events: FakeEventDao = FakeEventDao(),
+        ruleDao: RuleDao = FakeRuleDao(),
+        matchDao: ItemRuleDao = FakeItemRuleDao(),
     ): SmsSource =
         SmsSource(
             reader = reader,
@@ -307,13 +316,49 @@ class SmsSourceTest {
             fieldWriter = FieldWriter(FakeItemFieldDao()),
             ruleWriter =
                 RuleWriter(
-                    FakeRuleDao(),
-                    FakeItemRuleDao(),
+                    ruleDao,
+                    matchDao,
                     FakeItemTagDao(),
                     FakeMentionDao(),
                     FakeItemFieldDao(),
                 ),
         )
+
+    /** The bank-strike SMS from the device, against the rule that was seeded for it. */
+    @Test
+    fun `an sms body carrying strike fires the bandh and strike rule at ingest`() {
+        val events = FakeEventDao()
+        val matches = FakeItemRuleDao()
+        val rule =
+            RuleEntity(
+                id = "seed:rule:bandh-and-strike-watch",
+                name = "Bandh and strike watch",
+                enabled = true,
+                seeded = true,
+                conditionJson = """{"text":{"pattern":"bandh|strike","target":"any"}}""",
+                actionJson = """{"delivery":"push","position":20}""",
+                position = 20,
+                createdAt = 1L,
+            )
+        val reader =
+            FakeSmsReader(
+                listOf(
+                    SmsMessage(
+                        id = 1,
+                        address = "VA-WBGBNK-S",
+                        body = "Dear Customer, Bank Unions announced 3 days Strike from 28 to 30 Sep 2026.",
+                        date = 1_700_000_000_000L,
+                        type = 1,
+                    ),
+                ),
+            )
+        val source = source(reader, events = events, ruleDao = FakeRuleDao(listOf(rule)), matchDao = matches)
+
+        runBlocking { source.ingestNewMessages() }
+
+        assertEquals(1, events.rows.size)
+        assertEquals("the rule the strike message was written for must fire", listOf(rule.id), matches.rows.map { it.ruleId })
+    }
 
     private fun message(id: Long): SmsMessage =
         SmsMessage(

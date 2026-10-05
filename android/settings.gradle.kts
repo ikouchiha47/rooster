@@ -16,3 +16,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "personalos"
 include(":app")
+// The model SDK: locate/fetch/verify shared on-device models. Its own module so
+// it can be lifted into a hub app (and reused by other apps) unchanged.
+include(":mlsdk")

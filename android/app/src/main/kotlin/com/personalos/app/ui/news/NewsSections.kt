@@ -1,9 +1,9 @@
 package com.personalos.app.ui.news
 
+import com.personalos.app.core.time.UserZone
 import com.personalos.app.data.DayHeader
 import com.personalos.app.data.TaggedEvent
 import com.personalos.app.data.work.SyncScheduler
-import com.personalos.app.ui.common.DAY_MS
 
 /**
  * Pure section helpers behind the News day list.
@@ -12,7 +12,7 @@ import com.personalos.app.ui.common.DAY_MS
  * cursor; these functions only shape what is already loaded, so they are
  * unit-tested without composing.
  */
-internal fun todayStartMs(now: Long = System.currentTimeMillis()): Long = now / DAY_MS * DAY_MS
+internal fun todayStartMs(now: Long = System.currentTimeMillis()): Long = UserZone.dayStart(now)
 
 /**
  * The bucket read: ingest time when known, publish time for pre-v9 rows — the

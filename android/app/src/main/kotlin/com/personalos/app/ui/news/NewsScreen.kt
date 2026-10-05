@@ -41,15 +41,16 @@ import com.personalos.app.core.Chars
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
+import com.personalos.app.core.time.UserZone
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.DayHeader
 import com.personalos.app.data.Event
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
 import com.personalos.app.ui.common.CategorySpine
-import com.personalos.app.ui.common.DAY_MS
 import com.personalos.app.ui.common.DayMarker
 import com.personalos.app.ui.common.DottedRule
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
@@ -197,7 +198,7 @@ fun NewsScreen(
                 dao.pageByTagDay(
                     Tags.NEWS,
                     dayStart,
-                    dayStart + DAY_MS,
+                    UserZone.nextDayStart(dayStart),
                     if (reset) null else prev.cursorTs,
                     if (reset) 0L else prev.cursorId,
                     PAGE_SIZE,
@@ -238,7 +239,7 @@ fun NewsScreen(
             return
         }
         if (today !in expanded) return
-        val fresh = dao.pageByTagDay(Tags.NEWS, today, today + DAY_MS, null, 0L, PAGE_SIZE)
+        val fresh = dao.pageByTagDay(Tags.NEWS, today, UserZone.nextDayStart(today), null, 0L, PAGE_SIZE)
         val freshCount = freshCountAboveHead(fresh.map { it.event.id }, todayHeadId)
         if (freshCount <= 0) return
         if (awayFromTop) {
@@ -327,11 +328,7 @@ fun NewsScreen(
         header = {
             if (total > 0) {
                 val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
-                Text(
-                    text = "${compactNumber(total)} ITEMS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
-                    style = RadarType.micro,
-                    color = RadarColors.paper4,
-                )
+                HeaderMeta("${compactNumber(total)} ITEMS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}")
             }
         },
         onAction = { action ->

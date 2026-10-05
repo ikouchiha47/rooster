@@ -23,12 +23,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
 import com.personalos.app.core.calendar.CalendarDirectoryParser
 import com.personalos.app.data.CalendarDateEntity
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
 import com.personalos.app.ui.common.SectionHeader
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.WidgetHeader
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.sources.CalendarRegionsSection
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -73,11 +75,11 @@ fun CalendarScreen(
             title = "Calendar",
             accent = CategoryColors.Rust,
             onBack = onBack,
-            subtitle = {
-                Text(
-                    text = "${regions.size} REGIONS ${Chars.MIDDLE_DOT} ${upcoming.size} UPCOMING",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.paper4,
+            // On the side, like every other tile header, through the one component.
+            trailing = {
+                HeaderMeta(
+                    "${compactNumber(regions.size)} REGIONS ${Chars.MIDDLE_DOT} ${compactNumber(upcoming.size)} UPCOMING",
+                    Modifier.padding(end = 8.dp),
                 )
             },
         )

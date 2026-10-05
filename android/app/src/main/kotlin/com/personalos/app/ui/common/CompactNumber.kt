@@ -4,8 +4,8 @@ import kotlin.math.abs
 
 /**
  * A count as the dense editorial pages read it: full digits below a thousand,
- * then `K` / `M` / `B` with two decimals. Pure, so every header and tab count
- * formats the same way and columns stay aligned under tabular figures.
+ * then `K` / `M` / `B` / `T` with two decimals. Pure, so every header and tab
+ * count formats the same way and columns stay aligned under tabular figures.
  *
  * Example: `999` → `999`, `1500` → `1.50K`, `2_400_000` → `2.40M`,
  * `-1500` → `-1.50K`.
@@ -17,7 +17,8 @@ fun compactNumber(value: Long): String {
             magnitude < 1_000 -> return value.toString()
             magnitude < 1_000_000 -> value.toDouble() / 1_000 to "K"
             magnitude < 1_000_000_000 -> value.toDouble() / 1_000_000 to "M"
-            else -> value.toDouble() / 1_000_000_000 to "B"
+            magnitude < 1_000_000_000_000 -> value.toDouble() / 1_000_000_000 to "B"
+            else -> value.toDouble() / 1_000_000_000_000 to "T"
         }
     return "%.2f%s".format(unitValue, suffix)
 }

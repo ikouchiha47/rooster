@@ -43,6 +43,25 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
+    packaging {
+        // The tokenizer's native lib is loaded from disk, so it must be extracted
+        // rather than mapped out of the APK.
+        jniLibs.useLegacyPackaging = true
+        // DJL/JNA publish native artifacts for every desktop platform under
+        // non-standard resource paths that abiFilters never prune; they were dead
+        // weight in the APK (verified in mofy). Drop them.
+        resources {
+            excludes +=
+                setOf(
+                    "native/lib/win-x86_64/**",
+                    "native/lib/osx-aarch64/**",
+                    "native/lib/osx-x86_64/**",
+                    "native/lib/linux-x86_64/**",
+                    "com/sun/jna/**",
+                )
+        }
+    }
+
     sourceSets {
         getByName("main") {
             kotlin.directories += "src/main/kotlin"
@@ -89,6 +108,24 @@ dependencies {
     implementation("androidx.sqlite:sqlite-bundled:2.7.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+
+    // The model SDK: locate/fetch/verify shared on-device models. Kept a separate
+    // module so it can be lifted into the hub app and reused by other apps.
+    implementation(project(":mlsdk"))
+
+    // On-device embedding — EmbeddingGemma-300m, 256-dim, via LiteRT's Interpreter
+    // API on CPU. Versions pinned to what mofy proved on this device: litert 1.4.0
+    // (2.2.0 aborts in Environment.nativeCreate here, and conflicts on namespace),
+    // and DJL tokenizers 0.33.0 with its native payload.
+    implementation("com.google.ai.edge.litert:litert:1.4.0")
+    implementation("ai.djl.huggingface:tokenizers:0.33.0")
+    implementation("ai.djl.android:tokenizer-native:0.33.0")
+
+    // ONNX Runtime, for the batched EmbeddingGemma. TFLite's mofy export is fixed
+    // `[1,256]`, so it can never embed more than one text per run; the ONNX export
+    // keeps a dynamic batch axis, which is what makes a whole-store retag tractable
+    // (measured: ~1.6x, and much faster in absolute terms than the int8 TFLite).
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 
     // ULID: stable, sortable, collision-free-offline ids (docs/ARCHITECTURE.md §11.1)
     implementation("com.aallam.ulid:ulid-kotlin:1.6.0")

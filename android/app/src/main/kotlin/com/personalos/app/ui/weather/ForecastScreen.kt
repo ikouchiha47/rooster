@@ -4,9 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -22,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.model.WeatherDay
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.ui.common.Glyph
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
@@ -103,31 +108,28 @@ fun ForecastScreen(
             title = place,
             accent = CategoryColors.Cyan,
             onBack = onBack,
-            subtitle = {
-                Text(
-                    text = syncLabel(lastSync),
-                    style = RadarType.labelMicro,
-                    color = RadarColors.paper4,
-                )
-            },
             trailing = {
-                Text(
-                    text = "SYNC",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.paper2,
-                    modifier =
-                        Modifier
-                            .clickable {
-                                scope.launch {
-                                    container.sync.run("forecast") {
-                                        container.sync.step("refreshing $place")
-                                        runCatching { container.feeds.refresh(force = true) }
-                                        reload++
-                                        container.sync.step("done")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    HeaderMeta(syncLabel(lastSync))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "SYNC",
+                        style = RadarType.labelMicro,
+                        color = RadarColors.paper2,
+                        modifier =
+                            Modifier
+                                .clickable {
+                                    scope.launch {
+                                        container.sync.run("forecast") {
+                                            container.sync.step("refreshing $place")
+                                            runCatching { container.feeds.refresh(force = true) }
+                                            reload++
+                                            container.sync.step("done")
+                                        }
                                     }
-                                }
-                            }.padding(horizontal = 4.dp, vertical = 2.dp),
-                )
+                                }.padding(horizontal = 4.dp, vertical = 2.dp),
+                    )
+                }
             },
         )
 

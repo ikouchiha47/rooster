@@ -35,6 +35,12 @@ import kotlinx.coroutines.flow.Flow
  */
 class RuleRepository(
     private val dao: RuleDao,
+    /**
+     * Enqueues a backfill when a rule is created or edited, so a rule sees the
+     * items that arrived before it. Defaults to nothing so a caller that does not
+     * schedule (a test) need not supply one.
+     */
+    private val backfill: RuleBackfillScheduler = RuleBackfillScheduler { _, _ -> },
 ) {
     /** One `Flow<List<RuleEntity>>`: the read surface every consumer observes. */
     fun observe(): Flow<List<RuleEntity>> = dao.observeAll()
@@ -76,6 +82,8 @@ class RuleRepository(
                 color = validColor,
             )
         dao.insertAll(listOf(row))
+        // The rule now exists; evaluate it over recent history. Background, batched.
+        backfill.enqueue(row.id, row.updatedAt ?: now)
         return row
     }
 
@@ -116,6 +124,8 @@ class RuleRepository(
         if (touched == 0) {
             throw IllegalStateException("rule is locked or unknown: $id")
         }
+        // The condition may have changed; a fresh generation re-walks the window.
+        backfill.enqueue(id, now)
     }
 
     /**

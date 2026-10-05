@@ -43,6 +43,7 @@ import com.personalos.app.data.work.SyncScheduler
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphIcon
 import com.personalos.app.ui.common.LocalAppContainer
+import com.personalos.app.ui.common.NotificationHost
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.navigation.AppNavHost
 import com.personalos.app.ui.navigation.Destination
@@ -84,7 +85,7 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
 
-        val container = AppContainer(this)
+        val container = AppContainer.get(this)
         // SMS ingest lives in the container so the foreground observer here and
         // the background worker share one instance and one entry point.
         smsSource = container.smsSource
@@ -95,7 +96,7 @@ class MainActivity : ComponentActivity() {
         // Launch catch-up runs as a persisted worker, not in this scope: the
         // chain (retag, seeds, mention backfill) is store-wide CPU work that
         // ANR'd the app when it ran Main-bound here. See BackfillWorker.
-        SyncScheduler.enqueueBackfillOnce(this)
+        SyncScheduler.enqueueBackfill(this)
 
         smsPermissionGranted = ContextCompat.checkSelfPermission(
             this,
@@ -183,6 +184,10 @@ fun PersonalOSApp() {
             ) {
                 AppNavHost(navController)
             }
+
+            // The one notification host: pinned above the tab bar, so every screen
+            // shows whatever a producer posts — not only the TileScaffold tiles.
+            NotificationHost()
 
             BottomNavigationBar(
                 tabs = tabs,

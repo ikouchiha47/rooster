@@ -7,6 +7,35 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat: on-device ML tagging, per-source retag, and the model SDK
+
+_2026-10-05_
+
+Adds a model SDK (mlsdk) that locates/fetches/verifies shared on-device models,
+and an ONNX EmbeddingGemma embedder (q4f16, 256-dim via MRL, batched) behind the
+tagger ladder, replacing the batch-of-one TFLite path. Re-tagging is now per
+source family with its own cursor, serialized so six embedding walks do not
+saturate the phone. The tag vocabulary moves to a versioned JSON asset
+(taxonomy.v1.json), bundled and downloadable via Settings like a model, with a
+parity test that fails if it drifts from the code.
+
+Fixes the tagging noise: the embedding rung compared raw cosines of anisotropic
+vectors (tags mutually ~0.63, an unrelated item 0.41-0.54), so thresholds fired
+at random. It now centers the vectors (all-but-the-mean) and keeps only tags near
+the leader, reporting "unsure" instead of guessing (ADR 0007).
+
+Also: one AppContainer per process (was one per worker, which loaded the model
+once per worker and let workers fight over the active tagger); a backfill version
+fence so the latest run wins and stale runs exit before loading; cooperative
+cancellation with inference timeouts; and the app renamed to Rooster.
+
+Verified: builds and all unit tests pass. On-device confirmation of the new
+active tagger (cascade-v2) and Bengali tagging was blocked by device
+connectivity.
+
+Also folds in earlier uncommitted work: timezone-correct day bucketing, global
+notifications, watcher fire caps, calendar/travel, and rule backfill.
+
 ## fix(data): transact on the driver, so weather and fx write again
 
 _2026-09-26_

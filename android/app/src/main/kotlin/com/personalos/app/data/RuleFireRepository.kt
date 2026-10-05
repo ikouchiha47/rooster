@@ -1,5 +1,6 @@
 package com.personalos.app.data
 
+import androidx.room.ColumnInfo
 import com.personalos.app.core.rules.ConditionJson
 import com.personalos.app.core.rules.MatchedClause
 import com.personalos.app.core.rules.RuleItem
@@ -23,10 +24,34 @@ data class RuleFire(
     val clauses: List<MatchedClause>,
 )
 
+/**
+ * One fire joined with its item's text and time — the row a page query returns.
+ * `content` travels with it because a fire's *reason* is recomputed from the item.
+ */
+data class RuleFireCandidate(
+    @ColumnInfo(name = "item_id") val itemId: String,
+    @ColumnInfo(name = "matched_at") val matchedAt: Long,
+    @ColumnInfo(name = "title") val title: String,
+    @ColumnInfo(name = "source") val source: String,
+    @ColumnInfo(name = "content") val content: String,
+    @ColumnInfo(name = "item_timestamp") val itemTimestamp: Long,
+)
+
+/** One page of a rule's fires, and where the next page starts (null = no more). */
+data class RuleFirePage(
+    val fires: List<RuleFire>,
+    val nextTs: Long?,
+    val nextId: String?,
+) {
+    val hasMore: Boolean get() = nextTs != null
+}
+
 /** A rule and its most recent fires, newest first. */
 data class RuleWithFires(
     val rule: RuleEntity,
     val fires: List<RuleFire>,
+    /** Every fire the rule has, so a section can say how many it is not showing. */
+    val total: Int = fires.size,
 )
 
 /**
@@ -59,33 +84,95 @@ class RuleFireRepository(
             rules.associate { rule ->
                 rule.id to runCatching { ruleFireDao.firesForRule(rule.id, perRule) }.getOrDefault(emptyList())
             }
+        val totals =
+            rules.associate { rule ->
+                rule.id to runCatching { ruleFireDao.countForRule(rule.id) }.getOrDefault(0)
+            }
         val allFires = firesByRule.values.flatten()
-        if (allFires.isEmpty()) return rules.map { RuleWithFires(it, emptyList()) }
+        if (allFires.isEmpty()) return rules.map { RuleWithFires(it, emptyList(), totals[it.id] ?: 0) }
 
         val events = eventsByUlid(allFires.map { it.itemId })
         val items = itemsById(events)
-        val conditionById = rules.associate { it.id to parseCondition(it.conditionJson) }
 
         return rules.map { rule ->
-            val fires =
-                firesByRule[rule.id].orEmpty().mapNotNull { fire ->
-                    val event = events[fire.itemId] ?: return@mapNotNull null
-                    val item = items[fire.itemId] ?: return@mapNotNull null
-                    // An unreadable condition costs the reason, not the fire: the
-                    // match is stored history, so hiding it would lose the fact
-                    // that the rule ran at all.
-                    val condition = conditionById[rule.id]
-                    RuleFire(
-                        ruleId = rule.id,
-                        itemId = fire.itemId,
-                        matchedAt = fire.matchedAt,
-                        title = event.title,
-                        source = event.source,
-                        itemTimestamp = event.timestamp,
-                        clauses = condition?.matchedClauses(item).orEmpty(),
-                    )
-                }
-            RuleWithFires(rule, fires)
+            RuleWithFires(
+                rule = rule,
+                fires = toFires(rule, firesByRule[rule.id].orEmpty(), events, items),
+                total = totals[rule.id] ?: 0,
+            )
+        }
+    }
+
+    /**
+     * One keyset page of a rule's fires, for the Watchers "more" tap. The cursor
+     * is the last fire of the previous page — `(nextTs, nextId)` from a
+     * [RuleFirePage] — or a null [cursorTs] to start. Reads one row more than
+     * [limit] to know whether another page exists, so the UI never offers a
+     * "more" that returns nothing.
+     */
+    suspend fun forRulePage(
+        ruleId: String,
+        cursorTs: Long?,
+        cursorId: String,
+        limit: Int = PAGE_SIZE,
+    ): RuleFirePage {
+        val rule =
+            runCatching { ruleDao.all() }
+                .getOrDefault(emptyList())
+                .firstOrNull { it.id == ruleId } ?: return RuleFirePage(emptyList(), null, null)
+        val raw =
+            runCatching { ruleFireDao.firesForRulePage(ruleId, cursorTs, cursorId, limit + 1) }
+                .getOrDefault(emptyList())
+        if (raw.isEmpty()) return RuleFirePage(emptyList(), null, null)
+
+        val page = raw.take(limit)
+        val items = itemsFor(page.map { RuleItemSeed(it.itemId, it.source, it.title, it.content) })
+        val condition = parseCondition(rule.conditionJson)
+        val fires =
+            page.mapNotNull { candidate ->
+                val item = items[candidate.itemId] ?: return@mapNotNull null
+                RuleFire(
+                    ruleId = rule.id,
+                    itemId = candidate.itemId,
+                    matchedAt = candidate.matchedAt,
+                    title = candidate.title,
+                    source = candidate.source,
+                    itemTimestamp = candidate.itemTimestamp,
+                    clauses = condition?.matchedClauses(item).orEmpty(),
+                )
+            }
+        val more = raw.size > limit
+        return RuleFirePage(
+            fires = fires,
+            nextTs = page.last().itemTimestamp.takeIf { more },
+            nextId = page.last().itemId.takeIf { more },
+        )
+    }
+
+    /**
+     * Maps stored fires to the feed's shape. An unreadable condition costs the
+     * *reason*, not the fire: the match is stored history, so hiding it would lose
+     * the fact that the rule ran at all.
+     */
+    private fun toFires(
+        rule: RuleEntity,
+        raw: List<ItemRuleEntity>,
+        events: Map<String, EventEntity>,
+        items: Map<String, RuleItem>,
+    ): List<RuleFire> {
+        val condition = parseCondition(rule.conditionJson)
+        return raw.mapNotNull { fire ->
+            val event = events[fire.itemId] ?: return@mapNotNull null
+            val item = items[fire.itemId] ?: return@mapNotNull null
+            RuleFire(
+                ruleId = rule.id,
+                itemId = fire.itemId,
+                matchedAt = fire.matchedAt,
+                title = event.title,
+                source = event.source,
+                itemTimestamp = event.timestamp,
+                clauses = condition?.matchedClauses(item).orEmpty(),
+            )
         }
     }
 
@@ -97,12 +184,10 @@ class RuleFireRepository(
             .associateBy { it.ulid }
     }
 
-    private suspend fun itemsById(events: Map<String, EventEntity>): Map<String, RuleItem> {
-        if (events.isEmpty()) return emptyMap()
-        val seeds =
-            events.values.map {
-                RuleItemSeed(itemId = it.ulid, sourceId = it.source, title = it.title, content = it.content)
-            }
+    private suspend fun itemsById(events: Map<String, EventEntity>): Map<String, RuleItem> = itemsFor(events.values.map { RuleItemSeed(it.ulid, it.source, it.title, it.content) })
+
+    private suspend fun itemsFor(seeds: List<RuleItemSeed>): Map<String, RuleItem> {
+        if (seeds.isEmpty()) return emptyMap()
         return runCatching { ruleWriter.itemsFor(seeds) }
             .getOrDefault(emptyList())
             .associateBy { it.id }
@@ -111,7 +196,10 @@ class RuleFireRepository(
     private fun parseCondition(json: String) = runCatching { ConditionJson.parse(json) }.getOrNull()
 
     companion object {
-        /** Fires shown per rule before the list is collapsed. */
-        const val DEFAULT_PER_RULE = 3
+        /** Fires shown per rule collapsed; the rest are one "more" tap away. */
+        const val DEFAULT_PER_RULE = 5
+
+        /** Fires fetched per "more" tap — incremental, never the whole rule at once. */
+        const val PAGE_SIZE = 20
     }
 }

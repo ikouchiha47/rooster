@@ -3,6 +3,7 @@ package com.personalos.app.ui.watchers
 import com.personalos.app.core.Chars
 import com.personalos.app.data.RuleFire
 import com.personalos.app.data.RuleWithFires
+import com.personalos.app.ui.common.compactNumber
 
 /**
  * Watchers' decisions, kept out of the composable so they can be tested without
@@ -20,14 +21,14 @@ fun watchersOrder(groups: List<RuleWithFires>): List<RuleWithFires> =
             .thenBy { it.rule.name.lowercase() },
     )
 
-/** `3 RULES · 7 FIRES` — what the header band states. */
+/** `3 RULES · 7 FIRES` — what the header band states. Counts every fire, not just the shown ones. */
 fun watchersHeader(groups: List<RuleWithFires>): String {
-    val fires = groups.sumOf { it.fires.size }
-    return "${groups.size} RULES ${Chars.MIDDLE_DOT} $fires FIRES"
+    val fires = groups.sumOf { it.total }
+    return "${compactNumber(groups.size)} RULES ${Chars.MIDDLE_DOT} ${compactNumber(fires)} FIRES"
 }
 
 /** A rule's fire count, or the honest "never fired" instead of a bare zero. */
-fun ruleNote(group: RuleWithFires): String = if (group.fires.isEmpty()) "never fired" else group.fires.size.toString()
+fun ruleNote(group: RuleWithFires): String = if (group.total == 0) "never fired" else compactNumber(group.total)
 
 /**
  * The lines that explain a fire: the clauses that held, each already carrying

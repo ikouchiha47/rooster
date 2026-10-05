@@ -82,6 +82,34 @@ class RuleWriter(
     ): Int = writeAll(listOf(seed), now)
 
     /**
+     * Evaluates **one** rule over items that are already in the store, and writes
+     * its matches — the backfill's counterpart to [writeAll].
+     *
+     * [writeAll] is ingest: every enabled rule, against items that just landed.
+     * The backfill is the other direction: one rule, against history. Both go
+     * through the same [materialise] reader and the same evaluator, so a
+     * backfilled fire cannot disagree with one ingest would have produced — the
+     * clause a fire reports is computed the same way in both.
+     *
+     * An unreadable condition, or one the item evaluator refuses (a series
+     * predicate), writes nothing and logs; a backfill must not crash on a rule
+     * another caller has already tolerated.
+     */
+    suspend fun writeFor(
+        rule: RuleEntity,
+        seeds: List<RuleItemSeed>,
+        now: Long = System.currentTimeMillis(),
+    ): Int {
+        if (seeds.isEmpty()) return 0
+        val condition =
+            runCatching { ConditionJson.parse(rule.conditionJson) }
+                .onFailure { Log.w(TAG, "rule ${rule.id} has an unreadable condition; backfill skipped", it) }
+                .getOrNull()
+                ?: return 0
+        return insertMatches(listOf(EvaluableRule(rule.id, condition)), materialise(seeds), now)
+    }
+
+    /**
      * Re-evaluates **only** rules whose condition contains a text predicate
      * anywhere (ADR §10, R3), against **only** the items whose text just grew.
      * Called by the enrichment path; tags and mentions are read from the store.

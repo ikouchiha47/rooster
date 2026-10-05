@@ -219,6 +219,31 @@ object Sql {
         """
 
     /**
+     * One batch of the re-tag walk, **newest first**, scoped to a source family
+     * (`:prefix`, e.g. `sms` or `rss:`), or every source when null.
+     *
+     * Per-family is what stops one loud source starving the rest: the walk has a
+     * cursor *per family*, so `sms` (~2.6K rows) finishes on its own long before the
+     * feed backlog does, instead of queuing behind it.
+     */
+    const val EVENTS_BEFORE_ID =
+        """
+        SELECT id AS rowId, ulid, source, category, title, content
+        FROM events
+        WHERE id < :beforeId
+          AND (:prefix IS NULL OR source LIKE :prefix || '%')
+        ORDER BY id DESC
+        LIMIT :limit
+        """
+
+    /** The top of one source family, so its own walk starts from its newest row. */
+    const val EVENTS_MAX_ID_FOR_PREFIX =
+        """
+        SELECT MAX(id) FROM events
+        WHERE (:prefix IS NULL OR source LIKE :prefix || '%')
+        """
+
+    /**
      * Bounded candidate read for an authoring dry-run preview (ADR 0003 §12).
      *
      * Three rules keep it predictable:
@@ -588,17 +613,51 @@ object Sql {
     const val ITEM_RULES_ALL = "SELECT * FROM item_rules"
 
     /**
-     * A rule's fires, newest first — the Watchers feed. Reads the
-     * `(rule_id, item_id)` index; `LIMIT` is always supplied, so this can never
-     * walk the table.
+     * A rule's fires, newest **item** first — the Watchers feed.
+     *
+     * Ordered by the item's own time, not `matched_at`. A fire written at ingest
+     * has both roughly equal, but a *backfilled* fire is written now while its
+     * item may be days old, so ordering by `matched_at` would sort a whole
+     * backfill as simultaneous (and stable order would fall back to rowid).
+     * Ordering by the item's time makes the feed read as a timeline and gives the
+     * `LIMIT` a deterministic cut. `item_id` breaks ties, so the order is total.
+     * `LIMIT` is always supplied.
      */
     const val ITEM_RULES_FOR_RULE =
         """
-        SELECT * FROM item_rules
-        WHERE rule_id = :ruleId
-        ORDER BY matched_at DESC
+        SELECT ir.* FROM item_rules ir
+        JOIN events e ON e.ulid = ir.item_id
+        WHERE ir.rule_id = :ruleId
+        ORDER BY e.timestamp DESC, ir.item_id DESC
         LIMIT :limit
         """
+
+    /**
+     * One keyset page of a rule's fires, oldest-but-newer-than the cursor — what
+     * the Watchers "more" tap reads. The cursor is `(item timestamp, item id)`,
+     * the same total order as [ITEM_RULES_FOR_RULE], so pages cannot skip or
+     * duplicate as more items arrive. `:cursorTs` null starts the walk.
+     */
+    const val ITEM_RULES_FOR_RULE_PAGE =
+        """
+        SELECT ir.item_id AS item_id,
+               ir.matched_at AS matched_at,
+               e.title AS title,
+               e.source AS source,
+               e.content AS content,
+               e.timestamp AS item_timestamp
+        FROM item_rules ir
+        JOIN events e ON e.ulid = ir.item_id
+        WHERE ir.rule_id = :ruleId
+          AND (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND ir.item_id < :cursorId))
+        ORDER BY e.timestamp DESC, ir.item_id DESC
+        LIMIT :limit
+        """
+
+    /** A rule's total fire count, so a section can say how many it is not showing. */
+    const val ITEM_RULES_COUNT_FOR_RULE = "SELECT COUNT(*) FROM item_rules WHERE rule_id = :ruleId"
 
     /** Every item's stored facts at once, so one fire batch costs one read per table. */
     const val EVENTS_BY_ULIDS = "SELECT * FROM events WHERE ulid IN (:ulids)"

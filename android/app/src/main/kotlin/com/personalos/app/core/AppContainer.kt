@@ -10,11 +10,10 @@ import com.personalos.app.core.provider.NowPlayingProvider
 import com.personalos.app.core.provider.PinnedProvider
 import com.personalos.app.core.provider.WeatherProvider
 import com.personalos.app.core.sync.SyncStatus
-import com.personalos.app.core.tag.BundledTermSource
 import com.personalos.app.core.tag.HeuristicTagger
 import com.personalos.app.core.tag.Retagger
+import com.personalos.app.core.tag.TagVocabulary
 import com.personalos.app.core.tag.Tagger
-import com.personalos.app.core.tag.TermStore
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.CalendarRepository
 import com.personalos.app.data.CatalogSeeder
@@ -70,6 +69,24 @@ class AppContainer(
     private val database = AppDatabase.getInstance(context)
     private val cache = PrefsStringCache(context)
 
+    /**
+     * The user's time zone. Stored times are UTC instants; this is the zone the UI
+     * converts them in (see `UserZone`). Restored from the store here, defaulting
+     * to the device's and persisted on first run, so "today" is stable across
+     * restarts and travel.
+     */
+    val zones: com.personalos.app.data.ZoneRepository =
+        com.personalos.app.data.ZoneRepository(cache).also { repo ->
+            com.personalos.app.core.time.UserZone
+                .set(repo.id())
+            if (repo.id() == null) {
+                repo.save(
+                    com.personalos.app.core.time.UserZone
+                        .id(),
+                )
+            }
+        }
+
     /** Bundled coordinates; no runtime geocoding (see ADR 0001). */
     private val weatherLocations =
         listOf(
@@ -99,19 +116,108 @@ class AppContainer(
     val presentLocation: LocationProvider = AndroidLocationProvider(context, openMeteo)
 
     /**
-     * Term sources are merged here, so a future user- or remotely-sourced vocabulary
-     * is an extra entry in this list rather than a change to the tagger
-     * (docs/CODE-DESIGN-GUIDELINES.md §2).
+     * Vocabulary sources are merged here, so a future user- or remotely-sourced
+     * vocabulary is an extra entry in this list rather than a change to either
+     * tagger (docs/CODE-DESIGN-GUIDELINES.md §2). One source now feeds both rungs:
+     * the heuristic reads its terms, the embedding its descriptions.
      */
-    private val terms = TermStore(listOf(BundledTermSource))
+    private val vocabulary =
+        TagVocabulary(
+            listOf(
+                com.personalos.app.data.taxonomy
+                    .AssetVocabularySource(context),
+                com.personalos.app.data.taxonomy.FileVocabularySource(
+                    com.personalos.mlsdk.ModelPaths
+                        .file(context, com.personalos.app.data.KnownModels.taxonomy.fileName),
+                ),
+            ),
+        )
+
+    /** Re-read the vocabulary after a taxonomy download; the taggers read it lazily. */
+    fun reloadVocabulary() {
+        vocabulary.invalidate()
+    }
+
+    private val heuristic: Tagger = HeuristicTagger(vocabulary::lexicon)
 
     /**
-     * The active tagger - the single swap point for the strategy ladder
-     * (heuristic now; embed/model/cascade later). See docs/ARCHITECTURE.md §10.
+     * The active tagger. Starts as the heuristic; [upgradeTagger] swaps in the
+     * embedding policy tagger once the model is on disk. A stable reference, so the
+     * writers below never re-bind and ingest never waits on a download.
      */
-    val tagger: Tagger = HeuristicTagger(terms::lexicon)
+    private val switchable =
+        com.personalos.app.core.tag
+            .SwitchableTagger(heuristic)
+
+    val tagger: Tagger = switchable
+
+    /** Set once [upgradeTagger] succeeds, so later callers skip the model hash. */
+    @Volatile
+    private var upgraded = false
 
     val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger)
+
+    /**
+     * Upgrades to [com.personalos.app.core.tag.PolicyTagger] — lexicon for curated
+     * tags, EmbeddingGemma for contextual ones — when both files are present and
+     * load. Returns whether it upgraded. A no-op (never a failure) when the model
+     * is absent, so it is safe on every launch and after a download.
+     */
+    suspend fun upgradeTagger(): Boolean {
+        // One-time. Several workers call this (core + one per family), and the check
+        // below sha256-hashes 176 MB — so without this guard each worker re-hashed
+        // the model and bogged the device. Once upgraded, it is a free no-op.
+        if (upgraded) return true
+        val model = com.personalos.app.data.KnownModels.embeddingGemmaOnnx
+        val data = com.personalos.app.data.KnownModels.embeddingGemmaOnnxData
+        val tokenizer = com.personalos.app.data.KnownModels.embeddingGemmaOnnxTokenizer
+        val ready = com.personalos.mlsdk.ModelStatus.READY
+        // The `.onnx_data` is part of the model: all three must be present, or the
+        // session load would fail on the missing weights.
+        if (models.status(model) != ready || models.status(data) != ready || models.status(tokenizer) != ready) return false
+        val dir = models.dir()
+        val embedder =
+            com.personalos.app.data.models.OnnxEmbedder(
+                modelFile = java.io.File(dir, model.fileName),
+                tokenizerFile = java.io.File(dir, tokenizer.fileName),
+            )
+        if (!embedder.init()) return false
+        switchable.use(
+            com.personalos.app.core.tag.PolicyTagger(
+                heuristic,
+                com.personalos.app.core.tag
+                    .EmbeddingTagger(embedder::embed, vocabulary::descriptions, embedder::embedMany),
+            ),
+        )
+        // Point the `taggers` row at the tagger now running. Only the ingest paths
+        // called this, so the store kept reporting the old tagger as active after a
+        // swap and a retag — `item_tags_current` never showed the new tags.
+        tagWriter.ensureActive()
+        upgraded = true
+        return true
+    }
+
+    /**
+     * Removes model files the active bundle no longer names — the inactive
+     * runtime's weights, or an abandoned `.part`. Idempotent, and it deletes only
+     * files on disk, never a spec in code, so a runtime swap ([KnownModels]
+     * repointed) leaves no second copy of the model behind. Returns how many went.
+     */
+    suspend fun pruneModels(): Int =
+        models
+            .evictUnlisted(
+                (
+                    com.personalos.app.data.KnownModels.embeddingGemmaBundle +
+                        com.personalos.app.data.KnownModels.vocabularyBundle
+                ).map { it.fileName },
+            ).size
+
+    /** The scheduler a rule edit enqueues through; one owner, WorkManager behind it. */
+    private val ruleBackfillScheduler: com.personalos.app.data.RuleBackfillScheduler =
+        com.personalos.app.data.RuleBackfillScheduler { ruleId, generation ->
+            com.personalos.app.data.work.SyncScheduler
+                .enqueueRuleBackfill(context, ruleId, generation)
+        }
 
     /** Typed extras (`amount`, `sender`, ...), frozen on first write (ADR §13). */
     val fieldWriter: FieldWriter = FieldWriter(database.itemFieldDao())
@@ -174,7 +280,7 @@ class AppContainer(
      * Single owner of the rules fact (ADR 0003): the authoring screen edits
      * through it, the writer evaluates what is stored.
      */
-    val ruleRepository: RuleRepository = RuleRepository(database.ruleDao())
+    val ruleRepository: RuleRepository = RuleRepository(database.ruleDao(), ruleBackfillScheduler)
 
     /**
      * Writes `item_rules` matches (ADR 0003 §7–§10). Reads tags, mentions and
@@ -189,6 +295,20 @@ class AppContainer(
             database.mentionDao(),
             database.itemFieldDao(),
         )
+
+    /**
+     * Re-evaluates one rule over recent history — the rule-side counterpart to
+     * [retagger]. Bounded to the newest items, batched, and resumable; run from
+     * a worker when a rule is added, edited, or swept on launch.
+     */
+    val ruleBackfill: com.personalos.app.core.rules.RuleBackfill =
+        com.personalos.app.core.rules
+            .RuleBackfill(
+                database.ruleBackfillDao(),
+                database.ruleDao(),
+                writeMatches = { rule, seeds -> ruleWriter.writeFor(rule, seeds) },
+                cache,
+            )
 
     /** Saved items: one writer, one reader, over the flag on the item. */
     val bookmarks: com.personalos.app.data.BookmarkRepository =
@@ -287,7 +407,7 @@ class AppContainer(
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
     val retagger: Retagger =
         Retagger(
-            database.eventDao(),
+            database.retagDao(),
             tagWriter,
             cache,
             tagger,
@@ -393,13 +513,50 @@ class AppContainer(
             onEnriched = { seeds -> ruleWriter.reevaluateEnriched(seeds) },
         )
 
-    /** Shared sync state: drives the in-tile progress bar and the `Sync` log tag. */
-    val sync: SyncStatus = SyncStatus()
+    /**
+     * The model SDK: locate/fetch/verify on-device models. The hub app will be a
+     * UI over this same store, so an app works with or without the hub installed.
+     */
+    val models: com.personalos.mlsdk.ModelStore =
+        com.personalos.mlsdk.ModelStore(context)
+
+    /**
+     * The one owner of in-app notifications — process-wide, so a background
+     * producer (a worker, a broadcast) reaches the same list the UI renders.
+     * Every producer posts here and one host (the root) renders the result, so
+     * no screen draws its own banner.
+     */
+    val notifications: com.personalos.app.core.notify.NotificationCenter =
+        com.personalos.app.core.notify.AppNotifications
+
+    /** The sync producer: posts/updates/dismisses a notification in [notifications]. */
+    val sync: SyncStatus = SyncStatus(notifications)
+
+    /** Fetches models through [models], reporting progress on the notification host. */
+    val modelDownloader: com.personalos.app.data.ModelDownloader =
+        com.personalos.app.data
+            .ModelDownloader(models, notifications)
 
     val nowPlaying: NowPlayingProvider = SampleNowPlayingProvider()
     val pinned: PinnedProvider = SamplePinnedProvider()
 
-    private companion object {
-        const val PLACES_ASSET = "places.dat"
+    companion object {
+        private const val PLACES_ASSET = "places.dat"
+
+        @Volatile
+        private var shared: AppContainer? = null
+
+        /**
+         * The process-wide container — one per process, not one per worker.
+         *
+         * Workers used to each build their own, so each carried its own `ModelStore`,
+         * vocabulary and **embedder**, and a swap to the ML tagger loaded the model
+         * once per worker (the "double loader"). Sharing one instance means the
+         * model is loaded once no matter how many workers or screens ask for it.
+         */
+        fun get(context: Context): AppContainer =
+            shared ?: synchronized(this) {
+                shared ?: AppContainer(context.applicationContext).also { shared = it }
+            }
     }
 }

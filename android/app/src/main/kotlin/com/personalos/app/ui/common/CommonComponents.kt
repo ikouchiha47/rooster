@@ -29,8 +29,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -554,39 +556,77 @@ fun RadarHeader(
 ) {
     val contentColor = headerContentColor(accent)
     StatusBarIconsFor(accent)
-    Column(modifier.fillMaxWidth().background(accent)) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onBack != null) {
-                BackButton(onBack = onBack, tint = contentColor)
-                Spacer(Modifier.width(8.dp))
+    // Publish the band's content colour so `HeaderMeta` reads on any accent
+    // without a caller pairing accent and colour by hand (which drifted).
+    CompositionLocalProvider(LocalHeaderContentColor provides contentColor) {
+        Column(modifier.fillMaxWidth().background(accent)) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onBack != null) {
+                    BackButton(onBack = onBack, tint = contentColor)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    text = title,
+                    style = RadarType.serifH1,
+                    color = contentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.weight(1f))
+                if (trailing != null) {
+                    Spacer(Modifier.width(4.dp))
+                    trailing()
+                }
             }
-            Text(
-                text = title,
-                style = RadarType.serifH1,
-                color = contentColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.weight(1f))
-            if (trailing != null) {
-                Spacer(Modifier.width(4.dp))
-                trailing()
-            }
-        }
-        HardRule()
-        if (subtitle != null) {
-            Box(Modifier.fillMaxWidth().background(RadarColors.paper2)) {
-                subtitle()
+            HardRule()
+            if (subtitle != null) {
+                // The band pads its own content, so no caller has to, and every
+                // subtitle line sits on the same 8dp gutter as the rest of the app.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(RadarColors.paper2)
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                ) {
+                    subtitle()
+                }
             }
         }
     }
+}
+
+/**
+ * The header band's content colour. One owner, so [HeaderMeta] reads on whatever
+ * accent the band uses without each screen pairing accent and colour by hand —
+ * which is exactly how News (`paper4`), Watchers and Calendar drifted apart.
+ */
+val LocalHeaderContentColor = staticCompositionLocalOf { RadarColors.ink }
+
+/**
+ * The right-hand metadata on a header band — the single owner of "N ITEMS ·
+ * SYNCED …", "N RULES · N FIRES", "N REGIONS · N UPCOMING". Put it in
+ * [RadarHeader]'s `trailing` slot; its colour comes from the band itself, so it
+ * reads on any accent and no caller guesses.
+ */
+@Composable
+fun HeaderMeta(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text,
+        style = RadarType.micro,
+        color = LocalHeaderContentColor.current,
+        maxLines = 1,
+        modifier = modifier,
+    )
 }
 
 /** Readable ink for a filled [accent] band: dark ink on light accents, paper on dark. */

@@ -190,7 +190,9 @@ fun RadarScreen(
             val out = ArrayList<RadarRow>(visible.size + 8)
             var currentBucket = Long.MIN_VALUE
             for (e in visible) {
-                val bucket = e.timestamp / DAY_MS
+                val bucket =
+                    com.personalos.app.core.time.UserZone
+                        .dayStart(e.timestamp)
                 if (bucket != currentBucket) {
                     currentBucket = bucket
                     out.add(RadarRow.Header(e.timestamp))
@@ -679,7 +681,8 @@ private fun categoryLabel(category: String): String =
     when (category) {
         FeedCategories.NEWS -> "News"
         FeedCategories.INCIDENT -> "Incident"
-        SmsClass.PERSONAL.name -> "Personal"
+        // A relationship, not a subject: shown as Social everywhere it is read.
+        SmsClass.PERSONAL.name -> "Social"
         SmsClass.OTP.name -> "OTP"
         SmsClass.TRANSACTION.name -> "Money"
         SmsClass.BILL.name -> "Bill"

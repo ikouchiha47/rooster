@@ -1,34 +1,27 @@
 package com.personalos.app.ui.tile
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.ui.common.HardRule
-import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.QuickBar
 import com.personalos.app.ui.common.QuickItem
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
 import com.personalos.app.ui.common.SearchField
-import com.personalos.app.ui.theme.RadarType
 
 /**
  * The shared tile shell (docs/ARCHITECTURE.md §8): title, search, the tile's
@@ -97,40 +90,9 @@ fun TileScaffold(
             },
         )
 
-        SyncBar()
+        // Notifications are a root host (see `NotificationHost` in MainActivity),
+        // not a child of this scaffold, so every screen shows them.
 
         body(committed)
-    }
-}
-
-/**
- * Thin progress bar shown while a sync started from the UI is in flight, fed by
- * the shared [com.personalos.app.core.sync.SyncStatus]. Scheduled workers do not
- * post to it - they run with no screen attached and log under their own tags.
- * Every step it shows is also written to `adb logcat -s Sync`.
- */
-@Composable
-private fun SyncBar() {
-    val container = LocalAppContainer.current
-    val running by container.sync.running.collectAsStateWithLifecycle()
-    if (!running) return
-
-    val step by container.sync.step.collectAsStateWithLifecycle()
-
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .background(RadarColors.ink)
-                .padding(horizontal = 8.dp, vertical = 3.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = step.ifBlank { "SYNCING" }.uppercase(),
-            style = RadarType.micro,
-            color = RadarColors.paper2,
-            maxLines = 1,
-        )
     }
 }

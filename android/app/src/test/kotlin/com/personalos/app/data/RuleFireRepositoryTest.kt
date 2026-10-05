@@ -61,6 +61,36 @@ class RuleFireRepositoryTest {
             return fires[ruleId].orEmpty().take(limit)
         }
 
+        override suspend fun countForRule(ruleId: String): Int = fires[ruleId].orEmpty().size
+
+        /** Models the real keyset: by the item's time desc, id desc, older than the cursor. */
+        override suspend fun firesForRulePage(
+            ruleId: String,
+            cursorTs: Long?,
+            cursorId: String,
+            limit: Int,
+        ): List<RuleFireCandidate> =
+            fires[ruleId]
+                .orEmpty()
+                .mapNotNull { fire -> events[fire.itemId]?.let { fire to it.timestamp } }
+                .sortedWith(
+                    compareByDescending<Pair<ItemRuleEntity, Long>> { it.second }
+                        .thenByDescending { it.first.itemId },
+                ).filter { (fire, ts) ->
+                    cursorTs == null || ts < cursorTs || (ts == cursorTs && fire.itemId < cursorId)
+                }.take(limit)
+                .map { (fire, ts) ->
+                    val event = events.getValue(fire.itemId)
+                    RuleFireCandidate(
+                        itemId = fire.itemId,
+                        matchedAt = fire.matchedAt,
+                        title = event.title,
+                        source = event.source,
+                        content = event.content,
+                        itemTimestamp = ts,
+                    )
+                }
+
         override suspend fun eventsByUlids(ulids: List<String>): List<EventEntity> {
             eventBatchCalls++
             return ulids.mapNotNull { events[it] }
@@ -299,5 +329,33 @@ class RuleFireRepositoryTest {
             assertEquals(2, group.fires.size)
             assertEquals(2, fireDao.lastLimit)
             assertEquals(1, fireDao.eventBatchCalls)
+        }
+
+    @Test
+    fun `forRulePage walks by cursor without skipping or duplicating`() =
+        runBlocking {
+            // Five fires whose items have distinct times, so the order is total and
+            // the cursor is unambiguous.
+            val fires = (1..5).map { ItemRuleEntity("obs-$it", "hot", 500L + it) }
+            val events = (1..5).associate { "obs-$it" to event("obs-$it").copy(timestamp = it.toLong()) }
+            val (repo, _) =
+                repository(
+                    rules = listOf(rule("hot", "Hot day")),
+                    fires = mapOf("hot" to fires),
+                    events = events,
+                    fields = (1..5).associate { "obs-$it" to listOf(ItemFieldEntity("obs-$it", "temp_c", valueNum = 40.2)) },
+                )
+
+            val first = repo.forRulePage("hot", cursorTs = null, cursorId = "", limit = 2)
+            assertEquals(listOf("obs-5", "obs-4"), first.fires.map { it.itemId })
+            assertTrue("a third page exists", first.hasMore)
+
+            val second = repo.forRulePage("hot", first.nextTs!!, first.nextId!!, limit = 2)
+            assertEquals(listOf("obs-3", "obs-2"), second.fires.map { it.itemId })
+            assertTrue(second.hasMore)
+
+            val third = repo.forRulePage("hot", second.nextTs!!, second.nextId!!, limit = 2)
+            assertEquals(listOf("obs-1"), third.fires.map { it.itemId })
+            assertTrue("the last page is not the first", !third.hasMore)
         }
 }

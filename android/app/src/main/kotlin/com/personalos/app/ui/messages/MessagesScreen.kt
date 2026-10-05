@@ -288,7 +288,9 @@ fun MessagesScreen(
             val out = ArrayList<MsgRow>(items.size + 8)
             var currentBucket = Long.MIN_VALUE
             for (e in items) {
-                val bucket = e.timestamp / DAY_MS
+                val bucket =
+                    com.personalos.app.core.time.UserZone
+                        .dayStart(e.timestamp)
                 if (bucket != currentBucket) {
                     currentBucket = bucket
                     out.add(MsgRow.Header(e.timestamp))
@@ -859,7 +861,7 @@ private fun stateColor(type: String): Color =
 /** Short chip label per intent class. */
 private fun labelFor(klass: SmsClass): String =
     when (klass) {
-        SmsClass.PERSONAL -> "Personal"
+        SmsClass.PERSONAL -> "Social"
         SmsClass.OTP -> "OTP"
         SmsClass.TRANSACTION -> "Money"
         SmsClass.BILL -> "Bill"
