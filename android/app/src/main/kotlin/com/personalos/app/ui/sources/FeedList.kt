@@ -1,6 +1,7 @@
 package com.personalos.app.ui.sources
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,16 +32,20 @@ import com.personalos.app.ui.theme.RadarType
 fun FeedList(
     statuses: List<FeedStatus>,
     modifier: Modifier = Modifier,
+    onCategoryTap: ((FeedStatus) -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         statuses.forEach { status ->
-            FeedRow(status = status)
+            FeedRow(status = status, onCategoryTap = onCategoryTap?.let { { it(status) } })
         }
     }
 }
 
 @Composable
-fun FeedRow(status: FeedStatus) {
+fun FeedRow(
+    status: FeedStatus,
+    onCategoryTap: (() -> Unit)? = null,
+) {
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier =
@@ -51,7 +56,11 @@ fun FeedRow(status: FeedStatus) {
         ) {
             StatusDot(status)
             Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .then(if (onCategoryTap != null) Modifier.clickable { onCategoryTap() } else Modifier),
+            ) {
                 Text(
                     text = status.name,
                     style = RadarType.serifTitle,
@@ -59,7 +68,7 @@ fun FeedRow(status: FeedStatus) {
                     maxLines = 1,
                 )
                 Text(
-                    text = status.lastError?.let { "${status.host} · $it" } ?: status.host,
+                    text = feedSubtitle(status),
                     style = RadarType.microPlain,
                     color = if (status.lastError != null) CategoryColors.Vermilion else RadarColors.ink3,
                     maxLines = 1,

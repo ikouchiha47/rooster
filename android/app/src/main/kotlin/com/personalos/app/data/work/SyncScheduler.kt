@@ -51,8 +51,14 @@ object SyncScheduler {
 
     /** Tags every backfill unit (core + one per family) so status can list them all. */
     internal const val BACKFILL_TAG = "backfill"
+
+    /** The single retag dispatcher job (replaces one worker per family). */
+    private const val RETAG_DISPATCH_NAME = "retag-dispatch"
     private const val RULE_BACKFILL_PREFIX = "rule-backfill:"
     private const val BACKOFF_MINUTES = 15L
+
+    /** Between chained re-tag runs: short, so a family keeps advancing chunk by chunk. */
+    private const val RETAG_BACKOFF_SECONDS = 30L
 
     /** Party lists change per election cycle, not per hour: yearly is plenty. */
     const val PARTY_INTERVAL_DAYS = 365L
@@ -183,33 +189,38 @@ object SyncScheduler {
      * All units share the `backfill` tag, so status is one query. No network
      * constraint — this is local store work (seeds, upgrade, retag).
      */
-    fun enqueueBackfill(context: Context) {
-        val version = BackfillVersion.bump(context)
+    fun enqueueBackfill(
+        context: Context,
+        force: Boolean = false,
+    ) {
+        // Bump the version only when *forced*. Otherwise KEEP and reuse the current
+        // version, so a routine launch does not supersede an in-flight retag — that
+        // supersede churn is what kept cancelling the walk before it finished.
+        val version =
+            if (force) BackfillVersion.bump(context) else (BackfillVersion.current(context) ?: BackfillVersion.bump(context))
+        val policy = if (force) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
         val workManager = WorkManager.getInstance(context)
 
         workManager.enqueueUniqueWork(
             BACKFILL_UNIQUE_NAME,
-            ExistingWorkPolicy.REPLACE,
+            policy,
             OneTimeWorkRequestBuilder<BackfillWorker>()
                 .setInputData(androidx.work.workDataOf(BackfillVersion.KEY to version))
                 .addTag(BACKFILL_TAG)
                 .build(),
         )
-
-        RetagFamilies.ALL.forEach { family ->
-            workManager.enqueueUniqueWork(
-                RetagFamilies.uniqueName(family),
-                ExistingWorkPolicy.REPLACE,
-                OneTimeWorkRequestBuilder<RetagWorker>()
-                    .setInputData(
-                        androidx.work.workDataOf(
-                            RetagWorker.KEY_FAMILY to family,
-                            BackfillVersion.KEY to version,
-                        ),
-                    ).addTag(BACKFILL_TAG)
-                    .build(),
-            )
-        }
+        workManager.enqueueUniqueWork(
+            RETAG_DISPATCH_NAME,
+            policy,
+            OneTimeWorkRequestBuilder<RetagDispatchWorker>()
+                .setInputData(androidx.work.workDataOf(BackfillVersion.KEY to version))
+                .setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    RETAG_BACKOFF_SECONDS,
+                    TimeUnit.SECONDS,
+                ).addTag(BACKFILL_TAG)
+                .build(),
+        )
     }
 
     /**

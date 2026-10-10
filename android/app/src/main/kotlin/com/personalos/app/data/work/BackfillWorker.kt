@@ -47,8 +47,8 @@ class BackfillWorker(
         // a runtime swap self-heals here rather than leaving the old weights.
         val pruned = step(0) { container.pruneModels() }
         Log.i(TAG, "model prune: -$pruned files")
-        // The retag is no longer here: each source family is its own RetagWorker job,
-        // so a large family cannot hold up a small one.
+        // The retag is no longer here: the retag dispatcher schedules it (weighted,
+        // so a small family is not held up by a large one).
         val places = step(0) { container.placesSeeder.seed() }
         val parties = step(0) { container.partySeeder.seed() }
         val sources = step(0) { container.sourceSeeder.seed() }

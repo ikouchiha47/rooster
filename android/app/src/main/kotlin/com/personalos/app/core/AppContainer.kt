@@ -14,6 +14,7 @@ import com.personalos.app.core.tag.HeuristicTagger
 import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.TagVocabulary
 import com.personalos.app.core.tag.Tagger
+import com.personalos.app.core.tag.taxonomy.source
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.CalendarRepository
 import com.personalos.app.data.CatalogSeeder
@@ -64,7 +65,7 @@ import com.personalos.app.data.sample.SamplePinnedProvider
  *  - pinned  -> sample (local ranking not built yet)
  */
 class AppContainer(
-    context: Context,
+    private val context: Context,
 ) {
     private val database = AppDatabase.getInstance(context)
     private val cache = PrefsStringCache(context)
@@ -116,29 +117,43 @@ class AppContainer(
     val presentLocation: LocationProvider = AndroidLocationProvider(context, openMeteo)
 
     /**
-     * Vocabulary sources are merged here, so a future user- or remotely-sourced
-     * vocabulary is an extra entry in this list rather than a change to either
-     * tagger (docs/CODE-DESIGN-GUIDELINES.md §2). One source now feeds both rungs:
-     * the heuristic reads its terms, the embedding its descriptions.
+     * The one taxonomy (bundled asset, with a downloaded copy merged over it).
+     * Everything derives from it — the vocabulary, the tag groups/owners
+     * ([schema]) and the feed categories — so one downloaded file updates them all.
      */
-    private val vocabulary =
-        TagVocabulary(
-            listOf(
-                com.personalos.app.data.taxonomy
-                    .AssetVocabularySource(context),
-                com.personalos.app.data.taxonomy.FileVocabularySource(
-                    com.personalos.mlsdk.ModelPaths
-                        .file(context, com.personalos.app.data.KnownModels.taxonomy.fileName),
-                ),
-            ),
-        )
+    private val taxonomy: com.personalos.app.core.tag.taxonomy.Taxonomy? =
+        com.personalos.app.data.taxonomy.TaxonomyLoader
+            .load(context, com.personalos.app.data.KnownModels.taxonomy.fileName)
+
+    /** Groups and owners as data; falls back to the bundled defaults when unloaded. */
+    private val schema: com.personalos.app.core.tag.TagSchema =
+        taxonomy?.let {
+            com.personalos.app.core.tag.TagSchema
+                .of(it)
+        }
+            ?: com.personalos.app.core.tag.TagSchema.BUNDLED
+
+    private val vocabulary: TagVocabulary =
+        TagVocabulary(listOf(taxonomy?.source() ?: com.personalos.app.core.tag.BundledVocabulary))
 
     /** Re-read the vocabulary after a taxonomy download; the taggers read it lazily. */
     fun reloadVocabulary() {
         vocabulary.invalidate()
     }
 
-    private val heuristic: Tagger = HeuristicTagger(vocabulary::lexicon)
+    /** The feed directory: category → known feeds, so adding a feed is one tap. */
+    val feedDirectory: com.personalos.app.core.feed.FeedDirectory? =
+        com.personalos.app.data.feed.FeedDirectoryLoader
+            .load(context)
+
+    /** The categories a feed can be, for the picker (falls back to plain news). */
+    val feedCategories: List<String> =
+        feedDirectory?.categories?.map { it.category } ?: listOf("news")
+
+    /** The known feeds suggested for a category. */
+    fun suggestedFeeds(category: String): List<com.personalos.app.core.feed.DirectoryFeed> = feedDirectory?.feedsFor(category).orEmpty()
+
+    private val heuristic: Tagger = HeuristicTagger(vocabulary::lexicon, schema)
 
     /**
      * The active tagger. Starts as the heuristic; [upgradeTagger] swaps in the
@@ -182,11 +197,19 @@ class AppContainer(
                 tokenizerFile = java.io.File(dir, tokenizer.fileName),
             )
         if (!embedder.init()) return false
+        // The ML rung is now nearest labelled examples (kNN), not description
+        // cosine — measurably better on real data, and it improves as corrections
+        // accrue. The lexicon rung is unchanged.
         switchable.use(
             com.personalos.app.core.tag.PolicyTagger(
                 heuristic,
-                com.personalos.app.core.tag
-                    .EmbeddingTagger(embedder::embed, vocabulary::descriptions, embedder::embedMany),
+                com.personalos.app.core.tag.KnnTagger(
+                    embedMany = embedder::embedMany,
+                    examples =
+                        com.personalos.app.data.tagging
+                            .AssetExampleSource(context),
+                ),
+                schema,
             ),
         )
         // Point the `taggers` row at the tagger now running. Only the ingest paths
@@ -434,6 +457,30 @@ class AppContainer(
                         }.toMap()
                 }.getOrDefault(emptyMap())
             },
+        )
+
+    /**
+     * Decides which family re-tags next: weighted fairness over the one model, so a
+     * small family (SMS) is not starved by the feed backlog. Runs as one bounded job.
+     */
+    val retagDispatcher: com.personalos.app.data.work.RetagDispatcher =
+        com.personalos.app.data.work.RetagDispatcher(
+            families =
+                com.personalos.app.data.work.RetagFamilies.ALL.map {
+                    com.personalos.app.core.tag
+                        .FamilyState(
+                            it,
+                            com.personalos.app.data.work.RetagFamilies
+                                .weight(it),
+                        )
+                },
+            policy =
+                com.personalos.app.core.tag
+                    .DeficitRoundRobin(),
+            store =
+                com.personalos.app.data.work
+                    .PrefsScheduleStore(context),
+            runFamily = { retagger.run(it) },
         )
 
     /**

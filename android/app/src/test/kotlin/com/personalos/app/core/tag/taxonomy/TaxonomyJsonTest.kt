@@ -15,6 +15,7 @@ class TaxonomyJsonTest {
             {"tag":"incident","group":"nature","owner":"embedding","description":"a disruption","terms":"outage"}
           ],
           "markers": [ {"tag":"news","description":"editorial"} ],
+          "categories": [ {"tag":"politics","description":"politics and government"} ],
           "derivations": [ {"tag":"local","from":["place"],"when":"place near me"} ]
         }
         """.trimIndent()
@@ -40,6 +41,17 @@ class TaxonomyJsonTest {
 
         assertEquals(listOf("finance", "incident"), tags)
         assertFalse("news is structural, not inferred", "news" in tags)
+    }
+
+    @Test
+    fun `categories are declared by the source, never inferred`() {
+        val taxonomy = TaxonomyJson.parse(json)
+
+        assertEquals("politics", taxonomy.categories.single().tag)
+        assertFalse(
+            "a declared category must not reach the embedder",
+            "politics" in taxonomy.source().definitions().map { it.tag },
+        )
     }
 
     @Test

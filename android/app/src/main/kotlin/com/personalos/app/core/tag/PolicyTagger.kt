@@ -17,6 +17,7 @@ package com.personalos.app.core.tag
 class PolicyTagger(
     private val lexicon: Tagger,
     private val embedding: Tagger,
+    private val schema: TagSchema = TagSchema.BUNDLED,
 ) : Tagger {
     override val version: Int = TagVersions.CASCADE
 
@@ -52,9 +53,9 @@ class PolicyTagger(
         // Declared and structural: the ingest path's, never inferred here.
         tags += input.declaredTags
         // Contextual, plus any curated the model found: the embedder's to give.
-        tags += fromEmbedding.tags.filterNot { it in TagGroups.MARKERS }
+        tags += fromEmbedding.tags.filterNot { it in schema.markers }
         // Curated: the lexicon's to give.
-        tags += fromLexicon.tags.filter { it in TagOwnership.LEXICON }
+        tags += fromLexicon.tags.filter { it in schema.lexiconOwned }
 
         return TagResult(
             tags = tags,

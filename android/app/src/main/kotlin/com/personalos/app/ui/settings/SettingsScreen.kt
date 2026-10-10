@@ -26,10 +26,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personalos.app.core.AppContainer
 import com.personalos.app.core.Chars
 import com.personalos.app.core.theme.RadarTheme
+import com.personalos.app.data.BatteryOptimization
 import com.personalos.app.data.KnownModels
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.LocalAppContainer
@@ -116,8 +118,51 @@ fun SettingsScreen(
                 bundle = KnownModels.vocabularyBundle,
                 onDownloaded = { it.reloadVocabulary() },
             )
+
+            Spacer(Modifier.height(12.dp))
+            BatterySection()
         }
     }
+}
+
+/**
+ * Background reliability. Without the exemption, Android defers a long retag into
+ * never (Doze/App Standby); granting it is a one-time system dialog, no permanent
+ * notification.
+ */
+@Composable
+private fun BatterySection() {
+    val context = LocalContext.current
+    var exempt by remember { mutableStateOf(BatteryOptimization.isExempt(context)) }
+
+    WidgetHeader(title = "Background", note = if (exempt) "exempt" else "best-effort")
+    Text(
+        text =
+            if (exempt) {
+                "Exempt from battery optimization — background tagging runs reliably."
+            } else {
+                "Allow this app to run in the background, so re-tagging is not deferred " +
+                    "or cut short."
+            },
+        style = RadarType.microPlain,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+    if (!exempt) {
+        Text(
+            text = "ALLOW",
+            style = RadarType.labelMicro,
+            color = CategoryColors.Teal,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        runCatching { context.startActivity(BatteryOptimization.requestIntent(context)) }
+                        exempt = BatteryOptimization.isExempt(context)
+                    }.padding(horizontal = 8.dp, vertical = 8.dp),
+        )
+    }
+    FooterStrip("Background work is best-effort without this")
 }
 
 /**

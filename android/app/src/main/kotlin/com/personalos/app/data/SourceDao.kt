@@ -42,4 +42,12 @@ interface SourceDao {
      */
     @Query(Sql.SOURCES_DELETE_USER_ONLY)
     suspend fun deleteUserOnly(id: String): Int
+
+    /** Rewrite a source's spec — e.g. its declared category. Rows touched. */
+    @Query(Sql.SOURCES_UPDATE_SPEC)
+    suspend fun updateSpec(
+        id: String,
+        specJson: String,
+        updatedAt: Long,
+    ): Int
 }

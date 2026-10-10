@@ -415,6 +415,9 @@ object Sql {
     const val SOURCES_UPDATE_ENABLED =
         "UPDATE sources SET enabled = :enabled, updated_at = :updatedAt WHERE id = :id AND seeded = 0"
 
+    const val SOURCES_UPDATE_SPEC =
+        "UPDATE sources SET spec_json = :specJson, updated_at = :updatedAt WHERE id = :id"
+
     const val SOURCES_DELETE_USER_ONLY =
         "DELETE FROM sources WHERE id = :id AND seeded = 0"
 

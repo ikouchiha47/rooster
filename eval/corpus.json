@@ -1,0 +1,33 @@
+{
+  "note": "Real device messages with hand-labelled expected taxonomy tags. This is the baseline for the embedding rung's decision rule: run eval.py against it, see what fires, then tune descriptions/floors. `expect` is the tags a correct tagger should produce (declared `news` excluded, since it is structural).",
+  "items": [
+    { "id": "sms-strike",        "source": "sms",   "expect": ["finance", "incident"], "text": "Dear Customer, Bank Unions announced 3 days Strike from 28 to 30 Sep 2026. To avoid inconvenience, Branches shall function on 27th Sep (Sunday)" },
+    { "id": "sms-promo-flat",    "source": "sms",   "expect": ["promo"],               "text": "FLAT Rs 500 OFF on electronics! Shop for Rs 2000+ at Reliance Digital. Limited period offer" },
+    { "id": "sms-promo-bata",    "source": "sms",   "expect": ["promo"],               "text": "Last 3 Days Left! Walk in before its gone @ BATA. FLAT 50% OFF + 200 bonus, sale ends soon" },
+    { "id": "sms-dues",          "source": "sms",   "expect": ["expense"],             "text": "Dear Subscriber, Dues of Rs.1214 remain unpaid. To reactivate your account please recharge immediately" },
+    { "id": "sms-recharge",      "source": "sms",   "expect": ["expense"],             "text": "Recharge Successful ! Plan Name : 69.00 Jio Number : 6294097693 Entitlement activated" },
+    { "id": "sms-debit",         "source": "sms",   "expect": ["expense"],             "text": "Rs 1,214 debited from A/c XX4021 on 20-Sep. Balance Rs 8,932. Not you? Call us" },
+    { "id": "sms-otp",           "source": "sms",   "expect": [],                      "text": "OTP for account recovery of User Name is 545441. If it is not you, ignore this message. Do not share with anyone" },
+    { "id": "sms-interview",     "source": "sms",   "expect": [],                      "text": "Updated: Arctic Wolf - In-person Interview Confirmation @ Wed, Sep 23, 11:00 AM. Reply YES to confirm" },
+    { "id": "sms-advisory",      "source": "sms",   "expect": ["official"],            "text": "Advisory as per the Telecommunications Act 2023. Beware of fraudulent calls, do not share personal information" },
+    { "id": "sms-data-quota",    "source": "sms",   "expect": [],                      "text": "ALERT! You have exhausted 100% of daily data quota as of 20-Sep-26 17:00. Recharge to continue" },
+
+    { "id": "feed-rally",        "source": "rss",   "expect": ["finance"],             "text": "875% YTD rally! Rs 10.3 lakh became nearly Rs 1 crore in 9 months; Nirmal Bang sees more upside" },
+    { "id": "feed-sensex",       "source": "rss",   "expect": ["finance"],             "text": "Sensex jumps 400 points as RBI holds rates; banks and IT stocks lead the rally" },
+    { "id": "feed-attacked",     "source": "gnews", "expect": ["incident"],            "text": "Slapped, punched, called jihadi: 3 Kolkata students attacked, police probe on" },
+    { "id": "feed-football",     "source": "gnews", "expect": ["games"],               "text": "India 0-4 Brazil: Estevao, Pedro and Lino shine in Kolkata friendly" },
+    { "id": "feed-cricket",      "source": "rss",   "expect": ["games"],               "text": "India beat Australia by 5 wickets in the World Cup final to lift the trophy" },
+    { "id": "feed-taxi-ev",      "source": "rss",   "expect": ["travel"],              "text": "Ola, Uber, bike taxis in Maharashtra get 9 months to switch to 100% electric vehicles" },
+    { "id": "feed-farmers",      "source": "rss",   "expect": ["incident"],            "text": "Farmers threaten agitation over MSP if demand not met immediately, warn unions" },
+    { "id": "feed-puja-rules",   "source": "gnews", "expect": ["festival"],            "text": "Kolkata Police Puja Rules: Gariahat Parking Becomes Strict During Puja" },
+    { "id": "feed-stabbed",      "source": "rss",   "expect": ["incident"],            "text": "Gym trainer stabbed to death at anniversary party in Bengaluru" },
+    { "id": "feed-protest",      "source": "rss",   "expect": ["incident"],            "text": "Unannounced protest on Gurugram Sohna Road triggers hours-long traffic snarls" },
+    { "id": "feed-flood",        "source": "rss",   "expect": ["weather", "incident"], "text": "Floods hit 49 lakh people in 15 districts as rivers keep swelling after heavy rain" },
+    { "id": "feed-ev-charging",  "source": "rss",   "expect": ["tech"],                "text": "New semiconductor chip plant announced to boost electric vehicle charging technology" },
+
+    { "id": "bn-puja",           "source": "rss",   "expect": ["festival"],            "text": "পশ্চিমবঙ্গ দুর্গাপুজা সমন্বয় কমিটির বৈঠক, উৎসবের প্রস্তুতি শুরু" },
+    { "id": "bn-flood",          "source": "rss",   "expect": ["weather", "incident"], "text": "ভারতের ১৫ জেলায় বন্যা, বহু মানুষ গৃহহীন, ত্রাণের কাজ চলছে" },
+    { "id": "bn-cricket",        "source": "gnews", "expect": ["games"],               "text": "ভারত বনাম নিউজিল্যান্ড ম্যাচ, ক্রিকেট অনুরাগীদের জন্য সুখবর" },
+    { "id": "hi-election",       "source": "rss",   "expect": ["official"],            "text": "चुनाव आयोग को हाई कोर्ट ने लगाई फटकार, मतदाता सूची पर सुनवाई" }
+  ]
+}

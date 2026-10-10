@@ -16,6 +16,7 @@ package com.personalos.app.core.tag
  */
 object TagVersions {
     const val HEURISTIC = 10
-    const val EMBEDDING = 2
-    const val CASCADE = 2
+    const val EMBEDDING = 3
+    const val KNN = 1
+    const val CASCADE = 4
 }

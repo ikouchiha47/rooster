@@ -32,6 +32,12 @@ data class Taxonomy(
     val version: Int,
     val tags: List<TagLeaf> = emptyList(),
     val markers: List<TagLeaf> = emptyList(),
+    /**
+     * Source-declared categories (news, politics, lifestyle, …). A feed says what
+     * it is; these are **never inferred**, which is why they are kept out of [tags]
+     * — the embedder must not try to score them.
+     */
+    val categories: List<TagLeaf> = emptyList(),
     val derivations: List<Derivation> = emptyList(),
 )
 
@@ -72,6 +78,11 @@ fun mergeTaxonomies(
             base.markers.forEach { put(it.tag, it) }
             overlay.markers.forEach { put(it.tag, it) }
         }
+    val categories =
+        linkedMapOf<String, TagLeaf>().apply {
+            base.categories.forEach { put(it.tag, it) }
+            overlay.categories.forEach { put(it.tag, it) }
+        }
     val derivations =
         linkedMapOf<String, Derivation>().apply {
             base.derivations.forEach { put(it.tag, it) }
@@ -82,6 +93,7 @@ fun mergeTaxonomies(
         version = overlay.version,
         tags = tags.values.toList(),
         markers = markers.values.toList(),
+        categories = categories.values.toList(),
         derivations = derivations.values.toList(),
     )
 }

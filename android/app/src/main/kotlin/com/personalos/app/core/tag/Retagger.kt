@@ -7,8 +7,6 @@ import com.personalos.app.data.RetagCandidate
 import com.personalos.app.data.TagWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
@@ -29,6 +27,7 @@ import kotlin.coroutines.coroutineContext
  * Writes are `INSERT ... IGNORE` on `(item_id, tag, tagger_id)`, so re-running
  * is safe and never duplicates a tag (docs/ARCHITECTURE.md §11.5).
  */
+
 class Retagger(
     private val dao: com.personalos.app.data.RetagDao,
     private val tagWriter: TagWriter,
@@ -52,52 +51,53 @@ class Retagger(
      * behind the loud one. The tagger itself is unchanged — still one shared
      * implementation and vocabulary.
      */
-    private val walk = Mutex()
-
     suspend fun run(
         prefix: String? = null,
         batchSize: Int = DEFAULT_BATCH_SIZE,
         maxBatches: Int = DEFAULT_MAX_BATCHES,
-    ): Int =
-        // One family at a time across the process: the families are separate jobs
-        // (own cursor, cancel, status), but running all six embedding walks at once
-        // saturates a phone. Cursors still keep each family progressing on its own,
-        // so serialising execution costs no starvation.
-        walk.withLock {
-            // Owns its dispatcher: callers include a Main-bound launch block, and
-            // this walks a whole family. FeedIngestor.refresh sets the precedent.
-            withContext(Dispatchers.IO) {
-                // Newest-first: a fresh walk starts just above the family's newest id
-                // and moves down, so its recent items are tagged before its older ones.
-                val stored = cache.read(cursorKey(prefix))?.value?.toLongOrNull()
-                var cursor = stored ?: ((dao.maxId(prefix) ?: return@withContext 0) + 1L)
-                var tagged = 0
-                var batches = 0
-                val extras = runCatching { sourceTags() }.getOrDefault(emptyMap())
+    ): RetagRun =
+        // Families are not serialised here: concurrent walks are bounded once, at
+        // the model, by the embedder's semaphore. So a family never holds the model
+        // for a whole walk (which starved the small ones), and the CPU limit is the
+        // single one that matters.
+        //
+        // Owns its dispatcher: callers include a Main-bound launch block, and this
+        // walks a whole family. FeedIngestor.refresh sets the precedent.
+        withContext(Dispatchers.IO) {
+            // Newest-first: a fresh walk starts just above the family's newest id
+            // and moves down, so its recent items are tagged before its older ones.
+            val stored = cache.read(cursorKey(prefix))?.value?.toLongOrNull()
+            var cursor = stored ?: ((dao.maxId(prefix) ?: return@withContext RetagRun(0, exhausted = true)) + 1L)
+            var tagged = 0
+            var batches = 0
+            var exhausted = false
+            val extras = runCatching { sourceTags() }.getOrDefault(emptyMap())
 
-                while (batches < maxBatches) {
-                    // Cooperative cancellation: a clean kill (WorkManager cancelling
-                    // the worker, or a newer run replacing it) stops *between* batches,
-                    // with the cursor already persisted, rather than mid-batch. The next
-                    // run resumes from exactly there — cancellation costs at most one
-                    // batch, never a corrupt walk.
-                    coroutineContext.ensureActive()
-                    val batch = dao.itemsBefore(prefix, cursor, batchSize)
-                    if (batch.isEmpty()) break
-
-                    tagged += tagWriter.writeAll(batch.map { it.toTagInput(extras) })
-                    cursor = batch.last().rowId
-                    batches++
-
-                    // Persist after each batch so a kill mid-walk resumes, not restarts.
-                    cache.write(cursorKey(prefix), cursor.toString(), System.currentTimeMillis())
+            while (batches < maxBatches) {
+                // Cooperative cancellation: a clean kill (WorkManager cancelling
+                // the worker, or a newer run replacing it) stops *between* batches,
+                // with the cursor already persisted, rather than mid-batch. The next
+                // run resumes from exactly there — cancellation costs at most one
+                // batch, never a corrupt walk.
+                coroutineContext.ensureActive()
+                val batch = dao.itemsBefore(prefix, cursor, batchSize)
+                if (batch.isEmpty()) {
+                    exhausted = true
+                    break
                 }
 
-                if (tagged > 0) {
-                    Log.i(TAG, "re-tag with ${tagger.id}: $tagged items tagged (cursor=$cursor)")
-                }
-                tagged
+                tagged += tagWriter.writeAll(batch.map { it.toTagInput(extras) })
+                cursor = batch.last().rowId
+                batches++
+
+                // Persist after each batch so a kill mid-walk resumes, not restarts.
+                cache.write(cursorKey(prefix), cursor.toString(), System.currentTimeMillis())
             }
+
+            if (tagged > 0) {
+                Log.i(TAG, "re-tag with ${tagger.id}: $tagged items tagged (cursor=$cursor)")
+            }
+            RetagRun(tagged, exhausted)
         }
 
     private fun cursorKey(prefix: String?) = "retag:cursor:${tagger.id}:r$RECOVERY_VERSION:${prefix ?: "all"}"
@@ -132,12 +132,14 @@ class Retagger(
         const val DEFAULT_BATCH_SIZE = 200
 
         /**
-         * 200 x 5 = **1000 items per run.** Deliberately bounded: a re-tag runs on
-         * launch and must finish quickly, and the cursor means the rest follow on
-         * the next runs. Newest-first, so those 1000 are the ones seen most
-         * recently.
+         * 200 x 2 = **400 items per run.** Kept small so one background run fits a
+         * single OS scheduling window and finishes instead of being cut — Android
+         * throttles long background jobs. The cursor persists after every batch, so
+         * the rest follow on the next run (newest-first, so the recent ones come
+         * first). The cost is more runs; each pays the model load again only if the
+         * process was killed between them.
          */
-        const val DEFAULT_MAX_BATCHES = 5
+        const val DEFAULT_MAX_BATCHES = 2
 
         /**
          * Bump when what a re-tag *recovers* changes without a tagger version
@@ -149,3 +151,13 @@ class Retagger(
         const val RECOVERY_VERSION = 2
     }
 }
+
+/**
+ * One bounded re-tag run: how many items gained a tag, and whether the walk reached
+ * the end of the family. A worker uses [exhausted] to stop, or to continue the walk
+ * in another short run — so each run fits an OS scheduling window.
+ */
+data class RetagRun(
+    val tagged: Int,
+    val exhausted: Boolean,
+)

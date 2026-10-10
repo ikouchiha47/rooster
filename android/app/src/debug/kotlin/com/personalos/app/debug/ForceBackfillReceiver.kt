@@ -27,7 +27,7 @@ class ForceBackfillReceiver : BroadcastReceiver() {
     ) {
         if (intent.action != ACTION) return
         Log.i(TAG, "force backfill requested")
-        SyncScheduler.enqueueBackfill(context.applicationContext)
+        SyncScheduler.enqueueBackfill(context.applicationContext, force = true)
     }
 
     companion object {

@@ -1,0 +1,160 @@
+{
+  "id": "bundled-examples",
+  "version": 1,
+  "note": "Seed labelled examples (real device messages) for the kNN tagger. Grown over time from user corrections.",
+  "examples": [
+    {
+      "text": "Dear Customer, Bank Unions announced 3 days Strike from 28 to 30 Sep 2026. To avoid inconvenience, Branches shall function on 27th Sep (Sunday)",
+      "tags": [
+        "finance",
+        "incident"
+      ]
+    },
+    {
+      "text": "FLAT Rs 500 OFF on electronics! Shop for Rs 2000+ at Reliance Digital. Limited period offer",
+      "tags": [
+        "promo"
+      ]
+    },
+    {
+      "text": "Last 3 Days Left! Walk in before its gone @ BATA. FLAT 50% OFF + 200 bonus, sale ends soon",
+      "tags": [
+        "promo"
+      ]
+    },
+    {
+      "text": "Dear Subscriber, Dues of Rs.1214 remain unpaid. To reactivate your account please recharge immediately",
+      "tags": [
+        "expense"
+      ]
+    },
+    {
+      "text": "Recharge Successful ! Plan Name : 69.00 Jio Number : 6294097693 Entitlement activated",
+      "tags": [
+        "expense"
+      ]
+    },
+    {
+      "text": "Rs 1,214 debited from A/c XX4021 on 20-Sep. Balance Rs 8,932. Not you? Call us",
+      "tags": [
+        "expense"
+      ]
+    },
+    {
+      "text": "OTP for account recovery of User Name is 545441. If it is not you, ignore this message. Do not share with anyone",
+      "tags": []
+    },
+    {
+      "text": "Updated: Arctic Wolf - In-person Interview Confirmation @ Wed, Sep 23, 11:00 AM. Reply YES to confirm",
+      "tags": []
+    },
+    {
+      "text": "Advisory as per the Telecommunications Act 2023. Beware of fraudulent calls, do not share personal information",
+      "tags": [
+        "official"
+      ]
+    },
+    {
+      "text": "ALERT! You have exhausted 100% of daily data quota as of 20-Sep-26 17:00. Recharge to continue",
+      "tags": []
+    },
+    {
+      "text": "875% YTD rally! Rs 10.3 lakh became nearly Rs 1 crore in 9 months; Nirmal Bang sees more upside",
+      "tags": [
+        "finance"
+      ]
+    },
+    {
+      "text": "Sensex jumps 400 points as RBI holds rates; banks and IT stocks lead the rally",
+      "tags": [
+        "finance"
+      ]
+    },
+    {
+      "text": "Slapped, punched, called jihadi: 3 Kolkata students attacked, police probe on",
+      "tags": [
+        "incident"
+      ]
+    },
+    {
+      "text": "India 0-4 Brazil: Estevao, Pedro and Lino shine in Kolkata friendly",
+      "tags": [
+        "games"
+      ]
+    },
+    {
+      "text": "India beat Australia by 5 wickets in the World Cup final to lift the trophy",
+      "tags": [
+        "games"
+      ]
+    },
+    {
+      "text": "Ola, Uber, bike taxis in Maharashtra get 9 months to switch to 100% electric vehicles",
+      "tags": [
+        "travel"
+      ]
+    },
+    {
+      "text": "Farmers threaten agitation over MSP if demand not met immediately, warn unions",
+      "tags": [
+        "incident"
+      ]
+    },
+    {
+      "text": "Kolkata Police Puja Rules: Gariahat Parking Becomes Strict During Puja",
+      "tags": [
+        "festival"
+      ]
+    },
+    {
+      "text": "Gym trainer stabbed to death at anniversary party in Bengaluru",
+      "tags": [
+        "incident"
+      ]
+    },
+    {
+      "text": "Unannounced protest on Gurugram Sohna Road triggers hours-long traffic snarls",
+      "tags": [
+        "incident"
+      ]
+    },
+    {
+      "text": "Floods hit 49 lakh people in 15 districts as rivers keep swelling after heavy rain",
+      "tags": [
+        "weather",
+        "incident"
+      ]
+    },
+    {
+      "text": "New semiconductor chip plant announced to boost electric vehicle charging technology",
+      "tags": [
+        "tech"
+      ]
+    },
+    {
+      "text": "পশ্চিমবঙ্গ দুর্গাপুজা সমন্বয় কমিটির বৈঠক, উৎসবের প্রস্তুতি শুরু",
+      "tags": [
+        "festival"
+      ]
+    },
+    {
+      "text": "ভারতের ১৫ জেলায় বন্যা, বহু মানুষ গৃহহীন, ত্রাণের কাজ চলছে",
+      "tags": [
+        "weather",
+        "incident"
+      ]
+    },
+    {
+      "text": "ভারত বনাম নিউজিল্যান্ড ম্যাচ, ক্রিকেট অনুরাগীদের জন্য সুখবর",
+      "tags": [
+        "games"
+      ]
+    },
+    {
+      "text": "चुनाव आयोग को हाई कोर्ट ने लगाई फटकार, मतदाता सूची पर सुनवाई",
+      "tags": [
+        "official"
+      ]
+    }
+  ]
+}

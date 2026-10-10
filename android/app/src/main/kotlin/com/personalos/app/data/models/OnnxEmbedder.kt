@@ -6,9 +6,14 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
@@ -39,7 +44,12 @@ class OnnxEmbedder(
     private val maxSeqLen: Int = 256,
     private val embeddingDim: Int = 256,
 ) : Embedder {
-    private val lock = Mutex()
+    /** One-time load: the session is created exactly once. */
+    private val loadLock = Mutex()
+
+    /** Bounds concurrent runs on the single session to what the CPU can actually feed. */
+    private val runLimiter = Semaphore(CONCURRENT_RUNS)
+
     private var env: OrtEnvironment? = null
     private var session: OrtSession? = null
     private var tokenizer: HuggingFaceTokenizer? = null
@@ -50,7 +60,7 @@ class OnnxEmbedder(
     /** Loads the model; false when it cannot (the caller then runs the lexicon alone). */
     override suspend fun init(): Boolean =
         withContext(Dispatchers.IO) {
-            lock.withLock {
+            loadLock.withLock {
                 if (isReady()) return@withLock true
                 runCatching {
                     val environment = OrtEnvironment.getEnvironment()
@@ -78,9 +88,11 @@ class OnnxEmbedder(
     override suspend fun embedMany(texts: List<String>): List<FloatArray?> =
         withContext(Dispatchers.IO) {
             if (texts.isEmpty()) return@withContext emptyList()
-            lock.withLock {
-                val loaded = session ?: return@withLock List(texts.size) { null }
-                val tok = tokenizer ?: return@withLock List(texts.size) { null }
+            // A semaphore, not a mutex: the one session is thread-safe, so a couple
+            // of families may run at once — bounded so they do not fight for cores.
+            runLimiter.withPermit {
+                val loaded = session ?: return@withPermit List(texts.size) { null }
+                val tok = tokenizer ?: return@withPermit List(texts.size) { null }
                 val out = arrayOfNulls<FloatArray>(texts.size)
                 for (start in texts.indices step batchSize) {
                     val end = minOf(start + batchSize, texts.size)
@@ -116,28 +128,47 @@ class OnnxEmbedder(
         val shape = longArrayOf(rows.toLong(), seq.toLong())
         OnnxTensor.createTensor(environment, LongBuffer.wrap(ids), shape).use { idTensor ->
             OnnxTensor.createTensor(environment, LongBuffer.wrap(mask), shape).use { maskTensor ->
-                // Bounded: `session.run` is a blocking native call the coroutine
-                // cannot otherwise interrupt. runInterruptible lets the timeout act
-                // on it; withTimeoutOrNull returns null on timeout (a slow chunk is
-                // "no opinion") without swallowing real cancellation. ORT may ignore
-                // the interrupt — best-effort, like the load.
-                val result =
-                    withTimeoutOrNull(INFERENCE_TIMEOUT_MS) {
-                        runInterruptible { loaded.run(mapOf(INPUT_IDS to idTensor, ATTENTION_MASK to maskTensor)) }
+                // Real cancellation. A Kotlin cancel only interrupts the *thread*, which
+                // ORT's native run ignores; the only thing that stops the work is ORT's
+                // own cooperative terminate, keyed by a run tag. So a watchdog child
+                // calls `setTerminate` when the run is cancelled (timeout or a clean
+                // kill), and ORT aborts between operators — no leaked native work.
+                val options = OrtSession.RunOptions().apply { setRunTag("ort-${System.nanoTime()}") }
+                try {
+                    val result =
+                        withTimeoutOrNull(INFERENCE_TIMEOUT_MS) {
+                            coroutineScope {
+                                val watchdog =
+                                    launch(Dispatchers.Default) {
+                                        try {
+                                            awaitCancellation()
+                                        } finally {
+                                            runCatching { options.setTerminate(true) }
+                                        }
+                                    }
+                                try {
+                                    loaded.run(mapOf(INPUT_IDS to idTensor, ATTENTION_MASK to maskTensor), options)
+                                } finally {
+                                    watchdog.cancel()
+                                }
+                            }
+                        }
+                    if (result == null) {
+                        Log.w(TAG, "inference timed out after ${INFERENCE_TIMEOUT_MS}ms; chunk left untagged")
+                        return
                     }
-                if (result == null) {
-                    Log.w(TAG, "inference timed out after ${INFERENCE_TIMEOUT_MS}ms; chunk left untagged")
-                    return
-                }
-                result.use { r ->
-                    // `get(name)` hands back a java.util.Optional; the pooled output is [rows, 768].
-                    val pooled = r.get(outputName).orElse(null) ?: return
+                    result.use { r ->
+                        // `get(name)` hands back a java.util.Optional; the pooled output is [rows, 768].
+                        val pooled = r.get(outputName).orElse(null) ?: return
 
-                    @Suppress("UNCHECKED_CAST")
-                    val embeddings = pooled.value as Array<FloatArray>
-                    for (i in 0 until rows) {
-                        out[offset + i] = normalize(embeddings[i].copyOf(embeddingDim))
+                        @Suppress("UNCHECKED_CAST")
+                        val embeddings = pooled.value as Array<FloatArray>
+                        for (i in 0 until rows) {
+                            out[offset + i] = normalize(embeddings[i].copyOf(embeddingDim))
+                        }
                     }
+                } finally {
+                    options.close()
                 }
             }
         }
@@ -161,5 +192,12 @@ class OnnxEmbedder(
 
         /** Generous bound for one inference chunk; a healthy chunk is well under 1s. */
         const val INFERENCE_TIMEOUT_MS = 15_000L
+
+        /**
+         * Concurrent inference runs. **1** — one at a time. Two concurrent runs on the
+         * one session fight for the phone's cores and each slows past the timeout; the
+         * serialized run is ~1s and needs no bound.
+         */
+        const val CONCURRENT_RUNS = 1
     }
 }

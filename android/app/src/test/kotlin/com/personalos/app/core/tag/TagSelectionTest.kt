@@ -10,7 +10,7 @@ class TagSelectionTest {
     fun `only tags above the threshold survive`() {
         val selection =
             selectTags(
-                scores = mapOf(Tags.FINANCE to 0.60f, Tags.TECH to 0.50f),
+                scores = mapOf(Tags.FINANCE to 0.40f, Tags.TECH to 0.10f),
                 declaredTags = emptySet(),
                 fromAdvert = false,
             )
@@ -93,7 +93,7 @@ class TagSelectionTest {
         // runner-up (a whole different subject) must not ride along on a top score.
         val selection =
             selectTags(
-                scores = mapOf(Tags.FINANCE to 0.80f, Tags.TECH to 0.60f),
+                scores = mapOf(Tags.FINANCE to 0.40f, Tags.TECH to 0.28f),
                 declaredTags = emptySet(),
                 fromAdvert = false,
             )
@@ -108,7 +108,7 @@ class TagSelectionTest {
         // (so a later LLM rung can be asked), not a coin-flip tag.
         val selection =
             selectTags(
-                scores = mapOf(Tags.FINANCE to 0.50f, Tags.TECH to 0.49f, Tags.TRAVEL to 0.48f),
+                scores = mapOf(Tags.FINANCE to 0.15f, Tags.TECH to 0.14f, Tags.TRAVEL to 0.13f),
                 declaredTags = emptySet(),
                 fromAdvert = false,
             )

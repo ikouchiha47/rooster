@@ -94,6 +94,13 @@
       "description": "editorial content from a news source"
     }
   ],
+  "categories": [
+    { "tag": "news",          "description": "general news" },
+    { "tag": "politics",      "description": "politics and government" },
+    { "tag": "lifestyle",     "description": "lifestyle: style, beauty, parenting, home and food" },
+    { "tag": "entertainment", "description": "entertainment: film, music, celebrities and comedy" },
+    { "tag": "health",        "description": "health and wellness" }
+  ],
   "derivations": [
     {
       "tag": "local",

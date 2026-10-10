@@ -1,0 +1,57 @@
+{
+  "id": "bundled-feeds",
+  "version": 1,
+  "note": "The feed directory: each category lists known sources, so adding a feed can be one tap instead of finding a URL. Data, not code — a new feed is a row here. `category` is a declared tag from taxonomy.v1.json.",
+  "categories": [
+    {
+      "category": "news",
+      "feeds": [
+        { "name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "kind": "rss" }
+      ]
+    },
+    {
+      "category": "politics",
+      "feeds": [
+        { "name": "BBC Politics", "url": "https://feeds.bbci.co.uk/news/politics/rss.xml", "kind": "rss" }
+      ]
+    },
+    {
+      "category": "tech",
+      "feeds": [
+        { "name": "Ars Technica", "url": "https://feeds.arstechnica.com/arstechnica/index", "kind": "rss" },
+        { "name": "The Verge", "url": "https://www.theverge.com/rss/index.xml", "kind": "rss" },
+        { "name": "Hacker News", "url": "https://hnrss.org/frontpage", "kind": "rss" }
+      ]
+    },
+    {
+      "category": "finance",
+      "feeds": [
+        { "name": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml", "kind": "rss" }
+      ]
+    },
+    {
+      "category": "travel",
+      "feeds": [
+        { "name": "BBC Travel", "url": "https://feeds.bbci.co.uk/travel/rss.xml", "kind": "rss" }
+      ]
+    },
+    {
+      "category": "games",
+      "feeds": [
+        { "name": "BBC Sport", "url": "https://feeds.bbci.co.uk/sport/rss.xml", "kind": "rss" }
+      ]
+    },
+    {
+      "category": "entertainment",
+      "feeds": [
+        { "name": "BBC Entertainment & Arts", "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", "kind": "rss" }
+      ]
+    },
+    {
+      "category": "health",
+      "feeds": [
+        { "name": "BBC Health", "url": "https://feeds.bbci.co.uk/news/health/rss.xml", "kind": "rss" }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 package com.personalos.app.ui.sources
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -65,6 +69,7 @@ fun OverviewScreen(modifier: Modifier = Modifier) {
     val syncRuns by database.syncRunDao().observeLatestPerSource().collectAsState(initial = emptyList())
 
     var syncing by remember { mutableStateOf(false) }
+    var changing by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier =
@@ -142,7 +147,24 @@ fun OverviewScreen(modifier: Modifier = Modifier) {
                     note = "${allStatuses.count { it.ok }}/${allStatuses.size} ok",
                 )
             }
-            items(allStatuses, key = { it.id }) { status -> FeedRow(status) }
+            changing?.let { editingId ->
+                item {
+                    CategoryChooser(
+                        name = allStatuses.firstOrNull { it.id == editingId }?.name.orEmpty(),
+                        current = allStatuses.firstOrNull { it.id == editingId }?.tags?.firstOrNull(),
+                        categories = container.feedCategories,
+                        onPick = { category ->
+                            changing = null
+                            scope.launch {
+                                runCatching { container.sourceRepository.updateTags(editingId, setOf(category)) }
+                                runCatching { container.retagger.run() }
+                            }
+                        },
+                        onCancel = { changing = null },
+                    )
+                }
+            }
+            items(allStatuses, key = { it.id }) { status -> FeedRow(status, onCategoryTap = { changing = status.id }) }
 
             item { SectionGap() }
             item {
@@ -168,6 +190,63 @@ fun OverviewScreen(modifier: Modifier = Modifier) {
 @Composable
 private fun SectionGap() {
     Spacer(Modifier.height(10.dp))
+}
+
+/** The tap-to-change hatch: pick the category a feed declares. */
+@Composable
+private fun CategoryChooser(
+    name: String,
+    current: String?,
+    categories: List<String>,
+    onPick: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "CATEGORY FOR ${name.uppercase()}",
+                style = RadarType.micro,
+                color = RadarColors.ink3,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "CANCEL",
+                style = RadarType.micro,
+                color = RadarColors.ink3,
+                modifier =
+                    Modifier
+                        .clickable { onCancel() }
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+            )
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(top = 4.dp),
+        ) {
+            categories.forEach { candidate ->
+                val selected = candidate == current
+                Text(
+                    text = candidate,
+                    style = RadarType.micro,
+                    color = if (selected) RadarColors.paper else RadarColors.ink,
+                    modifier =
+                        Modifier
+                            .padding(end = 6.dp)
+                            .background(if (selected) RadarColors.ink else RadarColors.paper, RoundedCornerShape(2.dp))
+                            .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
+                            .clickable { onPick(candidate) }
+                            .padding(horizontal = 7.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable

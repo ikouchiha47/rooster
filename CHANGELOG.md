@@ -7,6 +7,42 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(tag): kNN tagger, taxonomy-as-data, and a weighted retag dispatcher
+
+_2026-10-10_
+
+Replaces the description-cosine ML rung with **kNN over labelled examples** — a
+`KnnTagger` composed of an injected embedder, an `ExampleSource` (bundled seed,
+grown by corrections) and a pure, centered-cosine `KnnClassifier`. On a 26-item
+corpus of real messages this measured better than descriptions (65% vs 54%), and
+on device the bank strike now tags `finance,incident` instead of the old noisy
+`travel,tech,promo,official`.
+
+Taxonomy as data: `categories[]` (source-declared, never inferred), a `TagSchema`
+(groups/owners/`declared`) derived from the loaded taxonomy and injected into the
+taggers, a `feeds.v1.json` directory, an add-feed category picker with one-tap
+suggestions, the category shown on each feed row, and a tap-to-change hatch
+(`SourceRepository.updateTags`). New category or feed = data, no code.
+
+Runtime: floors recalibrated to the centered scale (0.25/0.19) + version bump;
+inference concurrency back to 1 (two concurrent runs on one session starved the
+phone); cancellation now routes through ORT `RunOptions.setTerminate` (a watchdog
+child) so a cancel actually stops the work instead of leaking native runs; a
+battery-optimization exemption + Settings row so background catch-up is scheduled.
+
+Re-tagging is now one **DRR dispatcher**: `FamilyState` + `SchedulingPolicy` +
+`DeficitRoundRobin` (weights give priority, deficits give fairness, so SMS is not
+starved by feeds), a persisted `ScheduleStore`, and a single `RetagDispatchWorker`
+replacing six competing per-family jobs. `SyncScheduler` bumps the backfill version
+only on force, so a routine launch no longer supersedes an in-flight walk.
+
+Also adds the `eval/` harness (corpus + description/kNN/NLI experiments) and
+`docs/tasks/retag-dispatcher.md`.
+
+Verified: builds, all unit tests, ktlint green. On device: model loads, active
+tagger cascade-v4, strike = finance,incident. Background execution remains
+best-effort (foreground service is the planned fix).
+
 ## feat: on-device ML tagging, per-source retag, and the model SDK
 
 _2026-10-05_

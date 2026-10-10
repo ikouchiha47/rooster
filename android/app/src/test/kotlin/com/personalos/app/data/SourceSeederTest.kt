@@ -45,6 +45,12 @@ class SourceSeederTest {
         }
 
         override suspend fun deleteUserOnly(id: String): Int = if (rows.removeIf { it.id == id && !it.seeded }) 1 else 0
+
+        override suspend fun updateSpec(
+            id: String,
+            specJson: String,
+            updatedAt: Long,
+        ): Int = 0
     }
 
     @Test

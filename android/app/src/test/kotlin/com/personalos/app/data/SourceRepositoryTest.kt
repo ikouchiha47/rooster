@@ -48,6 +48,17 @@ class SourceRepositoryTest {
         }
 
         override suspend fun deleteUserOnly(id: String): Int = if (rows.removeIf { it.id == id && !it.seeded }) 1 else 0
+
+        override suspend fun updateSpec(
+            id: String,
+            specJson: String,
+            updatedAt: Long,
+        ): Int {
+            val index = rows.indexOfFirst { it.id == id }
+            if (index < 0) return 0
+            rows[index] = rows[index].copy(specJson = specJson, updatedAt = updatedAt)
+            return 1
+        }
     }
 
     private fun dao() =
@@ -140,6 +151,32 @@ class SourceRepositoryTest {
             val row = SourceRepository(dao).addUserSource("Express", "rss", RSS_SPEC, now = 2L)
             assertEquals(2L, row.createdAt)
             assertEquals(2L, row.updatedAt)
+        }
+
+    @Test
+    fun `updateTags rewrites an rss source's declared category`() =
+        runBlocking {
+            val dao = dao()
+            val repo = SourceRepository(dao)
+            val row = repo.addUserSource("Express", "rss", RSS_SPEC)
+
+            val changed = repo.updateTags(row.id, setOf("tech"))
+
+            assertTrue(changed)
+            val spec =
+                com.personalos.app.core.sources.SourceSpecs
+                    .parse("rss", dao.rows.first { it.id == row.id }.specJson)
+            assertEquals(setOf("tech"), spec.tags)
+        }
+
+    @Test
+    fun `updateTags refuses a non-rss kind rather than corrupting its spec`() =
+        runBlocking {
+            val dao = dao()
+            val repo = SourceRepository(dao)
+            val row = repo.addUserSource("Search", "search", SEARCH_SPEC)
+
+            assertEquals(false, repo.updateTags(row.id, setOf("tech")))
         }
 
     private companion object {

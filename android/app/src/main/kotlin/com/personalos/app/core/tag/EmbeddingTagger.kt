@@ -24,6 +24,7 @@ class EmbeddingTagger(
     private val embed: suspend (String) -> FloatArray?,
     private val descriptions: () -> Map<String, String> = TagVocabulary(listOf(BundledVocabulary))::descriptions,
     private val embedMany: suspend (List<String>) -> List<FloatArray?> = { texts -> texts.map { embed(it) } },
+    private val schema: TagSchema = TagSchema.BUNDLED,
     override val version: Int = TagVersions.EMBEDDING,
 ) : Tagger {
     override val id: String = "${TaggerKind.ML.name.lowercase()}-v$version"
@@ -69,7 +70,7 @@ class EmbeddingTagger(
             val scores = vectors.mapValues { (_, vector) -> cosine(centered(item, center), centered(vector, center)) }
 
             val fromAdvert = input.source == Transport.SMS && isDltPromo(input.sender)
-            val selection = selectTags(scores, input.declaredTags, fromAdvert)
+            val selection = selectTags(scores, input.declaredTags, fromAdvert, schema)
 
             // `unsure` is the gate a later LLM rung will use; nothing consumes it yet.
             TagResult(tags = selection.tags, confidence = selection.confidence, taggerId = id)

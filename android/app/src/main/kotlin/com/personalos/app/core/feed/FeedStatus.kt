@@ -18,6 +18,8 @@ data class FeedStatus(
     val itemCount: Int = 0,
     /** HTTP status of the last attempt; null when the socket never answered. */
     val statusCode: Int? = null,
+    /** What this source declares it is — the category its items inherit. */
+    val tags: Set<String> = emptySet(),
 ) {
     val neverSynced: Boolean get() = lastAttemptAt == 0L
 

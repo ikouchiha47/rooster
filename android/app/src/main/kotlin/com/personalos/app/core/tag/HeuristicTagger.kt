@@ -16,6 +16,7 @@ package com.personalos.app.core.tag
  */
 class HeuristicTagger(
     private val lexicon: () -> Map<String, Regex> = TagVocabulary(listOf(BundledVocabulary))::lexicon,
+    private val schema: TagSchema = TagSchema.BUNDLED,
     override val version: Int = TagVersions.HEURISTIC,
 ) : Tagger {
     override val id: String = "${TaggerKind.HEURISTIC.name.lowercase()}-v$version"
@@ -43,7 +44,7 @@ class HeuristicTagger(
             // them claim weather, festival or games is how a phone's promo inbox
             // ended up in the Weather timeline. Natures still fire — only *subject*
             // inference is gated here.
-            if (fromAdvert && tag in TagGroups.SUBJECTS) continue
+            if (fromAdvert && tag in schema.subjects) continue
             if (pattern.containsMatchIn(text)) tags += tag
         }
 

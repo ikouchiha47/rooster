@@ -178,6 +178,7 @@ class FeedIngestor(
                         ok = ok,
                         lastError = error,
                         itemCount = addedForFeed,
+                        tags = feed.tags,
                     )
                 syncRecorder.record(
                     com.personalos.app.data.SyncRun(
@@ -365,6 +366,7 @@ class FeedIngestor(
                     lastError = error,
                     itemCount = addedForSource,
                     statusCode = code,
+                    tags = spec.tags,
                 )
             syncRecorder.record(
                 com.personalos.app.data

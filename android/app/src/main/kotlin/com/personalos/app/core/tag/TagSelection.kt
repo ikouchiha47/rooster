@@ -8,9 +8,13 @@ data class TagSelection(
     val unsure: Boolean = false,
 )
 
-/** Floors on the **centered** cosine (see [EmbeddingTagger]). */
-const val SUBJECT_MIN = 0.55f
-const val NATURE_MIN = 0.45f
+/**
+ * Floors on the **centered** cosine (see [EmbeddingTagger]). Calibrated on real
+ * messages: centered scores live at ~0.1–0.45 (a clear match ~0.35+, unrelated ~0),
+ * so the old raw-scale floors (.55/.45) rejected nearly everything.
+ */
+const val SUBJECT_MIN = 0.25f
+const val NATURE_MIN = 0.19f
 
 /** Subjects are few (a thing is about one or two things); natures can stack a little. */
 const val SUBJECT_CAP = 2
@@ -44,14 +48,15 @@ fun selectTags(
     scores: Map<String, Float>,
     declaredTags: Set<String>,
     fromAdvert: Boolean,
+    schema: TagSchema = TagSchema.BUNDLED,
     subjectMin: Float = SUBJECT_MIN,
     natureMin: Float = NATURE_MIN,
     subjectCap: Int = SUBJECT_CAP,
     natureCap: Int = NATURE_CAP,
     margin: Float = MARGIN,
 ): TagSelection {
-    val subjects = scores.rankedIn(TagGroups.SUBJECTS)
-    val natures = scores.rankedIn(TagGroups.NATURES)
+    val subjects = scores.rankedIn(schema.subjects)
+    val natures = scores.rankedIn(schema.natures)
 
     val keptSubjects = if (fromAdvert) emptyList() else subjects.leaders(subjectMin, margin, subjectCap)
     val keptNatures = natures.leaders(natureMin, margin, natureCap)

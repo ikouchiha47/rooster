@@ -1,9 +1,13 @@
 package com.personalos.app.data
 
+import com.personalos.app.core.sources.RssSpec
 import com.personalos.app.core.sources.SourceSpecs
 import com.personalos.app.core.tag.Ulid
 import com.personalos.app.data.work.SyncScheduler
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Single owner of the sources fact (ADR 0003, CODE-DESIGN-GUIDELINES.md §1).
@@ -87,6 +91,36 @@ class SourceRepository(
             )
         dao.insertAll(listOf(row))
         return row
+    }
+
+    /**
+     * Rewrite a source's declared category (its spec's `tags`) — the tap-to-change
+     * hatch on a feed row. Returns whether a row changed. The next retag re-tags
+     * its items, so the change takes effect without a re-add.
+     *
+     * Only RSS feeds carry an editable category today; other kinds return false
+     * rather than silently corrupting their spec.
+     */
+    suspend fun updateTags(
+        sourceId: String,
+        tags: Set<String>,
+        now: Long = System.currentTimeMillis(),
+    ): Boolean {
+        require(tags.isNotEmpty()) { "a source must declare at least one tag" }
+        val row = dao.all().firstOrNull { it.id == sourceId } ?: return false
+        val spec = SourceSpecs.parse(row.kind, row.specJson)
+        val specJson =
+            when (spec) {
+                is RssSpec ->
+                    JsonObject(
+                        mapOf(
+                            "url" to JsonPrimitive(spec.url),
+                            "tags" to JsonArray(tags.sorted().map { JsonPrimitive(it) }),
+                        ),
+                    ).toString()
+                else -> return false
+            }
+        return dao.updateSpec(sourceId, specJson, now) > 0
     }
 
     companion object {

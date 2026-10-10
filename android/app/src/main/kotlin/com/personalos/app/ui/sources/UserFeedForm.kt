@@ -2,6 +2,8 @@ package com.personalos.app.ui.sources
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
@@ -77,6 +80,9 @@ fun UserFeedForm(
     var interval by remember { mutableStateOf("") }
     var phase by remember { mutableStateOf<AddPhase>(AddPhase.Editing) }
     var adding by remember { mutableStateOf(false) }
+    val categories = remember { container.feedCategories }
+    var category by remember { mutableStateOf(categories.firstOrNull() ?: "news") }
+    val suggestions = remember(category) { container.suggestedFeeds(category) }
 
     fun submit() {
         if (phase is AddPhase.Verified) {
@@ -93,7 +99,7 @@ fun UserFeedForm(
                             container.sourceRepository.addUserSource(
                                 name.trim(),
                                 SourceKind.RSS.serialName,
-                                rssSpecJson(url.trim()),
+                                rssSpecJson(url.trim(), category),
                                 intervalSec = seconds,
                             )
                         }
@@ -144,6 +150,9 @@ fun UserFeedForm(
             interval = interval,
             phase = phase,
             adding = adding,
+            categories = categories,
+            category = category,
+            suggestions = suggestions.map { it.name to it.url },
             onNameChange = {
                 name = it
                 if (phase is AddPhase.Verified || phase is AddPhase.Failed) phase = AddPhase.Editing
@@ -155,6 +164,12 @@ fun UserFeedForm(
             onIntervalChange = {
                 interval = it.filter(Char::isDigit).take(6)
                 if (phase is AddPhase.Verified || phase is AddPhase.Failed) phase = AddPhase.Editing
+            },
+            onCategoryChange = { category = it },
+            onPickSuggested = { n, u ->
+                name = n
+                url = u
+                phase = AddPhase.Editing
             },
             onSubmit = { submit() },
         )
@@ -184,9 +199,14 @@ private fun AddFeedForm(
     interval: String,
     phase: AddPhase,
     adding: Boolean,
+    categories: List<String>,
+    category: String,
+    suggestions: List<Pair<String, String>>,
     onNameChange: (String) -> Unit,
     onUrlChange: (String) -> Unit,
     onIntervalChange: (String) -> Unit,
+    onCategoryChange: (String) -> Unit,
+    onPickSuggested: (String, String) -> Unit,
     onSubmit: () -> Unit,
 ) {
     val buttonText =
@@ -201,6 +221,42 @@ private fun AddFeedForm(
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
+        Text(text = "CATEGORY", style = RadarType.micro, color = RadarColors.ink3)
+        Spacer(Modifier.height(3.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            categories.forEach { candidate ->
+                val selected = candidate == category
+                Text(
+                    text = candidate,
+                    style = RadarType.micro,
+                    color = if (selected) RadarColors.paper else RadarColors.ink,
+                    modifier =
+                        Modifier
+                            .padding(end = 6.dp)
+                            .background(if (selected) RadarColors.ink else RadarColors.paper, RoundedCornerShape(2.dp))
+                            .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
+                            .clickable { onCategoryChange(candidate) }
+                            .padding(horizontal = 7.dp, vertical = 4.dp),
+                )
+            }
+        }
+        if (suggestions.isNotEmpty()) {
+            Spacer(Modifier.height(5.dp))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                suggestions.forEach { (suggestedName, suggestedUrl) ->
+                    Text(
+                        text = "＋ $suggestedName",
+                        style = RadarType.microPlain,
+                        color = RadarColors.ink2,
+                        modifier =
+                            Modifier
+                                .padding(end = 10.dp)
+                                .clickable { onPickSuggested(suggestedName, suggestedUrl) },
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
         Text(text = "NAME", style = RadarType.micro, color = RadarColors.ink3)
         Spacer(Modifier.height(3.dp))
         FieldBox(value = name, hint = "e.g. Bangalore bytes", onChange = onNameChange)
@@ -339,10 +395,15 @@ internal fun validateUserFeed(
     return null
 }
 
-private fun rssSpecJson(url: String): String =
+private fun rssSpecJson(
+    url: String,
+    category: String,
+): String =
     JsonObject(
         mapOf(
             "url" to JsonPrimitive(url),
-            "tags" to JsonArray(listOf(JsonPrimitive("news"))),
+            // The source declares its category; the item inherits it. No default —
+            // the user picked one.
+            "tags" to JsonArray(listOf(JsonPrimitive(category))),
         ),
     ).toString()
