@@ -7,6 +7,36 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(work): standalone foreground service, reuse-anywhere BackgroundTask
+
+_2026-10-11_
+
+Adds a **standalone foreground-service component** so a long task runs to
+completion instead of being deferred or cut by the OS: `BackgroundTask`
+(id + title + `run(onProgress)`, Android-free), a `BackgroundTaskRegistry`, an
+Android `ForegroundTaskService` that runs any registered task by id, an ongoing
+notification, and `ForegroundTasks.start(context, id)` as the one front door. Any
+part of the app can start any registered task, and a new kind of work is a new
+`BackgroundTask` + a registry entry, not a change to the service (Open/Closed).
+
+Built to the rules we learned the hard way: `foregroundServiceType="dataSync"` +
+its permission declared, `startForeground(id, n, FOREGROUND_SERVICE_TYPE_DATA_SYNC)`,
+started **from the foreground** (a user action — Android 12+ forbids a background
+`dataSync` FGS, which crashed our first attempt), and `onTimeout` → `stopSelf` for
+the Android 15/16 6h/24h cap. Registers the retag as the first task; an Overview
+"TAG" action starts it.
+
+Verified on device: started from a foreground tap, the system logs
+`Background started FGS: Allowed … uidState: TOP` with no crash, and the service
+persists after the app is backgrounded. (Notification needs the runtime
+POST_NOTIFICATIONS grant, a follow-up.)
+
+Also adds ADR 0008 (workflow DAG orchestration) and docs/tasks/workflow-dag.md:
+the graph as data + an orchestrator, demand-driven backpressure (a saturated stage
+pauses the producer rather than erroring or dropping), a closed/typed failure model
+(`StepOutcome` Done|Skipped|Paused|Failed, `Inference` Ok|AtCapacity|TimedOut — no
+partial states), and execution mode fixed at run construction.
+
 ## feat(tag): kNN tagger, taxonomy-as-data, and a weighted retag dispatcher
 
 _2026-10-10_

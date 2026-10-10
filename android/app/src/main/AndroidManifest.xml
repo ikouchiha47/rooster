@@ -7,6 +7,12 @@
          never by Doze/App Standby. Granting is optional; without it, background
          catch-up is best-effort. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- The standalone foreground service that runs a long task (tagging, download)
+         to completion. dataSync type + its permission, and POST_NOTIFICATIONS for
+         the ongoing notification. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Present location for the Weather tile. Coarse is enough for a forecast and
          is what we ask for; fine is declared so the GPS provider is usable when the
          user grants it. -->
@@ -31,6 +37,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Runs any registered BackgroundTask in the foreground. Started from the
+             foreground (a user action), which Android 12+ requires for dataSync. -->
+        <service
+            android:name=".data.service.ForegroundTaskService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 </manifest>

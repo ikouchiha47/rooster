@@ -92,6 +92,17 @@ fun OverviewScreen(modifier: Modifier = Modifier) {
             Text(text = "Overview", style = RadarType.serifH1, color = RadarColors.ink)
             Spacer(Modifier.weight(1f))
             Text(
+                text = "TAG",
+                style = RadarType.labelMicro,
+                color = RadarColors.ink,
+                modifier =
+                    Modifier
+                        .clickable {
+                            com.personalos.app.data.service.ForegroundTasks
+                                .start(context, "retag")
+                        }.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Text(
                 text = if (syncing) "SYNCING" else "SYNC",
                 style = RadarType.labelMicro,
                 color = if (syncing) RadarColors.ink3 else RadarColors.ink,

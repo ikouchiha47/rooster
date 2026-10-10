@@ -483,6 +483,15 @@ class AppContainer(
             runFamily = { retagger.run(it) },
         )
 
+    /** Tasks the standalone foreground service can run by id. Add one = add here. */
+    val backgroundTasks: com.personalos.app.core.work.BackgroundTaskRegistry =
+        com.personalos.app.core.work.BackgroundTaskRegistry(
+            listOf(
+                com.personalos.app.data.work
+                    .RetagBackgroundTask(retagDispatcher),
+            ),
+        )
+
     /**
      * Ranks content by place. Temporary rung: no gazetteer or home places exist
      * yet, so this reports a single tier rather than a ranking it cannot compute
