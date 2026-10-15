@@ -101,6 +101,9 @@ private const val SYNC_ENRICH_BATCH = 10
  */
 private const val TITLE_LINES = 2
 
+/** Lines of the description block under the headline. */
+private const val SUMMARY_LINES = 2
+
 private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
 private val SYNC_FMT = SimpleDateFormat("d MMM HH:mm", Locale.getDefault())
@@ -582,6 +585,26 @@ internal fun NewsRow(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
+                    // The description, when there is one (the feed's summary, or the
+                    // article's og:/meta description filled in by enrichment). A fixed
+                    // block keeps every row the same height with or without a summary.
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(summaryBlockHeight()),
+                    ) {
+                        if (event.content.isNotBlank()) {
+                            Text(
+                                text = event.content,
+                                style = RadarType.small,
+                                color = RadarColors.ink2,
+                                maxLines = SUMMARY_LINES,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                     // Dotted rule + 4dp either side: the meta stops hugging the
                     // headline and reads as secondary, without opening a gap.
                     Spacer(Modifier.height(4.dp))
@@ -605,4 +628,11 @@ internal fun NewsRow(
 private fun titleBlockHeight(): Dp =
     with(LocalDensity.current) {
         (RadarType.serifTitle.lineHeight * TITLE_LINES).toDp()
+    }
+
+/** Height of the description block: [SUMMARY_LINES] lines of `small`, same idea. */
+@Composable
+private fun summaryBlockHeight(): Dp =
+    with(LocalDensity.current) {
+        (RadarType.small.lineHeight * SUMMARY_LINES).toDp()
     }

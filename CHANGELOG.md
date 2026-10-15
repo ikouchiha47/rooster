@@ -7,6 +7,20 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(feed): show the item description under each feed row
+
+_2026-10-15_
+
+The News, Money and Weather feed rows each copied the same one-line-meta layout
+and each omitted the item's description, so a summary was invisible even when
+present (events.content holds the feed's <description>, or the article's
+og:/meta description filled by ArticleEnricher). Each row now renders a fixed
+two-line description block between the headline and the meta line.
+
+Verified on device: the Money (M&M) screen shows a Mint Money summary. The
+three rows are near-identical copies and should be collapsed into one shared
+row so a fourth surface cannot miss the description again.
+
 ## feat(work): standalone foreground service, reuse-anywhere BackgroundTask
 
 _2026-10-11_

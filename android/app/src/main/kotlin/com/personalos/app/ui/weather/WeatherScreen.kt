@@ -845,6 +845,46 @@ private fun WeatherNewsLine(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                // The description, when present: the feed's summary, or the
+                // article's og:/meta description filled in by enrichment. A fixed
+                // block, same idea as the headline, so every row is one height.
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(weatherSummaryBlockHeight()),
+                ) {
+                    if (item.event.content.isNotBlank()) {
+                        Text(
+                            text = item.event.content,
+                            style = RadarType.small,
+                            color = RadarColors.ink2,
+                            maxLines = WEATHER_SUMMARY_LINES,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                // The description, when present: the feed's summary, or the
+                // article's og:/meta description filled in by enrichment. A fixed
+                // block, same idea as the headline, so every row is one height.
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(weatherSummaryBlockHeight()),
+                ) {
+                    if (item.event.content.isNotBlank()) {
+                        Text(
+                            text = item.event.content,
+                            style = RadarType.small,
+                            color = RadarColors.ink2,
+                            maxLines = WEATHER_SUMMARY_LINES,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
                 Spacer(Modifier.height(3.dp))
                 // `weather` is implied by this tile, so it is dropped from the chips.
                 TagLine(
@@ -865,10 +905,20 @@ private fun WeatherNewsLine(
  */
 private const val WEATHER_TITLE_LINES = 2
 
+/** Lines of the description block under the headline. */
+private const val WEATHER_SUMMARY_LINES = 2
+
 @Composable
 private fun weatherTitleBlockHeight(): Dp =
     with(LocalDensity.current) {
         (RadarType.serifTitle.lineHeight * WEATHER_TITLE_LINES).toDp()
+    }
+
+/** Height of the description block: [WEATHER_SUMMARY_LINES] lines of `small`. */
+@Composable
+private fun weatherSummaryBlockHeight(): Dp =
+    with(LocalDensity.current) {
+        (RadarType.small.lineHeight * WEATHER_SUMMARY_LINES).toDp()
     }
 
 /**

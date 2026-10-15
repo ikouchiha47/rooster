@@ -568,6 +568,26 @@ private fun MoneyNewsLine(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                // The description, when present: the feed's summary, or the
+                // article's og:/meta description filled in by enrichment. A fixed
+                // block, same idea as the headline, so every row is one height.
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(moneySummaryBlockHeight()),
+                ) {
+                    if (item.event.content.isNotBlank()) {
+                        Text(
+                            text = item.event.content,
+                            style = RadarType.small,
+                            color = RadarColors.ink2,
+                            maxLines = MONEY_SUMMARY_LINES,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
                 Spacer(Modifier.height(3.dp))
                 // `finance` is implied by this tile, so it is dropped from the chips.
                 TagLine(
@@ -588,10 +608,20 @@ private fun MoneyNewsLine(
  */
 private const val MONEY_TITLE_LINES = 2
 
+/** Lines of the description block under the headline. */
+private const val MONEY_SUMMARY_LINES = 2
+
 @Composable
 private fun moneyTitleBlockHeight(): Dp =
     with(LocalDensity.current) {
         (RadarType.serifTitle.lineHeight * MONEY_TITLE_LINES).toDp()
+    }
+
+/** Height of the description block: [MONEY_SUMMARY_LINES] lines of `small`. */
+@Composable
+private fun moneySummaryBlockHeight(): Dp =
+    with(LocalDensity.current) {
+        (RadarType.small.lineHeight * MONEY_SUMMARY_LINES).toDp()
     }
 
 /**
