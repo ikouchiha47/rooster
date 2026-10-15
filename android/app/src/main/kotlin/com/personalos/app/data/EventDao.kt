@@ -159,7 +159,7 @@ interface EventDao {
 
     // ----------------------------------------------------------- enrichment
 
-    /** Candidates for enrichment: has URL, short/blank content, never attempted. */
+    /** Candidates for enrichment: has URL, short/blank content, never attempted, oldest first. */
     @Query(Sql.ENRICHMENT_CANDIDATES)
     suspend fun enrichmentCandidates(limit: Int): List<EnrichmentCandidate>
 

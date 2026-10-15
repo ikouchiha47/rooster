@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(enrich): drain oldest candidates first
+
+_2026-10-16_
+
+Enrichment candidates were newest-first, so hourly ingest outran the 6-hourly batch of 20 and the September backlog tail starved forever. The drain now takes the oldest unenriched items first; fresh items already carry feed summaries ~90% of the time.
+
+Verified: ktlintFormat, assembleDebug, testDebugUnitTest, ktlintCheck pass.
+
 ## refactor(feed): one FeedRow for News, Money and Weather
 
 _2026-10-15_

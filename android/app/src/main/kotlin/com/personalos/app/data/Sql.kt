@@ -291,6 +291,11 @@ object Sql {
      * as `0`, so a dead link is not re-fetched on every pass - that is what stops
      * a retry storm. The length threshold is inline rather than a parameter
      * because it is a fixed property of "usefully empty", not a caller choice.
+     *
+     * Oldest first on purpose: newest-first starved the backlog tail forever,
+     * because hourly ingest adds short items faster than the 6-hourly batch of
+     * 20 drains them. Fresh items already carry feed summaries ~90% of the time;
+     * the gap this drain fills is concentrated in old backfill.
      */
     const val ENRICHMENT_CANDIDATES =
         """
@@ -300,7 +305,7 @@ object Sql {
           AND type != 'observation'
           AND enriched_at IS NULL
           AND LENGTH(TRIM(content)) < 40
-        ORDER BY timestamp DESC
+        ORDER BY timestamp ASC, id ASC
         LIMIT :limit
         """
 
