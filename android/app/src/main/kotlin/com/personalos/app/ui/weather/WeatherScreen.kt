@@ -8,7 +8,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -38,9 +37,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
@@ -52,22 +49,19 @@ import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
-import com.personalos.app.ui.common.CategorySpine
 import com.personalos.app.ui.common.DayMarker
+import com.personalos.app.ui.common.FeedRow
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphIcon
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
-import com.personalos.app.ui.common.SoftRule
-import com.personalos.app.ui.common.TagLine
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.common.groupIntoDays
-import com.personalos.app.ui.common.subjectSpineColor
 import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -801,132 +795,19 @@ private fun WeatherNewsLine(
     item: TaggedEvent,
     mentions: List<MentionEntity> = emptyList(),
 ) {
-    // Same row language as News: 3dp subject spine at the edge, fixed two-line
-    // headline block, one-line meta. The spine reads the FULL tag list so the
-    // `weather` marker implied by this tile still colours the edge Chartreuse;
-    // the meta line gets the filtered list so it does not print WEATHER forty
-    // times. Rows with no other subject than weather still scan as weather.
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-        ) {
-            CategorySpine(color = subjectSpineColor(item.tagList))
-            Column(
-                Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                // Fixed two-line block, same defect and fix as News: the old Text
-                // had maxLines=2 with no width modifier, so it measured
-                // wrap-content - its paragraph took its preferred single-line
-                // width and Ellipsis trimmed that one line, and maxLines never
-                // engaged because nothing handed the paragraph the row's width
-                // as a wrap boundary. fillMaxWidth wraps it first and only then
-                // ellipsises; minLines pins the Text to the full block so every
-                // row measures one height whatever the headline length.
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(weatherTitleBlockHeight()),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    Text(
-                        text = item.event.title,
-                        style = RadarType.serifTitle,
-                        color = RadarColors.ink,
-                        minLines = WEATHER_TITLE_LINES,
-                        maxLines = WEATHER_TITLE_LINES,
-                        overflow = TextOverflow.Ellipsis,
-                        softWrap = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                // The description, when present: the feed's summary, or the
-                // article's og:/meta description filled in by enrichment. A fixed
-                // block, same idea as the headline, so every row is one height.
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(weatherSummaryBlockHeight()),
-                ) {
-                    if (item.event.content.isNotBlank()) {
-                        Text(
-                            text = item.event.content,
-                            style = RadarType.small,
-                            color = RadarColors.ink2,
-                            maxLines = WEATHER_SUMMARY_LINES,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-                // The description, when present: the feed's summary, or the
-                // article's og:/meta description filled in by enrichment. A fixed
-                // block, same idea as the headline, so every row is one height.
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(weatherSummaryBlockHeight()),
-                ) {
-                    if (item.event.content.isNotBlank()) {
-                        Text(
-                            text = item.event.content,
-                            style = RadarType.small,
-                            color = RadarColors.ink2,
-                            maxLines = WEATHER_SUMMARY_LINES,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(3.dp))
-                // `weather` is implied by this tile, so it is dropped from the chips.
-                TagLine(
-                    tags = item.tagList.filter { it != Tags.WEATHER },
-                    source = item.event.source,
-                    mentions = mentions,
-                )
-            }
-        }
-        SoftRule()
-    }
+    FeedRow(
+        title = item.event.title,
+        content = item.event.content,
+        source = item.event.source,
+        // `weather` is implied by this tile, so it is dropped from the meta chips;
+        // the spine still reads the full list, so a weather-only row scans as weather.
+        tags = item.tagList.filter { it != Tags.WEATHER },
+        spineTags = item.tagList,
+        mentions = mentions,
+        rule = false,
+    )
 }
 
-/**
- * Headlines are held to exactly two lines so every row is one height, the
- * same fixed block News uses: a one-line headline centres inside it instead
- * of pulling its meta line up, so the list scans as a grid.
- */
-private const val WEATHER_TITLE_LINES = 2
-
-/** Lines of the description block under the headline. */
-private const val WEATHER_SUMMARY_LINES = 2
-
-@Composable
-private fun weatherTitleBlockHeight(): Dp =
-    with(LocalDensity.current) {
-        (RadarType.serifTitle.lineHeight * WEATHER_TITLE_LINES).toDp()
-    }
-
-/** Height of the description block: [WEATHER_SUMMARY_LINES] lines of `small`. */
-@Composable
-private fun weatherSummaryBlockHeight(): Dp =
-    with(LocalDensity.current) {
-        (RadarType.small.lineHeight * WEATHER_SUMMARY_LINES).toDp()
-    }
-
-/**
- * A snapshot's position as `22.57°N 88.36°E`.
- *
- * The present location has no name offline, so coordinates are the honest label.
- * A snapshot without coordinates says so rather than showing a blank.
- */
 private val SYNC_FMT = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault())
 
 /** When the store was last filled: a date, or the honest absence of one. */

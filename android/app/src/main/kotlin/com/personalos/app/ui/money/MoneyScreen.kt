@@ -7,7 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -33,9 +32,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
@@ -46,22 +43,19 @@ import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
-import com.personalos.app.ui.common.CategorySpine
 import com.personalos.app.ui.common.DayMarker
+import com.personalos.app.ui.common.FeedRow
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphIcon
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
-import com.personalos.app.ui.common.SoftRule
-import com.personalos.app.ui.common.TagLine
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.common.groupIntoDays
-import com.personalos.app.ui.common.subjectSpineColor
 import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -527,102 +521,19 @@ private fun MoneyNewsLine(
     mentions: List<MentionEntity> = emptyList(),
     onOpen: () -> Unit = {},
 ) {
-    // Same row language as News and Weather: 3dp subject spine at the edge,
-    // fixed two-line headline block, one-line meta. The spine reads the FULL
-    // tag list so the `finance` marker implied by this tile still colours the
-    // edge Teal; the meta line gets the filtered list so it does not print
-    // FINANCE forty times. Rows with no other subject than finance still scan
-    // as finance.
-    Column(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-        ) {
-            CategorySpine(color = subjectSpineColor(item.tagList))
-            Column(
-                Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                // Fixed two-line block, same shape as News and Weather:
-                // fillMaxWidth wraps the paragraph first and only then
-                // ellipsises; minLines pins the Text to the full block so every
-                // row measures one height whatever the headline length.
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(moneyTitleBlockHeight()),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    Text(
-                        text = item.event.title,
-                        style = RadarType.serifTitle,
-                        color = RadarColors.ink,
-                        minLines = MONEY_TITLE_LINES,
-                        maxLines = MONEY_TITLE_LINES,
-                        overflow = TextOverflow.Ellipsis,
-                        softWrap = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                // The description, when present: the feed's summary, or the
-                // article's og:/meta description filled in by enrichment. A fixed
-                // block, same idea as the headline, so every row is one height.
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(moneySummaryBlockHeight()),
-                ) {
-                    if (item.event.content.isNotBlank()) {
-                        Text(
-                            text = item.event.content,
-                            style = RadarType.small,
-                            color = RadarColors.ink2,
-                            maxLines = MONEY_SUMMARY_LINES,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(3.dp))
-                // `finance` is implied by this tile, so it is dropped from the chips.
-                TagLine(
-                    tags = item.tagList.filter { it != Tags.FINANCE },
-                    source = item.event.source,
-                    mentions = mentions,
-                )
-            }
-        }
-        SoftRule()
-    }
+    FeedRow(
+        title = item.event.title,
+        content = item.event.content,
+        source = item.event.source,
+        // `finance` is implied by this tile, so it is dropped from the meta chips;
+        // the spine still reads the full list, so a finance-only row scans as finance.
+        tags = item.tagList.filter { it != Tags.FINANCE },
+        spineTags = item.tagList,
+        mentions = mentions,
+        rule = false,
+        onOpen = onOpen,
+    )
 }
-
-/**
- * Headlines are held to exactly two lines so every row is one height, the
- * same fixed block News and Weather use: a one-line headline centres inside it
- * instead of pulling its meta line up, so the list scans as a grid.
- */
-private const val MONEY_TITLE_LINES = 2
-
-/** Lines of the description block under the headline. */
-private const val MONEY_SUMMARY_LINES = 2
-
-@Composable
-private fun moneyTitleBlockHeight(): Dp =
-    with(LocalDensity.current) {
-        (RadarType.serifTitle.lineHeight * MONEY_TITLE_LINES).toDp()
-    }
-
-/** Height of the description block: [MONEY_SUMMARY_LINES] lines of `small`. */
-@Composable
-private fun moneySummaryBlockHeight(): Dp =
-    with(LocalDensity.current) {
-        (RadarType.small.lineHeight * MONEY_SUMMARY_LINES).toDp()
-    }
 
 /**
  * A rate as figures: two decimals, tabular mono downstream.

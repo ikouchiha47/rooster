@@ -3,13 +3,10 @@ package com.personalos.app.ui.news
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,9 +26,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -47,19 +41,16 @@ import com.personalos.app.data.DayHeader
 import com.personalos.app.data.Event
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
-import com.personalos.app.ui.common.CategorySpine
 import com.personalos.app.ui.common.DayMarker
 import com.personalos.app.ui.common.DottedRule
+import com.personalos.app.ui.common.FeedRow
 import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
-import com.personalos.app.ui.common.SoftRule
-import com.personalos.app.ui.common.TagLine
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
-import com.personalos.app.ui.common.subjectSpineColor
 import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -93,16 +84,6 @@ private const val PAGE_SIZE = 40
 
 /** How many articles one manual sync enriches; the scheduled job does more. */
 private const val SYNC_ENRICH_BATCH = 10
-
-/**
- * Titles are held to exactly two lines so every row is one height. Two is the
- * common case for a headline at this width; a third line is where a row starts
- * to balloon, so it is ellipsised instead.
- */
-private const val TITLE_LINES = 2
-
-/** Lines of the description block under the headline. */
-private const val SUMMARY_LINES = 2
 
 private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
@@ -514,7 +495,7 @@ private fun SyncBucketSeparator(label: String) {
     }
 }
 
-/** Shared with Travel's News tab, so both surfaces draw the same row. */
+/** Shared with Travel's News tab. The row itself is [com.personalos.app.ui.common.FeedRow]. */
 @Composable
 internal fun NewsRow(
     event: Event,
@@ -522,117 +503,13 @@ internal fun NewsRow(
     onOpen: () -> Unit,
     mentions: List<MentionEntity> = emptyList(),
 ) {
-    // Source first, then the tags as chips - so a Mint story read through the
-    // News tile still shows it is also `finance`. The `news` marker is implied by
-    // the tile and suppressed; see TagLine. The label is the source's own name;
-    // see sourceDisplayName.
-    // The 3dp spine is the newspaper's scan layer, not decoration: it repeats
-    // the leading subject chip's fill at the row edge (cream when there is no
-    // subject), per the category spine in docs/DESIGN-GUIDELINES.md. Zebra
-    // striping was rejected: it would fight the paper/fresh row tints and read
-    // as a SaaS table, while the spine reuses a colour the row already earns.
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-        ) {
-            CategorySpine(color = subjectSpineColor(tags))
-            Row(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = TIME_FORMAT.format(Date(event.timestamp)),
-                    style = RadarType.monoSmall,
-                    color = RadarColors.ink3,
-                    modifier = Modifier.width(44.dp),
-                )
-                Column(Modifier.weight(1f)) {
-                    // The headline must WRAP to two lines, not just allow it. The
-                    // old shape had maxLines=2 with no width modifier, and every
-                    // screenshot showed a single ellipsised line: with no width
-                    // modifier the Text measures wrap-content, so its paragraph
-                    // takes its preferred single-line width and Ellipsis trims
-                    // that one long line to the Box edge. maxLines never engages
-                    // because the paragraph never wraps - nothing ever hands it
-                    // the row's width as a wrap boundary. fillMaxWidth applies
-                    // the Box width to the paragraph, so it wraps and only then
-                    // ellipsises; minLines=2 pins the Text to the full block, so
-                    // a one-line headline keeps its first baseline on the same
-                    // grid as a two-line one instead of centring in the fixed
-                    // Box. The fixed Box still fixes the outer height, so every
-                    // row measures one height whatever the headline length.
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(titleBlockHeight())
-                                .clickable { onOpen() },
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        Text(
-                            text = event.title,
-                            style = RadarType.serifTitle,
-                            color = RadarColors.ink,
-                            minLines = TITLE_LINES,
-                            maxLines = TITLE_LINES,
-                            overflow = TextOverflow.Ellipsis,
-                            softWrap = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    // The description, when there is one (the feed's summary, or the
-                    // article's og:/meta description filled in by enrichment). A fixed
-                    // block keeps every row the same height with or without a summary.
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(summaryBlockHeight()),
-                    ) {
-                        if (event.content.isNotBlank()) {
-                            Text(
-                                text = event.content,
-                                style = RadarType.small,
-                                color = RadarColors.ink2,
-                                maxLines = SUMMARY_LINES,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                    // Dotted rule + 4dp either side: the meta stops hugging the
-                    // headline and reads as secondary, without opening a gap.
-                    Spacer(Modifier.height(4.dp))
-                    DottedRule()
-                    Spacer(Modifier.height(4.dp))
-                    TagLine(tags = tags, source = event.source, mentions = mentions)
-                }
-            }
-        }
-        SoftRule()
-    }
+    FeedRow(
+        title = event.title,
+        content = event.content,
+        source = event.source,
+        tags = tags,
+        mentions = mentions,
+        time = event.timestamp,
+        onOpen = onOpen,
+    )
 }
-
-/**
- * Height of the title block: [TITLE_LINES] lines of `serifTitle`.
- *
- * Derived from the type token's `lineHeight` rather than hardcoded in dp, so the
- * block still grows with the system font size instead of clipping the headline.
- */
-@Composable
-private fun titleBlockHeight(): Dp =
-    with(LocalDensity.current) {
-        (RadarType.serifTitle.lineHeight * TITLE_LINES).toDp()
-    }
-
-/** Height of the description block: [SUMMARY_LINES] lines of `small`, same idea. */
-@Composable
-private fun summaryBlockHeight(): Dp =
-    with(LocalDensity.current) {
-        (RadarType.small.lineHeight * SUMMARY_LINES).toDp()
-    }

@@ -7,6 +7,18 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## refactor(feed): one FeedRow for News, Money and Weather
+
+_2026-10-15_
+
+News, Money and Weather each carried a near-identical copy of the feed row, so
+the description line had to be added three times and leaked into none of them
+consistently. They now share ui/common/FeedRow.kt (spine, optional time, two-line
+headline, two-line description, optional dotted rule, source/tag meta).
+
+Also fixes a defect shipped in f378434: the Weather row had the description block
+twice, so it drew the summary twice. The row is now the shared component.
+
 ## feat(feed): show the item description under each feed row
 
 _2026-10-15_
