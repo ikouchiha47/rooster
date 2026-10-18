@@ -7,6 +7,25 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): group view + a group simulator
+
+_2026-10-19_
+
+SMS has no thread id, so a group is a broadcast plus whatever came back tagged
+with its id. GroupStore now parses those replies into GroupReply, and a Groups
+screen lists broadcasts with their reply counts while GroupThreadScreen renders
+one as a thread: the sent body, each member's tagged reply attributed by name,
+participant chips that open that person's 1:1, and a composer that fans a fresh
+tagged send out to every participant.
+
+Reached from the Messages app bar (the previously dead Dots action). A debug-only
+InjectGroupReceiver writes a group record directly, so the UI can be exercised
+without a real fan-out or a second phone.
+
+Verified on device: injected a two-person broadcast and two replies, store read
+back people=2 replies=2 with the full body; assembleDebug, testDebugUnitTest and
+ktlintCheck green.
+
 ## feat(messages): wire thread search + mute; Material header icons
 
 _2026-10-19_

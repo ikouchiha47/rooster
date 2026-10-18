@@ -51,7 +51,6 @@ enum class Glyph {
     Mail,
     Wallet,
     Person,
-    Phone,
     Search,
     Back,
     Forward,
@@ -319,26 +318,6 @@ private fun DrawScope.drawGlyph(
             ln(8f, 12f, 16f, 12f)
             ln(8f, 15f, 13f, 15f)
         }
-        Glyph.Phone -> {
-            fill {
-                moveTo(6.62f, 10.79f)
-                cubicTo(8.06f, 13.62f, 10.38f, 15.93f, 13.21f, 17.38f)
-                lineTo(15.41f, 15.18f)
-                cubicTo(15.68f, 14.91f, 16.08f, 14.82f, 16.43f, 14.94f)
-                cubicTo(17.55f, 15.31f, 18.76f, 15.51f, 20f, 15.51f)
-                cubicTo(20.55f, 15.51f, 21f, 15.96f, 21f, 16.51f)
-                lineTo(21f, 20f)
-                cubicTo(21f, 20.55f, 20.55f, 21f, 20f, 21f)
-                cubicTo(10.61f, 21f, 3f, 13.39f, 3f, 4f)
-                cubicTo(3f, 3.45f, 3.45f, 3f, 4f, 3f)
-                lineTo(7.5f, 3f)
-                cubicTo(8.05f, 3f, 8.5f, 3.45f, 8.5f, 4f)
-                cubicTo(8.5f, 5.25f, 8.7f, 6.45f, 9.07f, 7.57f)
-                cubicTo(9.18f, 7.92f, 9.1f, 8.31f, 8.82f, 8.59f)
-                close()
-            }
-        }
-
         Glyph.Tune -> {
             ln(4f, 7f, 11f, 7f)
             ln(15f, 7f, 20f, 7f)

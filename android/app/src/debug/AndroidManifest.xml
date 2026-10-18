@@ -61,6 +61,15 @@
         </receiver>
 
         <receiver
+            android:name=".debug.InjectGroupReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.INJECT_GROUP" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".debug.RunWorkflowReceiver"
             android:enabled="true"
             android:exported="true">

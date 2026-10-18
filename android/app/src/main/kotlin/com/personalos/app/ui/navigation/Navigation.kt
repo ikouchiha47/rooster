@@ -28,6 +28,8 @@ import com.personalos.app.ui.me.MeScreen
 import com.personalos.app.ui.messages.ComposeSmsScreen
 import com.personalos.app.ui.messages.ContactsScreen
 import com.personalos.app.ui.messages.ConversationThreadScreen
+import com.personalos.app.ui.messages.GroupThreadScreen
+import com.personalos.app.ui.messages.GroupsScreen
 import com.personalos.app.ui.messages.MessagesScreen
 import com.personalos.app.ui.messages.RecipientMode
 import com.personalos.app.ui.money.MoneyScreen
@@ -98,6 +100,14 @@ sealed interface Destination {
     /** The device address book, used as the recipient picker. */
     data object Contacts : Destination
 
+    /** Every broadcast the group tag has produced. */
+    data object Groups : Destination
+
+    /** One broadcast as a thread. Carries the group id. */
+    data class Group(
+        val groupId: String,
+    ) : Destination
+
     /**
      * Compose one message to N recipients. [mode] is explicit so a group thread
      * is a later mode, not a restructured screen.
@@ -149,6 +159,8 @@ private fun routeFor(destination: Destination): String =
         // A sender address can carry a `+`, spaces or a `-`, so encode it.
         is Destination.Conversation -> "conversation/${Uri.encode(destination.sender)}"
         is Destination.Contacts -> "contacts"
+        is Destination.Groups -> "groups"
+        is Destination.Group -> "group/${destination.groupId}"
         // Each number is encoded so a `+` survives the route; the comma separates.
         is Destination.ComposeSms ->
             "composeSms?recipients=${
@@ -216,6 +228,24 @@ fun AppNavHost(
                 },
                 onOpenContacts = { navigateToDetail(navController, Destination.Contacts) },
                 onNewMessage = { navigateToDetail(navController, Destination.ComposeSms(emptyList())) },
+                onOpenGroups = { navigateToDetail(navController, Destination.Groups) },
+            )
+        }
+        composable("groups") {
+            GroupsScreen(
+                onOpenGroup = { id -> navigateToDetail(navController, Destination.Group(id)) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = "group/{groupId}",
+            arguments = listOf(navArgument("groupId") { type = NavType.StringType }),
+        ) { entry ->
+            val groupId = entry.arguments?.getString("groupId") ?: return@composable
+            GroupThreadScreen(
+                groupId = groupId,
+                onBack = { navController.popBackStack() },
+                onOpenContact = { person -> navigateToDetail(navController, Destination.Conversation(person)) },
             )
         }
         composable("contacts") {

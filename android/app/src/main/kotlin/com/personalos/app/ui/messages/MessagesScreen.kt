@@ -114,6 +114,7 @@ fun MessagesScreen(
     onOpenConversation: (String) -> Unit = {},
     onOpenContacts: () -> Unit = {},
     onNewMessage: () -> Unit = {},
+    onOpenGroups: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val container = LocalAppContainer.current
@@ -325,6 +326,7 @@ fun MessagesScreen(
                 onToggleSaved = { savedOnly = !savedOnly },
                 onOpenContacts = onOpenContacts,
                 onNewMessage = onNewMessage,
+                onOpenGroups = onOpenGroups,
             )
             if (searchOpen) {
                 Box(
@@ -497,6 +499,7 @@ private fun MessagesAppBar(
     onToggleSaved: () -> Unit,
     onOpenContacts: () -> Unit,
     onNewMessage: () -> Unit,
+    onOpenGroups: () -> Unit,
 ) {
     val unread by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
     RadarAppBar(
@@ -525,7 +528,7 @@ private fun MessagesAppBar(
                 onClick = onToggleSaved,
             )
             GlyphActionButton(Glyph.Search, onClick = onSearch)
-            GlyphActionButton(Glyph.Dots, onClick = { })
+            GlyphActionButton(Glyph.Dots, onClick = onOpenGroups)
         },
     )
 }

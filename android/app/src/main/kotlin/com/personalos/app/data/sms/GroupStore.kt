@@ -11,6 +11,14 @@ data class GroupRecord(
     val participants: List<String>,
     val body: String,
     val sentAt: Long,
+    val replies: List<GroupReply> = emptyList(),
+)
+
+/** One message on a broadcast: a member's tagged reply, or our own send. */
+data class GroupReply(
+    val from: String,
+    val body: String,
+    val at: Long,
 )
 
 /**
@@ -64,6 +72,7 @@ class GroupStore(
                     participants = List(people.length()) { people.getString(it) },
                     body = json.getString("body"),
                     sentAt = json.getLong("sentAt"),
+                    replies = repliesOf(json),
                 )
             }.getOrNull()
         }
@@ -90,6 +99,21 @@ class GroupStore(
             json.put("replies", replies)
             prefs.edit().putString(KEY_PREFIX + groupId, json.toString()).apply()
         }
+    }
+
+    /** Newest last, so a thread renders in the order it happened. */
+    fun replies(id: String): List<GroupReply> = get(id)?.replies.orEmpty()
+
+    private fun repliesOf(json: JSONObject): List<GroupReply> {
+        val raw = json.optJSONArray("replies") ?: return emptyList()
+        return List(raw.length()) { index ->
+            val reply = raw.getJSONObject(index)
+            GroupReply(
+                from = reply.getString("from"),
+                body = reply.getString("body"),
+                at = reply.getLong("at"),
+            )
+        }.sortedBy { it.at }
     }
 
     fun all(): List<GroupRecord> =
