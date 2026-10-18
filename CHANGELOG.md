@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): opt-out group id on multi-recipient SMS
+
+_2026-10-19_
+
+Mints a six-char id for a multi-recipient send, appends it as an ASCII tail
+("\n\n[g:xxxxxx]") when Group tag is on, and stores the participants plus the
+untagged body in a prefs group record. The compose screen shows the ON/OFF
+toggle only when there are two or more recipients.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(contacts): Google vs local accounts in the picker
 
 _2026-10-19_

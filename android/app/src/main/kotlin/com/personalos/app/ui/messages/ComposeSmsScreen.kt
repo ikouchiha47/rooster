@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.personalos.app.core.Chars
+import com.personalos.app.data.sms.taggedBody
 import com.personalos.app.ui.common.FlatButton
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphIcon
@@ -77,6 +78,7 @@ fun ComposeSmsScreen(
     var to by remember { mutableStateOf(recipients) }
     var body by remember { mutableStateOf("") }
     var numberDraft by remember { mutableStateOf("") }
+    var groupTag by remember { mutableStateOf(container.groupStore.enabled()) }
     var sending by remember { mutableStateOf(false) }
     var statuses by remember { mutableStateOf<Map<String, SendStatus>>(emptyMap()) }
 
@@ -86,9 +88,12 @@ fun ComposeSmsScreen(
         if (!canSend) return
         val trimmed = body.trim()
         val targets = to
+        val groupId = if (targets.size >= 2 && groupTag) container.groupStore.newId() else null
+        val payload = if (groupId != null) taggedBody(trimmed, groupId) else trimmed
         sending = true
         statuses = targets.associateWith { SendStatus.Pending }
         scope.launch {
+            if (groupId != null) container.groupStore.record(groupId, targets, trimmed, System.currentTimeMillis())
             // Fan out concurrently: each send suspends on its own platform result,
             // so one slow or failed recipient never holds up the rest.
             coroutineScope {
@@ -96,7 +101,7 @@ fun ComposeSmsScreen(
                     .map { recipient ->
                         async {
                             val status =
-                                runCatching { container.smsSender.send(recipient, trimmed, selectedSim) }
+                                runCatching { container.smsSender.send(recipient, payload, selectedSim) }
                                     .fold(
                                         onSuccess = { SendStatus.of(it) },
                                         onFailure = { SendStatus.Failed("the send failed") },
@@ -185,6 +190,26 @@ fun ComposeSmsScreen(
                         container.simPreference.select(it)
                     },
                 )
+            }
+
+            if (to.size >= 2) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "GROUP TAG", style = RadarType.micro, color = RadarColors.ink3)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (groupTag) "ON" else "OFF",
+                        style = RadarType.micro,
+                        color = if (groupTag) RadarColors.paper2 else RadarColors.ink2,
+                        modifier =
+                            Modifier
+                                .clickable {
+                                    groupTag = !groupTag
+                                    container.groupStore.setEnabled(groupTag)
+                                }.background(if (groupTag) RadarColors.ink else RadarColors.paper)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))

@@ -521,6 +521,11 @@ class AppContainer(
         com.personalos.app.data.sims
             .SimPreference(context.applicationContext)
 
+    /** The opt-out group id on multi-recipient SMS (prefs; no schema change). */
+    val groupStore: com.personalos.app.data.sms.GroupStore =
+        com.personalos.app.data.sms
+            .GroupStore(context.applicationContext)
+
     /** Creates a new contact in the device address book (WRITE_CONTACTS). */
     val contactWriter: com.personalos.app.core.sms.ContactWriter =
         com.personalos.app.data.contacts
