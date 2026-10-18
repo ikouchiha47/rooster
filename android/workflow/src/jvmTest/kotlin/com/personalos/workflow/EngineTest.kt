@@ -13,7 +13,7 @@ private class FakeStep(
 
     override suspend fun run(ctx: StepContext): StepOutcome {
         calls += ctx.node.value
-        return outcomes[ctx.node.value] ?: StepOutcome.Done
+        return outcomes[ctx.node.value] ?: StepOutcome.Done()
     }
 }
 
@@ -25,7 +25,7 @@ private class FlakyStep(
 
     override suspend fun run(ctx: StepContext): StepOutcome {
         count++
-        return if (count <= failTimes) StepOutcome.Failed(Failure.TRANSIENT) else StepOutcome.Done
+        return if (count <= failTimes) StepOutcome.Failed(Failure.TRANSIENT) else StepOutcome.Done()
     }
 }
 
@@ -199,6 +199,33 @@ class EngineTest {
 
         assertEquals(3, step.count)
         assertEquals(RunStatus.SUCCEEDED, result.status)
+    }
+
+    @Test
+    fun doneResultIsCarriedOnTheRun() {
+        val w = workflow("result") { task("a", "work") }
+        val step = FakeStep(mapOf("a" to StepOutcome.Done("7")))
+
+        val result = runBlocking { engine(step).run(w, "r") }
+
+        assertEquals("7", result.results[NodeId("a")])
+    }
+
+    @Test
+    fun progressIsForwardedFromTheStep() {
+        val w = workflow("progress") { task("a", "work") }
+        val step =
+            object : WorkflowStep {
+                override suspend fun run(ctx: StepContext): StepOutcome {
+                    ctx.progress(3, 10)
+                    return StepOutcome.Done()
+                }
+            }
+        val seen = mutableListOf<Pair<Int, Int>>()
+
+        runBlocking { engine(step).run(w, "r") { _, done, total -> seen += done to total } }
+
+        assertEquals(listOf(3 to 10), seen)
     }
 
     @Test

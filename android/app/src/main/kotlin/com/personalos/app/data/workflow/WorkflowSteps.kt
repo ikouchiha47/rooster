@@ -18,8 +18,10 @@ class EnrichStep(
 ) : WorkflowStep {
     override suspend fun run(ctx: StepContext): StepOutcome =
         try {
-            enricher.enrichBatch()
-            StepOutcome.Done
+            // The count rides back as the step result, so the caller keeps the
+            // `+N summaries` it had before the workflow path existed.
+            val enriched = enricher.enrichBatch(onProgress = { done, total -> ctx.progress(done, total) })
+            StepOutcome.Done(enriched.toString())
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -37,7 +39,7 @@ class RetagStep(
     override suspend fun run(ctx: StepContext): StepOutcome =
         try {
             retagger.run()
-            StepOutcome.Done
+            StepOutcome.Done()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

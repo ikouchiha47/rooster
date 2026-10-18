@@ -8,7 +8,14 @@ enum class Failure { TRANSIENT, PERMANENT }
  * [Paused] means "not now" (backpressure), not "failed": the run pauses resumably.
  */
 sealed interface StepOutcome {
-    data object Done : StepOutcome
+    /**
+     * The step succeeded. [result] is a small, optional payload for the *caller*
+     * (a count, a summary) — not a channel between steps: steps share the store,
+     * never the run object.
+     */
+    data class Done(
+        val result: String? = null,
+    ) : StepOutcome
 
     data object Skipped : StepOutcome
 
@@ -23,6 +30,8 @@ sealed interface StepOutcome {
 data class StepContext(
     val runId: String,
     val node: NodeId,
+    /** The step's own progress within its node; a no-op when nobody is watching. */
+    val progress: suspend (done: Int, total: Int) -> Unit = { _, _ -> },
 )
 
 /** One unit of work, registered under an id and referenced by a `TASK` node. */

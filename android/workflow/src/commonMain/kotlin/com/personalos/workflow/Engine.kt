@@ -7,11 +7,13 @@ import kotlinx.coroutines.coroutineScope
 /** The outcome of a whole run. */
 enum class RunStatus { SUCCEEDED, FAILED, PAUSED }
 
-/** A run's terminal (or paused) state plus every node's status. */
+/** A run's terminal (or paused) state, every node's status, and its `Done` payloads. */
 data class RunResult(
     val runId: String,
     val status: RunStatus,
     val nodes: Map<NodeId, NodeStatus>,
+    /** The optional `Done` payload each node produced, keyed by node. */
+    val results: Map<NodeId, String> = emptyMap(),
 )
 
 /**
@@ -35,6 +37,7 @@ class Engine(
     suspend fun run(
         workflow: Workflow,
         runId: String,
+        onProgress: suspend (node: NodeId, done: Int, total: Int) -> Unit = { _, _, _ -> },
     ): RunResult {
         val graph = workflow.graph
         val order = graph.topologicalOrder()
@@ -50,22 +53,24 @@ class Engine(
             }
         }
 
+        val results = LinkedHashMap<NodeId, String>()
         val lastLevel = levels.values.maxOrNull() ?: 0
         for (level in 0..lastLevel) {
             val batch = order.filter { levels.getValue(it) == level && status[it] == null }
             if (batch.isEmpty()) continue
             val resolved =
                 coroutineScope {
-                    batch.map { id -> async { execute(graph, id, runId, status, taken) } }.awaitAll()
+                    batch.map { id -> async { execute(graph, id, runId, status, taken, onProgress) } }.awaitAll()
                 }
             for (outcome in resolved) {
                 status[outcome.id] = outcome.status
                 outcome.branch?.let { taken[outcome.id] = it }
+                outcome.result?.let { results[outcome.id] = it }
                 store.put(runId, outcome.id, NodeState(outcome.status, outcome.branch))
             }
         }
 
-        return RunResult(runId, runStatus(status), status.toMap())
+        return RunResult(runId, runStatus(status), status.toMap(), results.toMap())
     }
 
     private suspend fun execute(
@@ -74,6 +79,7 @@ class Engine(
         runId: String,
         status: Map<NodeId, NodeStatus>,
         taken: Map<NodeId, Branch>,
+        onProgress: suspend (node: NodeId, done: Int, total: Int) -> Unit,
     ): NodeOutcome {
         val node = graph.node(id)
         val predecessors = graph.predecessors(id)
@@ -97,7 +103,7 @@ class Engine(
                 val branch = if (predicate.test(StepContext(runId, id))) Branch.THEN else Branch.ELSE
                 NodeOutcome(id, NodeStatus.SUCCEEDED, branch)
             }
-            NodeKind.TASK -> runTask(id, node, runId)
+            NodeKind.TASK -> runTask(id, node, runId, onProgress)
         }
     }
 
@@ -105,14 +111,17 @@ class Engine(
         id: NodeId,
         node: Node,
         runId: String,
+        onProgress: suspend (node: NodeId, done: Int, total: Int) -> Unit,
     ): NodeOutcome {
         val step =
             steps[node.step]
                 ?: throw WorkflowGraphException("no step registered: ${node.step}")
+        // One context for every attempt, so a retry reports progress the same way.
+        val ctx = StepContext(runId, id) { done, total -> onProgress(id, done, total) }
         var attempt = 1
         while (true) {
-            when (val outcome = step.run(StepContext(runId, id))) {
-                StepOutcome.Done -> return NodeOutcome(id, NodeStatus.SUCCEEDED, null)
+            when (val outcome = step.run(ctx)) {
+                is StepOutcome.Done -> return NodeOutcome(id, NodeStatus.SUCCEEDED, null, outcome.result)
                 StepOutcome.Skipped -> return NodeOutcome(id, NodeStatus.SKIPPED, null)
                 StepOutcome.Paused -> return NodeOutcome(id, NodeStatus.PAUSED, null)
                 is StepOutcome.Failed ->
@@ -149,5 +158,6 @@ class Engine(
         val id: NodeId,
         val status: NodeStatus,
         val branch: Branch?,
+        val result: String? = null,
     )
 }

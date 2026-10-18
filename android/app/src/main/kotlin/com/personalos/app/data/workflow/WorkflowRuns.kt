@@ -2,6 +2,7 @@ package com.personalos.app.data.workflow
 
 import android.content.Context
 import com.personalos.workflow.Engine
+import com.personalos.workflow.NodeId
 import com.personalos.workflow.RunResult
 import com.personalos.workflow.RunStore
 import com.personalos.workflow.Workflow
@@ -31,10 +32,11 @@ class WorkflowRuns(
     suspend fun run(
         id: String,
         runId: String,
+        onProgress: suspend (node: NodeId, done: Int, total: Int) -> Unit = { _, _, _ -> },
     ): RunResult {
         val workflow = workflows[id] ?: error("unknown workflow: $id")
         prepare()
-        return engine.run(workflow, runId)
+        return engine.run(workflow, runId, onProgress)
     }
 }
 

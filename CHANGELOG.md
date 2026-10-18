@@ -7,6 +7,20 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(workflow): step results and a progress sink
+
+_2026-10-19_
+
+StepOutcome.Done now carries an optional result, RunResult exposes those per
+node, and StepContext gains a progress sink the engine forwards to the run's
+caller. This is the prerequisite for the enrich→retag cutover: without it the
+workflow path would silently lose the "+N summaries" count and the progress bar
+that EnrichWorker reports today. The result is for the caller, not a channel
+between steps — steps still share only the store.
+
+Verified: :workflow:jvmTest green (22 cases, including the new result and
+progress tests); assembleDebug, testDebugUnitTest and ktlintCheck green.
+
 ## feat(sms): mark where members joined a group
 
 _2026-10-19_
