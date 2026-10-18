@@ -2,8 +2,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.READ_SMS" />
-    <!-- Opt-in only: resolves an SMS sender to a contact's display name. When
-         not granted, the app shows the stored number/header exactly as before. -->
+    <!-- Sending a reply from the Messages compose box. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- Opt-in only: resolves an SMS sender to a contact's display name and backs
+         the send picker's address book. When not granted, the app shows the stored
+         number/header exactly as before and suggestions stay empty. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Ask the user to exempt the app, so the long retag is not deferred into

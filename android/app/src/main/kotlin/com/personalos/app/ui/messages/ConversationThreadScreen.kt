@@ -1,11 +1,14 @@
 package com.personalos.app.ui.messages
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -37,9 +41,11 @@ import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
+import com.personalos.app.ui.common.SearchField
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -72,12 +78,39 @@ fun ConversationThreadScreen(
     val container = LocalAppContainer.current
     val repository = container.conversations
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     var items by remember(sender) { mutableStateOf<List<EventEntity>>(emptyList()) }
     var cursorTs by remember(sender) { mutableStateOf<Long?>(null) }
     var cursorId by remember(sender) { mutableStateOf(0L) }
     var endReached by remember(sender) { mutableStateOf(false) }
     var loading by remember(sender) { mutableStateOf(false) }
+
+    // The composer's own state. Kept per sender, so switching threads does not
+    // carry a half-typed message into the wrong one.
+    var draft by remember(sender) { mutableStateOf("") }
+    var sending by remember(sender) { mutableStateOf(false) }
+    var status by remember(sender) { mutableStateOf<SendStatus?>(null) }
+
+    fun send() {
+        val body = draft.trim()
+        if (body.isEmpty() || sending) return
+        sending = true
+        status = SendStatus.Pending
+        scope.launch {
+            val settled =
+                runCatching { container.smsSender.send(sender, body) }
+                    .fold(
+                        onSuccess = { SendStatus.of(it) },
+                        onFailure = { SendStatus.Failed("the send failed") },
+                    )
+            status = settled
+            // Clear only on success; a failure keeps the text so it can be retried
+            // without retyping, with the reason shown under the field.
+            if (settled == SendStatus.Sent) draft = ""
+            sending = false
+        }
+    }
 
     val smsMaxId by remember { AppDatabase.getInstance(context) }
         .messageSearchDao()
@@ -146,21 +179,86 @@ fun ConversationThreadScreen(
             },
         )
 
-        if (items.isEmpty()) {
-            Text(
-                text = "No messages from this sender.",
-                style = RadarType.body,
-                color = RadarColors.ink3,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
-            )
-            return@Column
+        // The list takes the space above the composer, so a long thread still
+        // reaches its end while the composer stays pinned below.
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (items.isEmpty()) {
+                Text(
+                    text = "No messages from this sender.",
+                    style = RadarType.body,
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                )
+            } else {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    items(items = items, key = { "t-${it.id}" }) { message ->
+                        ThreadMessageRow(message)
+                    }
+                    item { FooterStrip("${items.size} shown ${Chars.MIDDLE_DOT} $title") }
+                }
+            }
         }
 
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            items(items = items, key = { "t-${it.id}" }) { message ->
-                ThreadMessageRow(message)
-            }
-            item { FooterStrip("${items.size} shown ${Chars.MIDDLE_DOT} $title") }
+        ThreadComposer(
+            draft = draft,
+            sending = sending,
+            status = status,
+            onDraftChange = {
+                draft = it
+                // Editing starts a new turn, so the old result no longer applies.
+                if (status != null) status = null
+            },
+            onSend = { send() },
+        )
+    }
+}
+
+/**
+ * The thread's reply bar: a field, a send arrow, and the last result. Pinned to
+ * the bottom and inset for the keyboard and nav bar, so it is never covered and
+ * never covers the last message.
+ */
+@Composable
+private fun ThreadComposer(
+    draft: String,
+    sending: Boolean,
+    status: SendStatus?,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(RadarColors.paper2)
+            .imePadding()
+            .navigationBarsPadding(),
+    ) {
+        HardRule()
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+        ) {
+            SearchField(
+                hint = "Message ${Chars.MIDDLE_DOT} SMS",
+                query = draft,
+                onQueryChange = onDraftChange,
+                onSubmit = { if (!sending) onSend() },
+            )
+        }
+        if (status != null) {
+            val color =
+                when (status) {
+                    SendStatus.Pending -> RadarColors.ink3
+                    SendStatus.Sent -> CategoryColors.Teal
+                    is SendStatus.Failed -> CategoryColors.Vermilion
+                }
+            Text(
+                text = status.label,
+                style = RadarType.microPlain,
+                color = color,
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp).padding(bottom = 6.dp),
+            )
         }
     }
 }

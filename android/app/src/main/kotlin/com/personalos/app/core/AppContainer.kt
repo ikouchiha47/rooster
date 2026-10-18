@@ -1,6 +1,9 @@
 package com.personalos.app.core
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.work.WorkManager
 import com.personalos.app.core.place.PlaceRanker
 import com.personalos.app.core.place.RecencyPlaceRanker
@@ -10,12 +13,15 @@ import com.personalos.app.core.provider.LocationProvider
 import com.personalos.app.core.provider.NowPlayingProvider
 import com.personalos.app.core.provider.PinnedProvider
 import com.personalos.app.core.provider.WeatherProvider
+import com.personalos.app.core.sms.ContactDirectory
+import com.personalos.app.core.sms.SmsSender
 import com.personalos.app.core.sync.SyncStatus
 import com.personalos.app.core.tag.HeuristicTagger
 import com.personalos.app.core.tag.Retagger
 import com.personalos.app.core.tag.TagVocabulary
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.taxonomy.source
+import com.personalos.app.data.AndroidSmsSender
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.CATEGORY_TAXONOMY_ASSET
 import com.personalos.app.data.CalendarRepository
@@ -48,6 +54,7 @@ import com.personalos.app.data.adapters.SmsKindAdapter
 import com.personalos.app.data.adapters.WeatherKindAdapter
 import com.personalos.app.data.adapters.adaptersByKind
 import com.personalos.app.data.cache.PrefsStringCache
+import com.personalos.app.data.contacts.AndroidContactDirectory
 import com.personalos.app.data.location.AndroidLocationProvider
 import com.personalos.app.data.remote.ArticleEnricher
 import com.personalos.app.data.remote.FeedIngestor
@@ -486,6 +493,34 @@ class AppContainer(
             categorizer = { categoryStore.categorizer() },
             isContact = { contactNames.nameFor(it) != null },
         )
+
+    /**
+     * Real SMS sending behind the [SmsSender] seam. The compose box calls this.
+     * It is wrapped so a successful send is recorded through [smsSource] — the
+     * same store the inbox is written through (one fact, one owner), so the
+     * thread shows its own outgoing side without any screen remembering to.
+     */
+    val smsSender: SmsSender =
+        com.personalos.app.data
+            .RecordingSmsSender(AndroidSmsSender(context.applicationContext), smsSource)
+
+    /**
+     * The send picker's address book. Reads the device contacts behind the
+     * [ContactDirectory] seam; an empty list (never a throw) when READ_CONTACTS
+     * is not granted.
+     */
+    val contacts: ContactDirectory = AndroidContactDirectory(context.applicationContext)
+
+    /**
+     * Whether sending is currently permitted. Computed on each read, so a grant
+     * made after construction is seen; [smsSender] also re-checks at send time.
+     */
+    val canSendSms: Boolean
+        get() =
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.SEND_SMS,
+            ) == PackageManager.PERMISSION_GRANTED
 
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
     val retagger: Retagger =

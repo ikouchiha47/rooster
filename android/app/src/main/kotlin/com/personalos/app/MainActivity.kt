@@ -79,6 +79,14 @@ class MainActivity : ComponentActivity() {
         }
 
     /**
+     * Sending a reply from the Messages compose box. Nothing is started on the
+     * result: [AppContainer.canSendSms] and `AndroidSmsSender` both re-check the
+     * grant at the point of use, so a late grant is picked up without state here.
+     */
+    private val requestSendSmsPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /**
      * Present location for the Weather tile.
      *
      * Nothing depends on the result here: the provider checks the grant itself when
@@ -127,6 +135,17 @@ class MainActivity : ComponentActivity() {
             startSmsObserving()
         } else {
             requestReadSmsPermission.launch(Manifest.permission.READ_SMS)
+        }
+
+        // Sending is a separate dangerous grant from reading; ask for it up front
+        // so the compose box is usable without a second trip to Settings.
+        val canSendSms =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.SEND_SMS,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (!canSendSms) {
+            requestSendSmsPermission.launch(Manifest.permission.SEND_SMS)
         }
 
         // Contacts are opt-in and independent of SMS: granted, we load names;

@@ -25,8 +25,11 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.home.HomeScreen
 import com.personalos.app.ui.me.MeScreen
+import com.personalos.app.ui.messages.ComposeSmsScreen
+import com.personalos.app.ui.messages.ContactsScreen
 import com.personalos.app.ui.messages.ConversationThreadScreen
 import com.personalos.app.ui.messages.MessagesScreen
+import com.personalos.app.ui.messages.RecipientMode
 import com.personalos.app.ui.money.MoneyScreen
 import com.personalos.app.ui.news.NewsScreen
 import com.personalos.app.ui.radar.RadarScreen
@@ -92,6 +95,18 @@ sealed interface Destination {
         val sender: String,
     ) : Destination
 
+    /** The device address book, used as the recipient picker. */
+    data object Contacts : Destination
+
+    /**
+     * Compose one message to N recipients. [mode] is explicit so a group thread
+     * is a later mode, not a restructured screen.
+     */
+    data class ComposeSms(
+        val recipients: List<String>,
+        val mode: RecipientMode = RecipientMode.Sms,
+    ) : Destination
+
     /** Seven-day forecast for one configured place. */
     data class Forecast(
         val place: String,
@@ -133,6 +148,12 @@ private fun routeFor(destination: Destination): String =
         is Destination.Article -> "article/${destination.eventId}"
         // A sender address can carry a `+`, spaces or a `-`, so encode it.
         is Destination.Conversation -> "conversation/${Uri.encode(destination.sender)}"
+        is Destination.Contacts -> "contacts"
+        // Each number is encoded so a `+` survives the route; the comma separates.
+        is Destination.ComposeSms ->
+            "composeSms?recipients=${
+                destination.recipients.joinToString(",") { Uri.encode(it) }
+            }&mode=${destination.mode.name}"
         // Place names can contain spaces, so the segment is encoded on the way in.
         is Destination.Forecast -> "forecast/${Uri.encode(destination.place)}"
         is Destination.Placeholder -> "placeholder/${destination.serviceName}"
@@ -193,6 +214,41 @@ fun AppNavHost(
                 onOpenConversation = { sender ->
                     navigateToDetail(navController, Destination.Conversation(sender))
                 },
+                onOpenContacts = { navigateToDetail(navController, Destination.Contacts) },
+            )
+        }
+        composable("contacts") {
+            ContactsScreen(
+                onPick = { number -> navigateToDetail(navController, Destination.ComposeSms(listOf(number))) },
+                onPickMany = { numbers -> navigateToDetail(navController, Destination.ComposeSms(numbers)) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = "composeSms?recipients={recipients}&mode={mode}",
+            arguments =
+                listOf(
+                    navArgument("recipients") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                    navArgument("mode") {
+                        type = NavType.StringType
+                        defaultValue = RecipientMode.Sms.name
+                    },
+                ),
+        ) { entry ->
+            val recipients =
+                entry.arguments
+                    ?.getString("recipients")
+                    .orEmpty()
+                    .split(",")
+                    .filter { it.isNotBlank() }
+                    .map { Uri.decode(it) }
+            ComposeSmsScreen(
+                recipients = recipients,
+                mode = RecipientMode.of(entry.arguments?.getString("mode")),
+                onBack = { navController.popBackStack() },
             )
         }
         composable(

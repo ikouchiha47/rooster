@@ -265,6 +265,12 @@ fun RadarAppBar(
     title: String,
     sub: String? = null,
     mark: Boolean = false,
+    /**
+     * Optional control before the title, for a screen with an entry point of its
+     * own (the Messages bar carries the contacts picker here). Null by default,
+     * so a screen that has no leading action is untouched.
+     */
+    leading: (@Composable () -> Unit)? = null,
     actions: (@Composable () -> Unit)? = null,
 ) {
     StatusBarIconsFor(RadarColors.paper2)
@@ -277,6 +283,10 @@ fun RadarAppBar(
                     .padding(start = 8.dp, top = 6.dp, end = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (leading != null) {
+                leading()
+                Spacer(Modifier.width(4.dp))
+            }
             if (mark) {
                 AppMark()
                 Spacer(Modifier.width(8.dp))

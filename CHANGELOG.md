@@ -22,6 +22,26 @@ work/scheduling.
 
 Verified: :app:assembleDebug builds.
 
+## feat(sms): compose, send, and record outbound SMS
+
+_2026-10-18_
+
+Adds the send half of Messages: a compose box and a contacts picker, reachable
+from a thread and from the Messages tab. Sending is behind the `SmsSender` port
+with `AndroidSmsSender` as the device transport and `RecordingSmsSender` joining
+send to ingest.
+
+Because the app is not the default SMS app, the platform writes no outgoing row,
+so the sender records the sent message through the existing SMS ingest path — the
+one place send and record are joined, so no screen has to remember to do it, and
+the thread shows both sides from the one store.
+
+Grants SEND_SMS and READ_CONTACTS. The picker is multi-select and carries numbers
+into the compose route. Group MMS is modelled and shown greyed rather than
+omitted, so the path is visible before it is supported.
+
+Verified: :app:ktlintFormat :app:assembleDebug :app:testDebugUnitTest ktlintCheck green.
+
 ## fix(enrich): drain oldest candidates first
 
 _2026-10-16_

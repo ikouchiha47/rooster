@@ -28,6 +28,18 @@ interface SmsIngest {
      * new. Returns the number of rows that actually landed.
      */
     suspend fun ingestNewMessages(): Int
+
+    /**
+     * Stores a message this app just sent. Only the default SMS app writes to
+     * `content://sms`, and this app is not it, so nobody else records what we
+     * send — the thread would stay blind to our own outgoing messages unless
+     * this writes them through the same store the inbox is written through.
+     */
+    suspend fun recordSent(
+        destination: String,
+        body: String,
+        timestampMs: Long,
+    )
 }
 
 /**
@@ -180,28 +192,8 @@ class SmsSource(
                 fieldInputs.add(smsFields(address, body))
             }
 
-            val inserted = eventDao.insertAll(events)
-
-            // Tag only what actually landed: duplicates come back as -1.
-            val toTag = ArrayList<Pair<String, TagInput>>(events.size)
-            val toFields = ArrayList<Pair<String, Map<String, FieldValue>>>(events.size)
-            val landed = ArrayList<EventEntity>(events.size)
-            var newCount = 0
-            inserted.forEachIndexed { index, insertedId ->
-                if (insertedId == -1L) return@forEachIndexed
-                newCount++
-                toTag += events[index].ulid to tagInputs[index]
-                toFields += events[index].ulid to fieldInputs[index]
-                landed += events[index]
-            }
-            if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)
-            if (toTag.isNotEmpty()) {
-                mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
-            }
-            // Fields before evaluation: the writer reads them from the store
-            // (ADR §13), so they must be persisted first.
-            if (toFields.isNotEmpty()) fieldWriter.writeAll(toFields)
-            if (landed.isNotEmpty()) ruleWriter.writeAll(landed.map { it.toRuleItemSeed() })
+            val inserted = land(events, tagInputs, fieldInputs)
+            val newCount = inserted.size
 
             lastSeenId = maxId
             mark.write(maxId)
@@ -209,6 +201,80 @@ class SmsSource(
             syncRecorder.record(SyncRun(SOURCE_ID, "sms", started, System.currentTimeMillis(), true, newCount, null))
             newCount
         }
+
+    /**
+     * Writes a just-sent message through the ingest store, so a thread this app
+     * started shows its own outgoing side. `type = "sent"`, the destination is
+     * the thread identity (`events.title`), and the row carries the same
+     * `sms:`-prefixed dedupe key the ingest path uses — the provider row id is
+     * replaced by the send's own timestamp, which is unique to the send because
+     * no provider row will ever exist for it.
+     */
+    override suspend fun recordSent(
+        destination: String,
+        body: String,
+        timestampMs: Long,
+    ) {
+        withContext(Dispatchers.IO) {
+            val address = destination.ifBlank { "Unknown" }
+            val category = categorizer().categorize(address, body, isContact(address)).id
+            val event =
+                EventEntity(
+                    ulid = Ulid.next(),
+                    dedupeKey = "sms:sent:$timestampMs",
+                    source = SOURCE_ID,
+                    type = "sent",
+                    category = category,
+                    timestamp = timestampMs,
+                    title = destination,
+                    content = body,
+                    entities = "[]",
+                    location = null,
+                    url = null,
+                    ingestedAt = System.currentTimeMillis(),
+                )
+            land(
+                listOf(event),
+                listOf(TagInput(text = body, source = Transport.SMS, sender = destination)),
+                listOf(smsFields(address, body)),
+            )
+        }
+    }
+
+    /**
+     * Inserts the rows and runs the post-insert pipeline (tags, mentions, fields
+     * then rules — rules read the store, ADR §13) for whatever actually landed.
+     * The one path both [ingestNewMessages] and [recordSent] go through, so an
+     * incoming and an outgoing message are stored, tagged and matched identically.
+     * Returns the events that landed; duplicates (`-1`) are dropped.
+     */
+    private suspend fun land(
+        events: List<EventEntity>,
+        tagInputs: List<TagInput>,
+        fieldInputs: List<Map<String, FieldValue>>,
+    ): List<EventEntity> {
+        val inserted = eventDao.insertAll(events)
+
+        // Tag only what actually landed: duplicates come back as -1.
+        val toTag = ArrayList<Pair<String, TagInput>>(events.size)
+        val toFields = ArrayList<Pair<String, Map<String, FieldValue>>>(events.size)
+        val landed = ArrayList<EventEntity>(events.size)
+        inserted.forEachIndexed { index, insertedId ->
+            if (insertedId == -1L) return@forEachIndexed
+            toTag += events[index].ulid to tagInputs[index]
+            toFields += events[index].ulid to fieldInputs[index]
+            landed += events[index]
+        }
+        if (toTag.isNotEmpty()) tagWriter.writeAll(toTag)
+        if (toTag.isNotEmpty()) {
+            mentionWriter.writeAll(toTag.map { (ulid, input) -> ulid to input.text })
+        }
+        // Fields before evaluation: the writer reads them from the store
+        // (ADR §13), so they must be persisted first.
+        if (toFields.isNotEmpty()) fieldWriter.writeAll(toFields)
+        if (landed.isNotEmpty()) ruleWriter.writeAll(landed.map { it.toRuleItemSeed() })
+        return landed
+    }
 
     /**
      * A destructive migration (schema bump) recreates the table empty. The stored

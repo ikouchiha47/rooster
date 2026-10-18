@@ -21,6 +21,12 @@ class SmsSyncWorkerTest {
             calls++
             return 5
         }
+
+        override suspend fun recordSent(
+            destination: String,
+            body: String,
+            timestampMs: Long,
+        ) = Unit
     }
 
     @Test

@@ -112,6 +112,7 @@ private sealed interface MsgRow {
 fun MessagesScreen(
     modifier: Modifier = Modifier,
     onOpenConversation: (String) -> Unit = {},
+    onOpenContacts: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val container = LocalAppContainer.current
@@ -321,6 +322,7 @@ fun MessagesScreen(
                 },
                 onToggleView = { conversationsView = !conversationsView },
                 onToggleSaved = { savedOnly = !savedOnly },
+                onOpenContacts = onOpenContacts,
             )
             if (searchOpen) {
                 Box(
@@ -491,11 +493,15 @@ private fun MessagesAppBar(
     onSearch: () -> Unit,
     onToggleView: () -> Unit,
     onToggleSaved: () -> Unit,
+    onOpenContacts: () -> Unit,
 ) {
     val unread by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
     RadarAppBar(
         title = "Messages",
         sub = "Notifications ${Chars.MIDDLE_DOT} $unread unread",
+        // Contacts sits before the title: the address book is the entry point
+        // into a new message, so it leads rather than competes with the actions.
+        leading = { GlyphActionButton(glyph = Glyph.Person, onClick = onOpenContacts) },
         actions = {
             // Flat conversations <-> day-bucketed timeline. Both list the same
             // recency-ordered source; day-bucketing is the only difference.
