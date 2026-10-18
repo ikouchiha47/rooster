@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): thread settings action, boxed count, dotted background
+
+_2026-10-19_
+
+Replaces the cryptic BG toggle with a settings glyph that opens the central
+Settings screen. The message count is a boxed badge, the contact's number sits
+under the name in a readable size, and the thread canvas defaults to a
+low-opacity dot grid (stored choice, ready for a Settings row).
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(messages): chat-style thread with bubbles and day separators
 
 _2026-10-19_

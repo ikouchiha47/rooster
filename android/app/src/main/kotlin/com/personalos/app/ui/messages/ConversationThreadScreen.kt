@@ -38,8 +38,9 @@ import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.SmsSource
 import com.personalos.app.ui.common.FooterStrip
+import com.personalos.app.ui.common.Glyph
+import com.personalos.app.ui.common.GlyphActionButton
 import com.personalos.app.ui.common.HardRule
-import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
@@ -76,10 +77,13 @@ private val THREAD_NEWEST_FIRST: Comparator<EventEntity> =
 fun ConversationThreadScreen(
     sender: String,
     onBack: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val container = LocalAppContainer.current
+    val bgStore = remember { ThreadBackgroundStore(context) }
+    var background by remember { mutableStateOf(bgStore.get()) }
     val repository = container.conversations
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -178,14 +182,30 @@ fun ConversationThreadScreen(
             onBack = onBack,
             subtitle = {
                 if (title != sender) {
-                    Text(text = sender, style = RadarType.microPlain, color = RadarColors.paper4)
+                    Text(
+                        text = sender,
+                        style = RadarType.small,
+                        color = RadarColors.ink,
+                    )
                 }
             },
             trailing = {
-                HeaderMeta(
-                    "${compactNumber(items.size)} messages ${Chars.MIDDLE_DOT} SMS only",
-                    Modifier.padding(end = 8.dp),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings)
+                    Box(
+                        modifier =
+                            Modifier
+                                .border(1.dp, RadarColors.paper4, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = compactNumber(items.size),
+                            style = RadarType.microPlain,
+                            color = RadarColors.paper2,
+                        )
+                    }
+                }
             },
         )
 
@@ -210,6 +230,9 @@ fun ConversationThreadScreen(
         // The list takes the space above the composer, so a long thread still
         // reaches its end while the composer stays pinned below.
         Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (background == ThreadBackground.DOTTED) {
+                DottedBackground(Modifier.matchParentSize())
+            }
             if (items.isEmpty()) {
                 Text(
                     text = "No messages from this sender.",

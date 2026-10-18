@@ -260,6 +260,7 @@ fun AppNavHost(
             ConversationThreadScreen(
                 sender = Uri.decode(sender),
                 onBack = { navController.popBackStack() },
+                onOpenSettings = { navigateToDetail(navController, Destination.Settings) },
             )
         }
         composable(
