@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -6,9 +8,48 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
+// Release signing reads the shared credentials file **outside the repo**:
+//   ~/.credentials  ->  rooster_app_signing_key=<path to .jks>
+//                       rooster_app_store_password=<password>
+// A debug build needs none of it. `assembleRelease` needs both, and fails loudly
+// if they are missing rather than shipping an unsigned APK.
+val credentials: Map<String, String> =
+    File(System.getProperty("user.home"), ".credentials")
+        .takeIf { it.isFile }
+        ?.readLines()
+        ?.mapNotNull { line ->
+            if (line.trimStart().startsWith("#")) return@mapNotNull null
+            val at = line.indexOf('=')
+            if (at <= 0) null else line.substring(0, at).trim() to line.substring(at + 1).trim()
+        }?.toMap()
+        ?: emptyMap()
+val releaseStore: String? = credentials["rooster_app_signing_key"]
+val releaseStorePassword: String? = credentials["rooster_app_store_password"]
+
 android {
     namespace = "com.personalos.app"
     compileSdk = 36
+
+    signingConfigs {
+        if (releaseStore != null && releaseStorePassword != null) {
+            create("release") {
+                storeFile = File(releaseStore)
+                storePassword = releaseStorePassword
+                keyAlias = "rooster"
+                keyPassword = releaseStorePassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            // Sign with the real key when credentials exist; otherwise leave the
+            // Gradle default (unsigned) so a missing file cannot masquerade as signed.
+            if (releaseStore != null && releaseStorePassword != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.personalos.app"

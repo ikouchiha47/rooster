@@ -2,6 +2,7 @@ package com.personalos.app.data
 
 import androidx.room.Dao
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Reads for the Watchers feed: a rule's fires and the items they fired on.
@@ -38,6 +39,23 @@ interface RuleFireDao {
     /** A rule's total fire count, so a section can say how many it is not showing. */
     @Query(Sql.ITEM_RULES_COUNT_FOR_RULE)
     suspend fun countForRule(ruleId: String): Int
+
+    /**
+     * One keyset page of the **cross-rule** Alerts feed, newest event first. One
+     * row per matched event, with the rules that matched it folded into
+     * `rule_ids`. A null `cursorTs` starts the walk; callers pass `limit + 1` to
+     * detect whether a next page exists.
+     */
+    @Query(Sql.ITEM_RULES_ALERTS_PAGE)
+    suspend fun alertsPage(
+        cursorTs: Long?,
+        cursorId: Long,
+        limit: Int,
+    ): List<AlertCandidate>
+
+    /** The Alerts badge: matched events in total. */
+    @Query(Sql.ITEM_RULES_ALERTS_COUNT)
+    fun observeAlertCount(): Flow<Int>
 
     /** The items behind a batch of fires — one read for the whole page. */
     @Query(Sql.EVENTS_BY_ULIDS)

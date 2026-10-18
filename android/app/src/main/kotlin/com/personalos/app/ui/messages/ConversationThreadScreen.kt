@@ -59,8 +59,8 @@ private val THREAD_NEWEST_FIRST: Comparator<EventEntity> =
  * scoped `source = 'sms' AND title = :sender` in SQL, so a thread can only ever
  * show that sender's SMS. A new arrival merges rather than blanking the list.
  *
- * The title is the stored address — the app has no contacts permission, so a
- * real name would be invented, not known.
+ * The title is the stored address, overlaid with the contact's name when one is
+ * known; with no contacts permission it is the address verbatim.
  */
 @Composable
 fun ConversationThreadScreen(
@@ -132,8 +132,10 @@ fun ConversationThreadScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().background(RadarColors.paper2)) {
+        // The stored sender is the fallback; a known contact name overlays it.
+        val title = container.contactNames.nameFor(sender) ?: sender
         RadarHeader(
-            title = sender,
+            title = title,
             accent = RadarColors.ink,
             onBack = onBack,
             trailing = {
@@ -158,7 +160,7 @@ fun ConversationThreadScreen(
             items(items = items, key = { "t-${it.id}" }) { message ->
                 ThreadMessageRow(message)
             }
-            item { FooterStrip("${items.size} shown ${Chars.MIDDLE_DOT} $sender") }
+            item { FooterStrip("${items.size} shown ${Chars.MIDDLE_DOT} $title") }
         }
     }
 }

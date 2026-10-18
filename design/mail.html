@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar - Mail v2, sections + buckets</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --paper:#F7F4EC; --paper-2:#FAF8F2; --paper-3:#EFEADB; --paper-4:#E4DCC7;
+    --fresh:#FFFFF4;
+    --ink:#171513; --ink-2:#4A443C; --ink-3:#837B70;
+    --rule:#171513; --rule-soft:#CFC6B3; --rule-dot:#B8AE99;
+    --verm:#D93B2B; --indigo:#2B4C8C; --mustard:#E0A800; --teal:#1F8A70;
+    --chart:#A8C020; --peri:#6C7BD9; --plum:#7A2E5E; --cyan:#1B7A8C; --rust:#B4532A;
+    --serif:"Noto Serif","Hiragino Mincho ProN","Yu Mincho","Songti SC",Georgia,"Times New Roman",serif;
+    --display:"Noto Serif","Hiragino Mincho ProN","Yu Mincho",Georgia,"Times New Roman",serif;
+    --sans:"Noto Sans",-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans",Arial,sans-serif;
+    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --fs-micro:10px; --fs-tiny:11px; --fs-small:12px; --fs-body:13px; --fs-lead:14px; --fs-h4:15px; --fs-h3:17px;
+  }
+  body{font-family:var(--sans);font-size:var(--fs-body);line-height:1.35;color:var(--ink);background:#E3DFD5;}
+  button{font-family:inherit}
+  .viewer{min-height:100vh;padding:28px 18px 40px;display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;justify-content:center;}
+  .phone{width:390px;max-width:100%;}
+  .phone__frame{width:100%;padding:10px;background:#2B2724;border:1px solid var(--ink);border-radius:26px;}
+  .phone__screen{width:100%;height:1420px;border:1px solid var(--ink);border-radius:14px;overflow-y:auto;background:var(--paper-2);scrollbar-width:none;}
+  .phone__screen::-webkit-scrollbar{display:none}
+  .device{width:100%;max-width:430px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;background:var(--paper-2);position:relative;}
+  .phone__label{margin-top:9px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);}
+  .topchrome{position:sticky;top:0;z-index:8;background:var(--paper-2);}
+  .sysbar{display:flex;align-items:center;justify-content:space-between;height:24px;padding:0 10px;background:var(--paper-3);border-bottom:1px solid var(--rule);}
+  .sysbar__time{font-family:var(--mono);font-size:var(--fs-tiny);font-weight:700;font-variant-numeric:tabular-nums;}
+  .sysbar__icons{display:flex;align-items:center;gap:5px}
+  .sysbar__icons svg{width:15px;height:10px;fill:currentColor}
+  .sysbar__icons svg.batt{width:19px;height:10px}
+  .appbar{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 8px;border-bottom:3px solid var(--ink);background:var(--paper-2);}
+  .appmark{flex:0 0 auto;width:26px;height:26px;display:grid;place-content:center;background:var(--peri);color:#fff;border-radius:2px;font-family:var(--display);font-size:11px;font-weight:700;letter-spacing:.04em;}
+  .appbar__t{flex:1;min-width:0}
+  .appbar__title{font-family:var(--display);font-size:var(--fs-h3);font-weight:700;line-height:1.05;}
+  .appbar__sub{margin-top:1px;font-size:var(--fs-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);}
+  .appbar__actions{display:flex;align-items:center;gap:2px}
+  .iconbtn{width:30px;height:30px;display:grid;place-content:center;border:1px solid transparent;border-radius:2px;background:none;color:var(--ink);cursor:pointer;}
+  .ico{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7}
+  .ico--solid{fill:currentColor;stroke:none}
+  .vstrip{display:flex;border-bottom:1px solid var(--rule);background:var(--paper-3);}
+  .vseg{flex:1;padding:7px 8px;text-align:center;font-size:var(--fs-small);font-weight:700;letter-spacing:.08em;background:none;border:0;border-right:1px solid var(--rule-soft);cursor:pointer;color:var(--ink-2);}
+  .vseg:last-child{border-right:0}
+  .vseg.is-on{background:var(--ink);color:var(--paper-2);}
+  .vseg__n{margin-left:4px;font-size:var(--fs-micro);font-variant-numeric:tabular-nums;color:var(--ink-3);}
+  .vseg.is-on .vseg__n{color:var(--paper-4);}
+  .chan{display:flex;align-items:center;border-bottom:1px solid var(--rule);background:var(--paper-2);}
+  .chan__l{flex:1;padding:4px 8px;font-size:var(--fs-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);}
+  .chan__t{border:0;border-left:1px solid var(--rule-soft);background:none;padding:4px 9px;font-size:var(--fs-micro);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);cursor:pointer;}
+  .chan__t.is-on{background:var(--ink);color:var(--paper-2);}
+  .sync{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 8px;border-bottom:1px solid var(--rule);background:var(--paper-3);font-size:var(--fs-micro);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);}
+  .sync__dot{display:inline-block;width:6px;height:6px;background:var(--teal);margin-right:4px;vertical-align:1px;}
+  /* section header (surfaced sections) */
+  .sec{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 0;border-bottom:1px solid var(--rule);border-top:1px solid var(--rule);background:var(--paper-4);}
+  .sec:first-of-type{border-top:0}
+  .sec__bar{width:4px;align-self:stretch;background:var(--accent,var(--ink));flex:0 0 auto;}
+  .sec__t{font-family:var(--display);font-size:var(--fs-h4);font-weight:700;letter-spacing:.02em;}
+  .sec__n{font-size:var(--fs-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);}
+  .sec__sp{flex:1;border-top:2px dotted var(--rule-dot);min-width:12px;}
+  .sec--ink{background:var(--ink);color:var(--paper-2);}
+  .sec--ink .sec__n{color:var(--paper-4);}
+  /* correspondent row */
+  .corr{display:grid;grid-template-columns:52px 40px 1fr auto;align-items:stretch;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--cat,var(--ink));background:var(--paper-2);cursor:pointer;}
+  .corr.is-unread{background:var(--fresh);}
+  .corr__gut{padding:7px 5px 7px 4px;border-right:1px dotted var(--rule-dot);text-align:right;}
+  .corr__t{font-family:var(--mono);font-size:var(--fs-tiny);font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;}
+  .corr__d{margin-top:1px;font-family:var(--mono);font-size:9px;color:var(--ink-3);font-variant-numeric:tabular-nums;}
+  .corr__avwrap{display:grid;place-content:center;}
+  .corr__av{width:34px;height:34px;border-radius:3px;display:grid;place-content:center;color:#fff;font-size:12px;font-weight:700;letter-spacing:.02em;}
+  .corr__body{min-width:0;padding:6px 8px;}
+  .corr__top{display:flex;align-items:center;gap:5px;}
+  .corr__name{font-family:var(--serif);font-size:var(--fs-lead);font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:148px;}
+  .corr:not(.is-unread) .corr__name{font-weight:400;}
+  .org{padding:0 4px;border:1px solid var(--rule-soft);border-radius:2px;background:var(--paper);color:var(--ink-2);font-size:var(--fs-micro);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:124px;}
+  .corr__state{margin-top:2px;font-size:var(--fs-small);line-height:1.35;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .corr__state b{color:var(--ink);font-variant-numeric:tabular-nums;}
+  .corr__meta{display:flex;gap:10px;margin-top:4px;padding-top:3px;border-top:1px dotted var(--rule-dot);font-size:var(--fs-micro);letter-spacing:.03em;color:var(--ink-3);text-transform:uppercase;}
+  .corr__meta b{color:var(--ink);font-variant-numeric:tabular-nums;}
+  .corr__cnt{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:3px;padding:6px 8px 6px 0;}
+  .udot{display:inline-block;width:7px;height:7px;background:var(--verm);flex:0 0 auto;}
+  .un{min-width:18px;text-align:center;padding:0 4px;background:var(--verm);color:#fff;font-size:var(--fs-micro);font-weight:700;font-variant-numeric:tabular-nums;border-radius:2px;}
+  .tot{font-family:var(--mono);font-size:var(--fs-micro);color:var(--ink-3);font-variant-numeric:tabular-nums;}
+  .chip{display:inline-block;padding:1px 5px;border-radius:2px;background:var(--ink);color:var(--paper-2);font-size:var(--fs-micro);font-weight:700;line-height:1.5;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;}
+  .chip--need{background:var(--verm);}
+  .chip--due{background:var(--mustard);color:var(--ink);}
+  .chip--txn{background:var(--teal);}
+  .chip--off{background:var(--indigo);}
+  .chip--pers{background:var(--peri);}
+  .chip--safety{background:var(--plum);}
+  .chip--promo{background:var(--mustard);color:var(--ink);}
+  .chip--upd{background:var(--cyan);}
+  .chip--hidden{background:var(--paper-4);color:var(--ink-2);}
+  .chip--unknown{background:transparent;color:var(--ink-2);border:1px dashed var(--ink-3);}
+  /* neutral Gmail-label chip */
+  .lab{display:inline-block;padding:0 4px;border:1px solid var(--rule-soft);border-radius:2px;background:var(--paper);color:var(--ink-3);font-size:var(--fs-micro);font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;}
+  /* safety inline actions */
+  .actions{display:flex;gap:4px;margin-top:5px;}
+  .btn{display:inline-block;padding:2px 6px;border:1px solid var(--ink);border-radius:2px;background:var(--paper-2);color:var(--ink);font-size:var(--fs-micro);font-weight:700;letter-spacing:.07em;text-transform:uppercase;line-height:1.5;cursor:pointer;white-space:nowrap;}
+  .btn--solid{background:var(--ink);color:var(--paper-2);}
+  /* bucket reveal band: the single control */
+  .bands{display:flex;align-items:center;gap:8px;width:100%;padding:7px 8px;border:0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);background:var(--paper-4);cursor:pointer;text-align:left;}
+  .bands__t{font-family:var(--display);font-size:var(--fs-h4);font-weight:700;}
+  .bands__n{font-size:var(--fs-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);}
+  .bands__sp{flex:1;border-top:2px dotted var(--rule-dot);min-width:12px;}
+  .bands__c{font-family:var(--mono);font-size:var(--fs-tiny);color:var(--ink-2);font-variant-numeric:tabular-nums;}
+  /* bucket row */
+  .bucket{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 0;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--accent,var(--ink));background:var(--paper-3);cursor:pointer;}
+  .bucket.is-hidden{background:var(--paper);}
+  .bucket__body{flex:1;min-width:0;padding-left:8px;}
+  .bucket__t{font-family:var(--display);font-size:var(--fs-h4);font-weight:700;line-height:1.15;}
+  .bucket.is-hidden .bucket__t{color:var(--ink-3);}
+  .bucket__m{margin-top:1px;font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.03em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bucket__c{font-family:var(--mono);font-size:var(--fs-tiny);font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums;}
+  .pin{width:28px;height:28px;display:grid;place-content:center;border:0;background:none;cursor:pointer;color:var(--ink-3);}
+  .pin svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;}
+  .pin.is-on{color:var(--verm);}
+  .caret{font-family:var(--mono);font-size:var(--fs-tiny);color:var(--ink-2);padding-right:6px;}
+  /* expanded bucket contents */
+  .bbody{border-left:3px solid var(--accent,var(--ink));background:var(--paper);border-bottom:1px solid var(--rule-soft);}
+  .brow{display:grid;grid-template-columns:52px 1fr auto;gap:8px;align-items:center;padding:5px 8px 5px 12px;border-bottom:1px dotted var(--rule-dot);cursor:pointer;}
+  .brow:last-child{border-bottom:0;}
+  .brow__t{font-family:var(--serif);font-size:var(--fs-small);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brow__m{font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.03em;white-space:nowrap;}
+  .bnote{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 12px;border-top:1px dotted var(--rule-dot);font-size:var(--fs-micro);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);background:var(--paper-3);}
+  .bnote b{color:var(--ink);}
+  .prom{font-size:var(--fs-micro);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);}
+  /* inbox filter rows */
+  .frows{border-bottom:1px solid var(--rule);background:var(--paper-2);}
+  .frow{display:flex;align-items:center;border-bottom:1px solid var(--rule-soft);}
+  .frow:last-child{border-bottom:0;}
+  .frow__l{flex:0 0 auto;padding:4px 8px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);border-right:1px solid var(--rule-soft);}
+  .frow__scroll{display:flex;overflow-x:auto;scrollbar-width:none;}
+  .frow__scroll::-webkit-scrollbar{display:none}
+  .fchip{flex:0 0 auto;border:0;border-right:1px solid var(--rule-soft);background:none;padding:5px 8px;font-size:var(--fs-micro);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);cursor:pointer;white-space:nowrap;}
+  .fchip.is-on{background:var(--ink);color:var(--paper-2);}
+  /* inbox row */
+  .inrow{display:grid;grid-template-columns:52px 1fr;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--cat,var(--ink));background:var(--paper-2);cursor:pointer;}
+  .inrow.is-unread{background:var(--fresh);}
+  .inrow__gut{padding:7px 5px 7px 4px;border-right:1px dotted var(--rule-dot);text-align:right;}
+  .inrow__body{min-width:0;padding:6px 8px;}
+  .inrow__top{display:flex;align-items:center;gap:5px;}
+  .inrow__from{font-size:var(--fs-small);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;color:var(--ink);}
+  .inrow.is-unread .inrow__from{font-weight:700;}
+  .inrow__subj{margin-top:2px;font-family:var(--serif);font-size:var(--fs-lead);font-weight:400;line-height:1.22;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .inrow.is-unread .inrow__subj{font-weight:700;}
+  .inrow__prev{margin-top:1px;font-size:var(--fs-small);line-height:1.35;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .inrow__meta{display:flex;justify-content:space-between;margin-top:4px;padding-top:3px;border-top:1px dotted var(--rule-dot);font-size:var(--fs-micro);letter-spacing:.03em;color:var(--ink-3);text-transform:uppercase;}
+  .inrow__meta b{color:var(--ink);}
+  .gchan{display:inline-grid;place-content:center;width:14px;height:14px;flex:0 0 auto;}
+  .gchan svg{width:14px;height:14px;fill:none;stroke:var(--ink-2);stroke-width:1.7;}
+  .daymark{display:flex;align-items:center;gap:8px;padding:3px 8px;background:var(--ink);color:var(--paper-2);font-size:var(--fs-micro);font-weight:700;letter-spacing:.18em;text-transform:uppercase;}
+  .daymark__sp{flex:1;height:1px;background:var(--ink-3);}
+  .mirror{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--teal);background:var(--paper);font-size:var(--fs-micro);letter-spacing:.03em;color:var(--ink-2);}
+  .mirror b{color:var(--ink);}
+  .note{padding:5px 8px;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--ink-3);background:var(--paper);font-size:var(--fs-micro);line-height:1.5;color:var(--ink-2);letter-spacing:.02em;}
+  .note b{color:var(--ink);}
+  .foot{padding:6px 8px 10px;border-top:1px solid var(--rule);background:var(--paper-3);font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;}
+  .bottomnav{position:sticky;bottom:0;z-index:8;margin-top:auto;display:grid;grid-template-columns:repeat(5,1fr);background:var(--paper-3);border-top:1px solid var(--rule);}
+  .navitem{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px 5px;color:var(--ink-3);border-right:1px solid var(--rule-soft);text-decoration:none;}
+  .navitem:last-child{border-right:0}
+  .navitem__ind{position:absolute;top:0;left:0;right:0;height:3px;background:transparent;}
+  .navitem.is-current{color:var(--ink);background:var(--paper-2);}
+  .navitem.is-current .navitem__ind{background:var(--verm);}
+  .navitem__l{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+  .dim{color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="viewer">
+
+  <!-- ================= FRAME 1 - LEDGER, surfaced sections + bucket reveal band ================= -->
+  <div class="phone" id="v-ledger">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar">
+          <span class="sysbar__time">09:44</span>
+          <span class="sysbar__icons">
+            <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+            <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+            <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+          </span>
+        </div>
+        <header class="appbar">
+          <div class="appmark">PR</div>
+          <div class="appbar__t">
+            <h1 class="appbar__title">Mail</h1>
+            <div class="appbar__sub">3 accounts &#183; 41 unread &#183; 5 need you</div>
+          </div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Search"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg></button>
+            <button class="iconbtn" aria-label="More"><svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+        </header>
+        <div class="vstrip" role="tablist">
+          <button class="vseg is-on" role="tab">Ledger<span class="vseg__n">14</span></button>
+          <button class="vseg" role="tab">Inbox<span class="vseg__n">412</span></button>
+        </div>
+        <div class="chan">
+          <span class="chan__l">Channel</span>
+          <button class="chan__t is-on">All</button><button class="chan__t">SMS</button><button class="chan__t">Mail</button>
+        </div>
+      </div>
+      <div class="sync"><span><span class="sync__dot"></span>Profile: Personal &#183; on-device, read-only cache</span><span>41 unread</span></div>
+
+      <!-- ACTION -->
+      <div class="sec" style="--accent:var(--verm)"><span class="sec__bar"></span><span class="sec__t">Action</span><span class="sec__sp"></span><span class="sec__n">2 correspondents &#183; needs you</span></div>
+      <article class="corr is-unread" style="--cat:var(--verm)">
+        <div class="corr__gut"><div class="corr__t">12 Oct</div><div class="corr__d">18:40</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--verm)">RL</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="udot"></span><span class="corr__name">R. Lal &#183; Landlord</span><span class="org">gmail.com</span><span class="chip chip--need">Needs you</span></div>
+          <div class="corr__state">1 unread &#183; awaiting your reply on the deposit</div>
+          <div class="corr__meta"><span>Person</span><span><span class="lab">Primary</span></span><span>last 12 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="un">1</span><span class="tot">3</span></div>
+      </article>
+      <article class="corr is-unread" style="--cat:var(--verm)">
+        <div class="corr__gut"><div class="corr__t">11 Oct</div><div class="corr__d">09:12</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--peri)">PN</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="udot"></span><span class="corr__name">Priya Nair</span><span class="org">outlook.com</span><span class="chip chip--need">Needs you</span></div>
+          <div class="corr__state">asked a question 2d ago &#183; no reply sent</div>
+          <div class="corr__meta"><span>Person</span><span><span class="lab">Primary</span></span><span>last 11 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="un">1</span><span class="tot">2</span></div>
+      </article>
+
+      <!-- SAFETY (quiet, event-driven) -->
+      <div class="sec" style="--accent:var(--plum)"><span class="sec__bar"></span><span class="sec__t">Safety</span><span class="sec__sp"></span><span class="sec__n">1 attention &#183; self-clearing</span></div>
+      <article class="corr is-unread" style="--cat:var(--plum)">
+        <div class="corr__gut"><div class="corr__t">13 Oct</div><div class="corr__d">06:12</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--plum)">G</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="udot"></span><span class="corr__name">Google</span><span class="org">accounts.google.com</span><span class="chip chip--safety">New sign-in</span></div>
+          <div class="corr__state">sign-in from <b>Mumbai</b> on Chrome, 06:11 &#183; not recognised</div>
+          <div class="actions"><button class="btn btn--solid">This was me</button><button class="btn">Secure account</button></div>
+        </div>
+        <div class="corr__cnt"><span class="un">1</span></div>
+      </article>
+      <div class="bnote" style="border-left:3px solid var(--plum)"><b>Note</b> routine OTP and "your code" mail is not listed here; it rides inline on the transaction that asked for it. This section holds sign-ins you did not start, recovery attempts and password changes only.</div>
+
+      <!-- TRANSACTIONS -->
+      <div class="sec" style="--accent:var(--teal)"><span class="sec__bar"></span><span class="sec__t">Transactions</span><span class="sec__sp"></span><span class="sec__n">4 correspondents &#183; 2 dues</span></div>
+      <article class="corr is-unread" style="--cat:var(--plum)">
+        <div class="corr__gut"><div class="corr__t">13 Oct</div><div class="corr__d">08:17</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--plum)">AM</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="udot"></span><span class="corr__name">Amazon</span><span class="org">amazon.in</span><span class="chip chip--txn">Orders</span></div>
+          <div class="corr__state"><b>3 shipped</b>, <b>1 arriving today</b>, 1 delivered</div>
+          <div class="corr__meta"><span>Service</span><span><span class="lab">Purchases</span></span><span>last 13 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="un">1</span><span class="tot">9</span></div>
+      </article>
+      <article class="corr is-unread" style="--cat:var(--mustard)">
+        <div class="corr__gut"><div class="corr__t">11 Oct</div><div class="corr__d">10:41</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--teal)">CE</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="udot"></span><span class="corr__name">CESC Power</span><span class="org">cesc.co.in</span><span class="chip chip--due">Due 18 Oct</span></div>
+          <div class="corr__state">bill <b>Rs 1,840</b> due in 5 days &#183; suggested reminder</div>
+          <div class="corr__meta"><span>Institution</span><span><span class="lab">Updates</span></span><span>last 11 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="un">1</span><span class="tot">2</span></div>
+      </article>
+      <article class="corr" style="--cat:var(--teal)">
+        <div class="corr__gut"><div class="corr__t">09 Oct</div><div class="corr__d">16:20</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--teal)">IN</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="corr__name">IndiGo</span><span class="org">goindigo.in</span><span class="chip chip--txn">Travel</span></div>
+          <div class="corr__state">BLR to HND booking confirmed &#183; 14-22 Oct &#183; web check-in opens 48h before</div>
+          <div class="corr__meta"><span>Service</span><span><span class="lab">Updates</span></span><span>last 09 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="tot">3</span></div>
+      </article>
+      <div class="mirror"><span class="chip chip--txn">Promoted</span><span>2 receipts were in <b>Updates</b> and <b>Promotions</b>; state mail is lifted here automatically. <b>Sample Store</b> order 09 Oct &#183; Rs 2,140.</span></div>
+
+      <!-- PERSONAL -->
+      <div class="sec" style="--accent:var(--peri)"><span class="sec__bar"></span><span class="sec__t">Personal</span><span class="sec__sp"></span><span class="sec__n">3 correspondents &#183; 1 unread</span></div>
+      <article class="corr is-unread" style="--cat:var(--peri)">
+        <div class="corr__gut"><div class="corr__t">12 Oct</div><div class="corr__d">21:05</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--peri)">AK</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="udot"></span><span class="corr__name">Ananya</span><span class="org">gmail.com</span></div>
+          <div class="corr__state">1 unread &#183; sent photos from Sunday, no reply yet</div>
+          <div class="corr__meta"><span>Person</span><span><span class="lab">Primary</span></span><span>last 12 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="un">1</span><span class="tot">6</span></div>
+      </article>
+      <article class="corr" style="--cat:var(--peri)">
+        <div class="corr__gut"><div class="corr__t">08 Oct</div><div class="corr__d">14:30</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--chart)">BN</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="corr__name">Baba</span><span class="org">yahoo.com</span></div>
+          <div class="corr__state">2 messages, last 08 Oct</div>
+          <div class="corr__meta"><span>Person</span><span><span class="lab">Primary</span></span><span>last 08 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="tot">2</span></div>
+      </article>
+
+      <!-- OFFICIAL -->
+      <div class="sec" style="--accent:var(--indigo)"><span class="sec__bar"></span><span class="sec__t">Official</span><span class="sec__sp"></span><span class="sec__n">3 correspondents &#183; 1 unread</span></div>
+      <article class="corr is-unread" style="--cat:var(--indigo)">
+        <div class="corr__gut"><div class="corr__t">10 Oct</div><div class="corr__d">11:00</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--indigo)">IT</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="udot"></span><span class="corr__name">Income Tax e-Filing</span><span class="org">incometax.gov.in</span><span class="chip chip--off">Official</span></div>
+          <div class="corr__state">1 unread &#183; acknowledgement for AY 2026-27, no action needed</div>
+          <div class="corr__meta"><span>Institution</span><span><span class="lab">Primary</span></span><span>last 10 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="un">1</span><span class="tot">4</span></div>
+      </article>
+      <article class="corr" style="--cat:var(--indigo)">
+        <div class="corr__gut"><div class="corr__t">07 Oct</div><div class="corr__d">09:15</div></div>
+        <div class="corr__avwrap"><span class="corr__av" style="background:var(--rust)">SB</span></div>
+        <div class="corr__body">
+          <div class="corr__top"><span class="corr__name">Sample Bank</span><span class="org">samplebank.co.in</span></div>
+          <div class="corr__state">Sep statement attached &#183; no action needed</div>
+          <div class="corr__meta"><span>Institution</span><span><span class="lab">Primary</span></span><span>last 07 Oct</span></div>
+        </div>
+        <div class="corr__cnt"><span class="tot">5</span></div>
+      </article>
+
+      <!-- THE SINGLE REVEAL CONTROL -->
+      <button class="bands" data-reveal>
+        <span class="bands__t">Buckets</span>
+        <span class="bands__sp"></span>
+        <span class="bands__n">6 hidden</span>
+        <span class="bands__c">57 &#183; 12 new &#9662;</span>
+      </button>
+      <div class="bnote"><b>Updates</b> is pinned here because you open receipts often. <b>Promotions</b> and <b>Noise</b> are hidden by default. Nothing is deleted; search and All mail still reach everything.</div>
+
+      <footer class="foot">Ledger &#183; surfaced = Action Safety Transactions Personal Official &#183; buckets hidden behind one control</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Services</span></a>
+        <a class="navitem is-current" href="#"><span class="navitem__ind"></span><span class="navitem__l">Mail</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">Ledger &#8212; surfaced sections + one reveal control</div>
+  </div>
+
+  <!-- ================= FRAME 2 - LEDGER, buckets revealed, pin + promotion ================= -->
+  <div class="phone" id="v-ledger-buckets">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar"><span class="sysbar__time">09:46</span>
+          <span class="sysbar__icons"><svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg><svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg><svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg></span>
+        </div>
+        <header class="appbar">
+          <div class="appmark">PR</div>
+          <div class="appbar__t"><h1 class="appbar__title">Mail</h1><div class="appbar__sub">3 accounts &#183; buckets revealed</div></div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Search"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg></button>
+            <button class="iconbtn" aria-label="More"><svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+        </header>
+        <div class="vstrip" role="tablist">
+          <button class="vseg is-on" role="tab">Ledger<span class="vseg__n">14</span></button>
+          <button class="vseg" role="tab">Inbox<span class="vseg__n">412</span></button>
+        </div>
+      </div>
+      <div class="sync"><span><span class="sync__dot"></span>Buckets revealed &#183; pin to keep visible</span><span>57 items &#183; 12 new</span></div>
+
+      <div class="note"><b>Updates</b> is pinned (moved up). Pinning a bucket is the only way it stops hiding; unpin returns it. Your pins and hidden buckets are a saved view, per account.</div>
+
+      <!-- PINNED bucket, expanded, showing a promoted item leaving -->
+      <div class="bucket" style="--accent:var(--cyan)">
+        <div class="bucket__body">
+          <div class="bucket__t">Updates</div>
+          <div class="bucket__m">21 items &#183; 4 new &#183; 2 promoted out</div>
+        </div>
+        <span class="bucket__c">21</span>
+        <button class="pin is-on" aria-label="Unpin Updates"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1 5 3 3v1H7v-1l3-3-1-5Z"/><line x1="12" y1="12" x2="12" y2="21"/></svg></button>
+        <span class="caret">&#8722;</span>
+      </div>
+      <div class="bbody" style="--accent:var(--cyan)">
+        <div class="brow">
+          <div class="dim" style="font-family:var(--mono);font-size:var(--fs-micro)">13 Oct</div>
+          <div><div class="brow__t">Your order 402-8817234 is arriving today</div><div class="brow__m">Amazon &#183; <span class="lab">Purchases</span> &#183; <span class="prom">promoted to Transactions</span></div></div>
+          <span class="udot"></span>
+        </div>
+        <div class="brow">
+          <div class="dim" style="font-family:var(--mono);font-size:var(--fs-micro)">12 Oct</div>
+          <div><div class="brow__t">[personalos] Release v2.4 published</div><div class="brow__m">GitHub &#183; CI run, no state</div></div>
+          <span class="tot">4</span>
+        </div>
+        <div class="brow">
+          <div class="dim" style="font-family:var(--mono);font-size:var(--fs-micro)">11 Oct</div>
+          <div><div class="brow__t">New sign-in to your account</div><div class="brow__m">Orbit &#183; <span class="prom">promoted to Safety</span></div></div>
+          <span class="tot">1</span>
+        </div>
+      </div>
+
+      <!-- collapsed buckets -->
+      <div class="bucket" style="--accent:var(--peri)">
+        <div class="bucket__body">
+          <div class="bucket__t">Social</div>
+          <div class="bucket__m">9 items &#183; 2 new &#183; network, not people</div>
+        </div>
+        <span class="bucket__c">9</span>
+        <button class="pin" aria-label="Pin Social"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1 5 3 3v1H7v-1l3-3-1-5Z"/><line x1="12" y1="12" x2="12" y2="21"/></svg></button>
+        <span class="caret">+</span>
+      </div>
+
+      <div class="bucket" style="--accent:var(--peri)">
+        <div class="bucket__body">
+          <div class="bucket__t">Forums</div>
+          <div class="bucket__m">6 items &#183; 0 new &#183; mailing lists</div>
+        </div>
+        <span class="bucket__c">6</span>
+        <button class="pin" aria-label="Pin Forums"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1 5 3 3v1H7v-1l3-3-1-5Z"/><line x1="12" y1="12" x2="12" y2="21"/></svg></button>
+        <span class="caret">+</span>
+      </div>
+
+      <div class="bucket" style="--accent:var(--chart)">
+        <div class="bucket__body">
+          <div class="bucket__t">Reading</div>
+          <div class="bucket__m">14 items &#183; 2 new &#183; newsletters and long-form</div>
+        </div>
+        <span class="bucket__c">14</span>
+        <button class="pin" aria-label="Pin Reading"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1 5 3 3v1H7v-1l3-3-1-5Z"/><line x1="12" y1="12" x2="12" y2="21"/></svg></button>
+        <span class="caret">+</span>
+      </div>
+
+      <div class="bucket is-hidden" style="--accent:var(--mustard)">
+        <div class="bucket__body">
+          <div class="bucket__t">Promotions <span class="chip chip--hidden">Hidden</span></div>
+          <div class="bucket__m">12 items &#183; 3 new &#183; 4 promoted out (orders, receipts)</div>
+        </div>
+        <span class="bucket__c">12</span>
+        <button class="pin" aria-label="Pin Promotions"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1 5 3 3v1H7v-1l3-3-1-5Z"/><line x1="12" y1="12" x2="12" y2="21"/></svg></button>
+        <span class="caret">+</span>
+      </div>
+
+      <div class="bucket is-hidden" style="--accent:var(--ink-3)">
+        <div class="bucket__body">
+          <div class="bucket__t">Noise <span class="chip chip--hidden">Hidden</span></div>
+          <div class="bucket__m">4 items &#183; 4 new &#183; unknown senders, possible fraud</div>
+        </div>
+        <span class="bucket__c">4</span>
+        <button class="pin" aria-label="Pin Noise"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1 5 3 3v1H7v-1l3-3-1-5Z"/><line x1="12" y1="12" x2="12" y2="21"/></svg></button>
+        <span class="caret">+</span>
+      </div>
+
+      <div class="sec" style="--accent:var(--ink)"><span class="sec__bar"></span><span class="sec__t">All mail</span><span class="sec__sp"></span><span class="sec__n">every item &#183; every label</span></div>
+      <div class="note"><b>All mail</b> and search are the escape hatch: every original Gmail label is kept as a fact, so Primary, Social, Promotions, Updates and Forums are always findable even when a bucket is hidden.</div>
+
+      <footer class="foot">Buckets &#183; one reveal control &#183; individual pin &#183; promotion is a read-time lift, the item is never copied</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Services</span></a>
+        <a class="navitem is-current" href="#"><span class="navitem__ind"></span><span class="navitem__l">Mail</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">Ledger &#8212; buckets revealed, pin, promotion</div>
+  </div>
+
+  <!-- ================= FRAME 3 - INBOX (conventional, with section + label filters) ================= -->
+  <div class="phone" id="v-inbox">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar"><span class="sysbar__time">09:47</span>
+          <span class="sysbar__icons"><svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg><svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg><svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg></span>
+        </div>
+        <header class="appbar">
+          <div class="appmark">PR</div>
+          <div class="appbar__t"><h1 class="appbar__title">Mail</h1><div class="appbar__sub">3 accounts &#183; 41 unread &#183; newest first</div></div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Search"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg></button>
+            <button class="iconbtn" aria-label="More"><svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+        </header>
+        <div class="vstrip" role="tablist">
+          <button class="vseg" role="tab">Ledger<span class="vseg__n">14</span></button>
+          <button class="vseg is-on" role="tab">Inbox<span class="vseg__n">412</span></button>
+        </div>
+        <div class="frows">
+          <div class="frow"><span class="frow__l">Our sections</span>
+            <div class="frow__scroll">
+              <button class="fchip is-on">All</button><button class="fchip">Action</button><button class="fchip">Safety</button><button class="fchip">Txn</button><button class="fchip">Personal</button><button class="fchip">Official</button>
+            </div>
+          </div>
+          <div class="frow"><span class="frow__l">Gmail labels</span>
+            <div class="frow__scroll">
+              <button class="fchip">Primary</button><button class="fchip">Social</button><button class="fchip">Promotions</button><button class="fchip">Updates</button><button class="fchip">Forums</button><button class="fchip">Purchases</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sync"><span><span class="sync__dot"></span>Reverse-chron &#183; every label, unfiltered</span><span>41 unread</span></div>
+
+      <div class="daymark"><span>Today</span><span class="daymark__sp"></span><span>13 Oct</span></div>
+      <article class="inrow is-unread" style="--cat:var(--plum)">
+        <div class="inrow__gut"><div class="corr__t">06:12</div><div class="corr__d">13 Oct</div></div>
+        <div class="inrow__body">
+          <div class="inrow__top"><span class="udot"></span><span class="gchan"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3.5 6 12 13 20.5 6"/></svg></span><span class="inrow__from">Google</span><span class="chip chip--safety">Safety</span><span class="lab">Updates</span></div>
+          <div class="inrow__subj">Security alert: new sign-in from Mumbai</div>
+          <div class="inrow__prev">We noticed a new sign-in on Chrome. If this was not you, secure your account now.</div>
+          <div class="inrow__meta"><span>Inbox &#183; <b>not recognised</b></span><span>1 of 1</span></div>
+        </div>
+      </article>
+      <article class="inrow is-unread" style="--cat:var(--teal)">
+        <div class="inrow__gut"><div class="corr__t">08:17</div><div class="corr__d">13 Oct</div></div>
+        <div class="inrow__body">
+          <div class="inrow__top"><span class="udot"></span><span class="gchan"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3.5 6 12 13 20.5 6"/></svg></span><span class="inrow__from">Amazon</span><span class="chip chip--txn">Txn</span><span class="lab">Purchases</span></div>
+          <div class="inrow__subj">Your order 402-8817234 is arriving today</div>
+          <div class="inrow__prev">Out for delivery. Package will be left with security if nobody is home.</div>
+          <div class="inrow__meta"><span>To me &#183; <b>AWB 8891</b></span><span>1 of 9</span></div>
+        </div>
+      </article>
+      <article class="inrow is-unread" style="--cat:var(--verm)">
+        <div class="inrow__gut"><div class="corr__t">06:33</div><div class="corr__d">13 Oct</div></div>
+        <div class="inrow__body">
+          <div class="inrow__top"><span class="udot"></span><span class="gchan"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg></span><span class="inrow__from">+91 98200 11223</span><span class="chip chip--unknown">Noise</span><span class="lab">SMS</span></div>
+          <div class="inrow__subj">KYC pending, links held</div>
+          <div class="inrow__prev">SMS body not opened. Sender is not in contacts.</div>
+          <div class="inrow__meta"><span>SMS &#183; <b>possible fraud</b></span><span>not saved</span></div>
+        </div>
+      </article>
+
+      <div class="daymark"><span>Yesterday</span><span class="daymark__sp"></span><span>12 Oct</span></div>
+      <article class="inrow" style="--cat:var(--indigo)">
+        <div class="inrow__gut"><div class="corr__t">18:40</div><div class="corr__d">12 Oct</div></div>
+        <div class="inrow__body">
+          <div class="inrow__top"><span class="gchan"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3.5 6 12 13 20.5 6"/></svg></span><span class="inrow__from">R. Lal</span><span class="chip chip--need">Action</span><span class="lab">Primary</span></div>
+          <div class="inrow__subj">Re: Security deposit for flat 3B</div>
+          <div class="inrow__prev">Can you confirm the amount and the handover date so I can prepare the receipt?</div>
+          <div class="inrow__meta"><span>Personal &#183; <b>needs reply</b></span><span>needs reply</span></div>
+        </div>
+      </article>
+      <article class="inrow" style="--cat:var(--mustard)">
+        <div class="inrow__gut"><div class="corr__t">09:12</div><div class="corr__d">11 Oct</div></div>
+        <div class="inrow__body">
+          <div class="inrow__top"><span class="gchan"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3.5 6 12 13 20.5 6"/></svg></span><span class="inrow__from">CESC Power</span><span class="chip chip--due">Bill</span><span class="lab">Updates</span></div>
+          <div class="inrow__subj">Bill for Oct 2026, due 18 Oct</div>
+          <div class="inrow__prev">Amount payable Rs 1,840. Pay by 18 Oct to avoid a late fee.</div>
+          <div class="inrow__meta"><span>Bill &#183; <b>promoted to Transactions</b></span><span>1 of 2</span></div>
+        </div>
+      </article>
+      <article class="inrow" style="--cat:var(--mustard)">
+        <div class="inrow__gut"><div class="corr__t">07:50</div><div class="corr__d">11 Oct</div></div>
+        <div class="inrow__body">
+          <div class="inrow__top"><span class="gchan"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3.5 6 12 13 20.5 6"/></svg></span><span class="inrow__from">Sample Store</span><span class="chip chip--promo">Promo</span><span class="lab">Promotions</span></div>
+          <div class="inrow__subj">Festive sale ends Sunday</div>
+          <div class="inrow__prev">Extra 10 percent on store pickup orders. Use code FEST10 at checkout.</div>
+          <div class="inrow__meta"><span>Promotions &#183; <b>hidden bucket</b></span><span>3 of 7</span></div>
+        </div>
+      </article>
+
+      <div class="note"><b>Inbox shows everything and hides nothing</b>, by design: the wire is where you can always find a mail. Ledger hides, Inbox reveals. The filter rows above narrow by our section or by the original Gmail label, so a user who lived in Primary or Promotions loses nothing.</div>
+
+      <footer class="foot">Inbox &#183; reverse-chron &#183; section + Gmail-label filters &#183; SMS and mail share the wire</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Services</span></a>
+        <a class="navitem is-current" href="#"><span class="navitem__ind"></span><span class="navitem__l">Mail</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="#"><span class="navitem__ind"></span><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">Inbox &#8212; conventional, section + label filters</div>
+  </div>
+
+</div>
+<script>
+  // Reveal control: scrolls the buckets frame into view (a visual bridge between frames).
+  document.querySelectorAll('[data-reveal]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = document.getElementById('v-ledger-buckets');
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  // Pin toggles, cosmetic.
+  document.querySelectorAll('.pin').forEach(function (p) {
+    p.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var on = p.classList.toggle('is-on');
+      p.setAttribute('aria-label', (on ? 'Unpin ' : 'Pin ') + (p.closest('.bucket').querySelector('.bucket__t').textContent.trim()));
+    });
+  });
+  // View strip, cosmetic scroll to the matching frame.
+  document.querySelectorAll('.vseg').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var inbox = b.textContent.indexOf('Inbox') === 0;
+      var phone = b.closest('.phone');
+      phone.querySelectorAll('.vseg').forEach(function (x) { x.classList.remove('is-on'); });
+      b.classList.add('is-on');
+      var target = inbox ? document.getElementById('v-inbox') : document.getElementById('v-ledger');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+</script>
+</body>
+</html>

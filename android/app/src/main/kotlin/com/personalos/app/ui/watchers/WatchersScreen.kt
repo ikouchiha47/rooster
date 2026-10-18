@@ -38,6 +38,7 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
 import com.personalos.app.ui.common.SectionHeader
 import com.personalos.app.ui.common.SoftRule
+import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import kotlinx.coroutines.launch
@@ -65,6 +66,7 @@ private val DAY_FMT = SimpleDateFormat("dd MMM", Locale.getDefault())
 fun WatchersScreen(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    onNavigate: (Destination) -> Unit = {},
 ) {
     val context = LocalContext.current
     val container = LocalAppContainer.current
@@ -92,6 +94,10 @@ fun WatchersScreen(
             // The same shape as News, via the one component that owns it.
             trailing = { HeaderMeta(header, Modifier.padding(end = 8.dp)) },
         )
+
+        // Job health sits above the rules: a running or failed job is timely,
+        // and this keeps the rules+fires list below exactly as it was.
+        JobsSection(ruleIds = rules.map { it.id })
 
         if (groups.isEmpty()) {
             Text(
@@ -160,7 +166,14 @@ fun WatchersScreen(
                     }
                 } else {
                     items(items = shown, key = { "fire-$id-${it.itemId}" }) { fire ->
-                        FireRow(fire)
+                        // The row id resolves on tap, not at list time: one
+                        // query per opened fire, never N queries for N rows.
+                        FireRow(fire) {
+                            scope.launch {
+                                val eventId = runCatching { container.ruleFires.eventIdFor(fire.itemId) }.getOrNull()
+                                fireDestination(fire.source, fire.title, eventId)?.let(onNavigate)
+                            }
+                        }
                     }
                     if (canLoadMore) {
                         item(key = "more-$id") {
@@ -227,11 +240,15 @@ private fun MoreRow(
 }
 
 @Composable
-private fun FireRow(fire: RuleFire) {
+private fun FireRow(
+    fire: RuleFire,
+    onOpen: () -> Unit = {},
+) {
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onOpen)
                 .padding(horizontal = 8.dp, vertical = 5.dp),
     ) {
         // The item's time, not the match's: a backfilled fire is written now while

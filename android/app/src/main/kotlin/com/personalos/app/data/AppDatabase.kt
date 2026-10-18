@@ -10,9 +10,9 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 
 @Database(
-    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class, ConversationEntity::class],
+    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class, ConversationEntity::class, CategoryEntity::class, CategoryRuleEntity::class],
     views = [ItemTagCurrent::class],
-    version = 20,
+    version = 21,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -47,6 +47,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun messageSearchDao(): MessageSearchDao
 
     abstract fun conversationDao(): ConversationDao
+
+    abstract fun categoryDao(): CategoryDao
+
+    abstract fun categoryBackfillDao(): CategoryBackfillDao
 
     abstract fun itemFieldDao(): ItemFieldDao
 

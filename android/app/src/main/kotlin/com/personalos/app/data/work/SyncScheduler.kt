@@ -47,14 +47,17 @@ object SyncScheduler {
     private const val PARTY_UNIQUE_NAME = "party-sync"
     private const val SMS_UNIQUE_NAME = "sms-sync"
     private const val PARTY_MANUAL_NAME = "party-resync-now"
-    internal const val BACKFILL_UNIQUE_NAME = "launch-backfill"
+    const val BACKFILL_UNIQUE_NAME = "launch-backfill"
 
     /** Tags every backfill unit (core + one per family) so status can list them all. */
     internal const val BACKFILL_TAG = "backfill"
 
     /** The single retag dispatcher job (replaces one worker per family). */
     private const val RETAG_DISPATCH_NAME = "retag-dispatch"
-    private const val RULE_BACKFILL_PREFIX = "rule-backfill:"
+    const val RULE_BACKFILL_PREFIX = "rule-backfill:"
+
+    /** The group every per-rule backfill row collapses into on the status screen. */
+    const val RULE_BACKFILL_GROUP = "rule-backfill"
     private const val BACKOFF_MINUTES = 15L
 
     /** Between chained re-tag runs: short, so a family keeps advancing chunk by chunk. */
@@ -62,6 +65,38 @@ object SyncScheduler {
 
     /** Party lists change per election cycle, not per hour: yearly is plenty. */
     const val PARTY_INTERVAL_DAYS = 365L
+
+    /**
+     * Every statically scheduled job, as status-screen specs. The single
+     * owner of "which background workers exist": the status screen renders
+     * this list, so scheduling a new worker surfaces it with no screen edit.
+     */
+    fun scheduledJobs(): List<WorkerJobSpec> =
+        listOf(
+            WorkerJobSpec(FEED_UNIQUE_NAME, "Feed sync", countKey = FeedSyncWorker.KEY_ADDED, singular = "item", plural = "items"),
+            WorkerJobSpec(SMS_UNIQUE_NAME, "SMS sync", countKey = SmsSyncWorker.KEY_ADDED, singular = "message", plural = "messages"),
+            WorkerJobSpec(ENRICH_UNIQUE_NAME, "Enrichment", countKey = EnrichWorker.KEY_ENRICHED, singular = "summary", plural = "summaries"),
+            WorkerJobSpec(PARTY_UNIQUE_NAME, "Party lists", countKey = PartySyncWorker.KEY_COUNTRIES, singular = "country", plural = "countries"),
+            WorkerJobSpec(BACKFILL_UNIQUE_NAME, "Launch backfill"),
+            WorkerJobSpec(RETAG_DISPATCH_NAME, "Retag"),
+        )
+
+    /** The unique-work name for one rule's backfill. */
+    fun ruleBackfillName(ruleId: String): String = "$RULE_BACKFILL_PREFIX$ruleId"
+
+    /**
+     * One rule's backfill as a status-screen spec. Same group for every
+     * rule, so the screen collapses them into a single "Rule backfill" row.
+     */
+    fun ruleBackfillSpec(ruleId: String): WorkerJobSpec =
+        WorkerJobSpec(
+            uniqueName = ruleBackfillName(ruleId),
+            label = "Rule backfill",
+            group = RULE_BACKFILL_GROUP,
+            countKey = RuleBackfillWorker.KEY_MATCHES,
+            singular = "match",
+            plural = "matches",
+        )
 
     fun schedule(
         context: Context,
@@ -252,7 +287,7 @@ object SyncScheduler {
         WorkManager
             .getInstance(context)
             .enqueueUniqueWork(
-                "$RULE_BACKFILL_PREFIX$ruleId",
+                ruleBackfillName(ruleId),
                 ExistingWorkPolicy.REPLACE,
                 request,
             )

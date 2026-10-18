@@ -2,17 +2,14 @@ package com.personalos.app.ui.messages
 
 import com.personalos.app.data.Conversation
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * The conversations list's decisions, kept out of the composable so they can be
  * tested without rendering — the same split as [MessagesTab] and `WatchersModel`.
  *
- * The two sections have deliberately different orderings. Recent is recency
- * (pinned, then newest message); All is alphabetical by **sender**, because that
- * order does not move under writes and so can carry a keyset cursor.
+ * There is one ordering — recency of the last message — shared by both views;
+ * only the day grouping differs, and that is a layout decision the screen makes.
  */
 class ConversationsModelTest {
     private fun conversation(
@@ -39,58 +36,25 @@ class ConversationsModelTest {
     )
 
     @Test
-    fun `sections order recent by recency and all by sender`() {
-        val conversations =
-            listOf(
-                conversation("Charlie", lastMessageId = 1),
-                conversation("Alpha", lastMessageId = 2),
-                conversation("Bravo", lastMessageId = 3),
-            )
+    fun `the timeline orders by newest last message first`() {
+        val old = conversation("Alpha", lastMessageId = 1, lastAt = 100)
+        val newest = conversation("Bravo", lastMessageId = 3, lastAt = 300)
+        val middle = conversation("Charlie", lastMessageId = 2, lastAt = 200)
 
-        val sections = conversationSections(recent = conversations, all = conversations, recentLimit = 2)
+        val ordered = conversationTimeline(listOf(old, newest, middle))
 
-        // Recent: newest message first, bounded to the limit.
-        assertEquals(listOf("Bravo", "Alpha"), sections.recent.map { it.sender })
-        // All: A -> Z, complete.
-        assertEquals(listOf("Alpha", "Bravo", "Charlie"), sections.all.map { it.sender })
+        // One row per sender, recency of the last message, not message id order.
+        assertEquals(listOf("Bravo", "Charlie", "Alpha"), ordered.map { it.sender })
     }
 
     @Test
-    fun `a pinned conversation leads both sections`() {
-        val conversations =
-            listOf(
-                conversation("Alpha", lastMessageId = 9),
-                conversation("Zulu", lastMessageId = 1, pinned = 1),
-            )
+    fun `the timeline breaks a lastAt tie by sender`() {
+        val bravo = conversation("Bravo", lastMessageId = 1, lastAt = 500)
+        val alpha = conversation("Alpha", lastMessageId = 2, lastAt = 500)
 
-        val sections = conversationSections(conversations, conversations, recentLimit = 2)
-
-        assertEquals(listOf("Zulu", "Alpha"), sections.recent.map { it.sender })
-        assertEquals(listOf("Zulu", "Alpha"), sections.all.map { it.sender })
-    }
-
-    @Test
-    fun `a tab filters by the box that has messages`() {
-        val alert = conversation("A", 1, inboxCount = 1, sentCount = 0, otherCount = 0)
-        val digest = conversation("B", 2, inboxCount = 0, sentCount = 1, otherCount = 0)
-        val muted = conversation("C", 3, inboxCount = 0, sentCount = 0, otherCount = 2)
-
-        assertTrue(conversationMatchesMode(alert, "all"))
-        assertTrue(conversationMatchesMode(digest, "all"))
-        assertTrue(conversationMatchesMode(alert, "inbox"))
-        assertFalse("a sent-only conversation is not in Alerts", conversationMatchesMode(digest, "inbox"))
-        assertTrue(conversationMatchesMode(digest, "sent"))
-        assertFalse(conversationMatchesMode(alert, "sent"))
-        assertTrue(conversationMatchesMode(muted, "other"))
-        assertFalse(conversationMatchesMode(muted, "inbox"))
-    }
-
-    @Test
-    fun `the cursor is a strict sender comparison`() {
-        assertTrue("a null cursor starts the walk", conversationAfterCursor("Alpha", null))
-        assertTrue(conversationAfterCursor("Bravo", "Alpha"))
-        assertFalse("the cursor row itself is not returned again", conversationAfterCursor("Alpha", "Alpha"))
-        assertFalse(conversationAfterCursor("Aardvark", "Alpha"))
+        // The keyset pages on (lastAt, sender), so the sort must tie-break the
+        // same way or a page boundary could skip a row.
+        assertEquals(listOf("Alpha", "Bravo"), conversationTimeline(listOf(bravo, alpha)).map { it.sender })
     }
 
     @Test

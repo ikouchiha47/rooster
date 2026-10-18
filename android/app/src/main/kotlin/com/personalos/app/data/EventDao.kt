@@ -62,8 +62,8 @@ interface EventDao {
     suspend fun deleteAll()
 
     // ------------------------------------------------------------- radar feed
-    // The unified stream, filtered by event category (SmsClass name for SMS).
-    // Cursor paging, same as Messages.
+    // The unified stream, filtered by event category (a categorizer id for SMS,
+    // a feed category for other sources). Cursor paging, same as Messages.
 
     @Query(Sql.EVENTS_COUNT_BY_CATEGORY)
     fun observeCountByCategory(category: String?): Flow<Int>

@@ -1,0 +1,31 @@
+{
+  "seed": 20261013,
+  "test_fraction": 0.2,
+  "rows": {
+    "train": 2103,
+    "test": 591
+  },
+  "senders": {
+    "train": 602,
+    "test": 152
+  },
+  "train_label_dist": {
+    "promotions": 941,
+    "transactional": 696,
+    "unknown": 143,
+    "government": 127,
+    "purchases": 127,
+    "personal": 57,
+    "spam": 12
+  },
+  "test_label_dist": {
+    "promotions": 258,
+    "transactional": 195,
+    "unknown": 93,
+    "purchases": 24,
+    "government": 12,
+    "personal": 6,
+    "spam": 3
+  },
+  "note": "labels are the CURRENT categorizer output until reviewed; re-split after review."
+}

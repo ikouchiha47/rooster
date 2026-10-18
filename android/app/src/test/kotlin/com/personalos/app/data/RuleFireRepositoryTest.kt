@@ -1,6 +1,7 @@
 package com.personalos.app.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -62,6 +63,47 @@ class RuleFireRepositoryTest {
         }
 
         override suspend fun countForRule(ruleId: String): Int = fires[ruleId].orEmpty().size
+
+        /**
+         * Models the real cross-rule query: one row per matched event, the rules
+         * folded into `rule_ids`, ordered by `(event ts desc, event id desc)`.
+         */
+        override suspend fun alertsPage(
+            cursorTs: Long?,
+            cursorId: Long,
+            limit: Int,
+        ): List<AlertCandidate> =
+            fires
+                .values
+                .flatten()
+                .filter { events.containsKey(it.itemId) }
+                .groupBy { it.itemId }
+                .mapNotNull { (itemId, rows) ->
+                    val event = events[itemId] ?: return@mapNotNull null
+                    AlertCandidate(
+                        itemId = itemId,
+                        eventId = event.id,
+                        matchedAt = rows.minOf { it.matchedAt },
+                        itemTimestamp = event.timestamp,
+                        ruleIds = rows.joinToString(",") { it.ruleId },
+                    )
+                }.sortedWith(
+                    compareByDescending<AlertCandidate> { it.itemTimestamp }
+                        .thenByDescending { it.eventId },
+                ).filter { candidate ->
+                    cursorTs == null ||
+                        candidate.itemTimestamp < cursorTs ||
+                        (candidate.itemTimestamp == cursorTs && candidate.eventId < cursorId)
+                }.take(limit)
+
+        override fun observeAlertCount(): Flow<Int> =
+            flowOf(
+                fires.values
+                    .flatten()
+                    .map { it.itemId }
+                    .distinct()
+                    .size,
+            )
 
         /** Models the real keyset: by the item's time desc, id desc, older than the cursor. */
         override suspend fun firesForRulePage(
@@ -357,5 +399,89 @@ class RuleFireRepositoryTest {
             val third = repo.forRulePage("hot", second.nextTs!!, second.nextId!!, limit = 2)
             assertEquals(listOf("obs-1"), third.fires.map { it.itemId })
             assertTrue("the last page is not the first", !third.hasMore)
+        }
+
+    @Test
+    fun `alerts names every rule that matched an event, newest event first`() =
+        runBlocking {
+            val (repo, _) =
+                repository(
+                    rules = listOf(rule("hot", "Hot day"), rule("cold", "Cold day")),
+                    fires =
+                        mapOf(
+                            "hot" to
+                                listOf(
+                                    ItemRuleEntity("obs-1", "hot", 500L),
+                                    ItemRuleEntity("obs-2", "hot", 600L),
+                                ),
+                            "cold" to listOf(ItemRuleEntity("obs-1", "cold", 501L)),
+                        ),
+                    events =
+                        mapOf(
+                            "obs-1" to event("obs-1").copy(id = 1, timestamp = 100L),
+                            "obs-2" to event("obs-2").copy(id = 2, timestamp = 200L),
+                        ),
+                    fields =
+                        mapOf(
+                            "obs-1" to listOf(ItemFieldEntity("obs-1", "temp_c", valueNum = 40.2)),
+                            "obs-2" to listOf(ItemFieldEntity("obs-2", "temp_c", valueNum = 41.0)),
+                        ),
+                )
+            val alerts = repo.alerts(cursorTs = null, cursorId = 0L).alerts
+            assertEquals("one row per event, new event first", listOf("obs-2", "obs-1"), alerts.map { it.itemId })
+            assertEquals(
+                "both rules ride on the one event, ordered by name so the row is stable",
+                listOf("Cold day", "Hot day"),
+                alerts[1].rules.map { it.name },
+            )
+            assertEquals(
+                "each rule carries the clause that held",
+                listOf("temp_c 40.2 > 40"),
+                alerts[1]
+                    .rules
+                    .first()
+                    .clauses
+                    .map { it.summary },
+            )
+        }
+
+    @Test
+    fun `alerts walks by cursor without skipping or duplicating`() =
+        runBlocking {
+            val events = (1..5).associate { "obs-$it" to event("obs-$it").copy(id = it.toLong(), timestamp = it.toLong()) }
+            val fires = mapOf("hot" to (1..5).map { ItemRuleEntity("obs-$it", "hot", 500L + it) })
+            val (repo, _) = repository(rules = listOf(rule("hot", "Hot day")), fires = fires, events = events)
+
+            val first = repo.alerts(cursorTs = null, cursorId = 0L, limit = 2)
+            assertEquals(listOf("obs-5", "obs-4"), first.alerts.map { it.itemId })
+            assertTrue(first.hasMore)
+
+            val second = repo.alerts(first.nextTs!!, first.nextId!!, limit = 2)
+            assertEquals(listOf("obs-3", "obs-2"), second.alerts.map { it.itemId })
+            assertTrue(second.hasMore)
+
+            val third = repo.alerts(second.nextTs!!, second.nextId!!, limit = 2)
+            assertEquals(listOf("obs-1"), third.alerts.map { it.itemId })
+            assertTrue(!third.hasMore)
+        }
+
+    @Test
+    fun `the alert count is matched events, not fires`() =
+        runBlocking {
+            val (repo, _) =
+                repository(
+                    rules = listOf(rule("hot", "Hot day"), rule("cold", "Cold day")),
+                    fires =
+                        mapOf(
+                            "hot" to listOf(ItemRuleEntity("obs-1", "hot", 500L), ItemRuleEntity("obs-2", "hot", 600L)),
+                            "cold" to listOf(ItemRuleEntity("obs-1", "cold", 501L)),
+                        ),
+                    events =
+                        mapOf(
+                            "obs-1" to event("obs-1").copy(id = 1),
+                            "obs-2" to event("obs-2").copy(id = 2),
+                        ),
+                )
+            assertEquals("two events, three fires", 2, repo.observeAlertCount().first())
         }
 }

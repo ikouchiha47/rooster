@@ -30,7 +30,7 @@ class PartySyncWorker(
                 },
                 onFailure = { error ->
                     Log.w(TAG, "scheduled party sync failed (attempt $runAttemptCount)", error)
-                    if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
+                    if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure(workDataOf(KEY_ERROR to failureKindName(error)))
                 },
             )
     }

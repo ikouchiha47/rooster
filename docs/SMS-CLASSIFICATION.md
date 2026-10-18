@@ -107,3 +107,61 @@ Constrained JSON, one object per SMS:
 - Report **per-class precision/recall**, not just accuracy - `PROMOTIONAL` and
   `SPAM_FRAUD` are the classes where errors are most costly to the user.
 - Re-run the eval whenever rules or model change.
+
+## 8. Decision (2026-10-16): BoW ships, MiniLM is the reference
+
+Setup: `eval/train.jsonl` / `eval/test.jsonl`, sender-grouped so train and test
+share no sender, `unknown` held out as the abstain bucket. BoW from
+`eval/tiny_text.py` (log: `eval/tiny_text.2026-10-16.log`); transformers from
+`eval/tiny_transformer.py` (3 epochs, lr 2e-5; log:
+`eval/tiny_transformer.2026-10-16.log`).
+
+| Approach | Test acc | int8 size | Verdict |
+|---|---|---|---|
+| BoW linear (word uni+bigrams, margin tau=0.3) | 0.914 | 0.12 MB | **ships** |
+| MiniLM-L6 fine-tuned | 0.906 | 22.7 MB | reference ceiling, not shipped |
+| Rules-only | 0.882 | 0 | first rung, always on |
+| TinyBERT-4L fine-tuned | 0.876 | 14.4 MB | rejected (below rules) |
+| Frozen EmbeddingGemma head | ~0.83 | +300 MB model | rejected (budget) |
+| bert-tiny fine-tuned | 0.819 | 4.4 MB | rejected |
+
+Caveat: 123/591 test rows (20.8%) are normalised-duplicate bodies of train rows,
+which BoW memorises. On the leakage-free subset (n=468): linear tau=0.3 0.895,
+rules-only 0.855, rules + linear-on-unknown 0.874. Ranking is unchanged, so the
+decision stands; the transformer numbers above are on the 498-row
+unknown-held-out cut, not the leakage-free subset.
+
+**Why BoW ships:** highest accuracy at ~1/45th the bytes of the nearest
+neural rival. One weight matrix + softmax is a dozen lines of Kotlin, trivially
+int8, and the abstain margin reads straight off a calibrated softmax.
+
+**Why MiniLM stays:** best neural result and the architecture that *should* win
+once data allows (context disambiguates what counts cannot - e.g. strike-sense).
+At 22.7 MB it fits the tens-of-MB budget on paper, but -0.008 acc for ~190x the
+bytes is not a trade today. Revisit after the teacher-labelled pools land.
+
+**Key finding across all three transformers:** minority classes collapse
+(personal / purchases / spam all 0.0 P/R; government weak). They win the two fat
+classes and punt the rest, while BoW holds the tail up. That is a data-quantity
+story, not architecture - 3 epochs over 1960 rows cannot teach rare classes to
+a 4-23M-param model. Next fuel, in order: `eval/sms_pool.jsonl` (517 fresh
+device SMS, teacher-labelled then concatenated) and the Gmail pool.
+
+**Rejected without a run, and why:**
+- LSTM: size-table reference only (`tiny_text.py` CONTEXT footer, ~1.4 MB int8
+  for V=10k,d=128,h=128). A 1.4 MB recurrent model against a smaller linear one
+  at ~0.914 is a tough sell; no experiment warranted.
+- nanoGPT: wrong shape. "Nano" is the code, not the model (default build 124M
+  params); a decoder-only LM needs far more text than 2.6K SMS to beat BoW and
+  would classify autoregressively on-device.
+- XGBoost: wrong tool for sparse text (trees split one feature at a time; ~10K
+  sparse dims combine only linearly). Legitimate only for dense meta-features
+  (sender-kind, length, digit runs) - unmeasured, offer stands.
+
+**Harness note:** `prajjwal1/bert-tiny` no longer loads via `AutoModel` on
+transformers 5.x; `eval/tiny_transformer.py` now falls back to the explicit
+`BertForSequenceClassification` (`model_for`, mirroring `tokenizer_for`).
+
+**Open drift:** the evals above use the 7-class message taxonomy
+(`personal/transactional/promotions/purchases/government/spam/unknown`), not the
+8-class table in §2. Reconciling the two taxonomies is still open.

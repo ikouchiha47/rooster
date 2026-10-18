@@ -1,5 +1,7 @@
 package com.personalos.app.data
 
+import com.personalos.app.core.tag.EmbedText
+
 /**
  * Every SQL statement in one place, so DAOs declare no inline SQL and the whole
  * query surface can be reviewed, indexed, and tuned as a unit.
@@ -211,7 +213,7 @@ object Sql {
      */
     const val EVENTS_AFTER_ID =
         """
-        SELECT id AS rowId, ulid, source, category, title, content
+        SELECT id AS rowId, ulid, source, category, title, content, url, enriched_at AS enrichedAt
         FROM events
         WHERE id > :afterId
         ORDER BY id ASC
@@ -228,7 +230,7 @@ object Sql {
      */
     const val EVENTS_BEFORE_ID =
         """
-        SELECT id AS rowId, ulid, source, category, title, content
+        SELECT id AS rowId, ulid, source, category, title, content, url, enriched_at AS enrichedAt
         FROM events
         WHERE id < :beforeId
           AND (:prefix IS NULL OR source LIKE :prefix || '%')
@@ -242,6 +244,34 @@ object Sql {
         SELECT MAX(id) FROM events
         WHERE (:prefix IS NULL OR source LIKE :prefix || '%')
         """
+
+    /**
+     * The deferred-tag queue: items whose body was still pending when the walk
+     * reached them, so they were not tagged on a possibly-stale headline.
+     *
+     * "Ready" is the negation of the pending shape ([EmbedText.stateOf]): a body at
+     * or above the floor, or an attempted enrichment, or a row that cannot be
+     * enriched at all (no URL). The floor is interpolated from the one owner so the
+     * queue and the tagger can never disagree on what "has no body" means.
+     */
+    const val DEFERRED_TAGS_READY =
+        """
+        SELECT e.id AS rowId, e.ulid, e.source, e.category, e.title, e.content,
+               e.url AS url, e.enriched_at AS enrichedAt
+        FROM deferred_tags d
+        JOIN events e ON e.ulid = d.item_id
+        WHERE NOT (
+            LENGTH(TRIM(e.content)) < ${EmbedText.USEFULLY_EMPTY_CHARS}
+            AND e.enriched_at IS NULL
+            AND e.url IS NOT NULL
+        )
+        ORDER BY e.id DESC
+        LIMIT :limit
+        """
+
+    const val DEFERRED_TAGS_COUNT = "SELECT COUNT(*) FROM deferred_tags"
+
+    const val DEFERRED_TAGS_REMOVE = "DELETE FROM deferred_tags WHERE item_id IN (:itemIds)"
 
     /**
      * Bounded candidate read for an authoring dry-run preview (ADR 0003 §12).
@@ -304,7 +334,7 @@ object Sql {
         WHERE url IS NOT NULL
           AND type != 'observation'
           AND enriched_at IS NULL
-          AND LENGTH(TRIM(content)) < 40
+          AND LENGTH(TRIM(content)) < ${EmbedText.USEFULLY_EMPTY_CHARS}
         ORDER BY timestamp ASC, id ASC
         LIMIT :limit
         """
@@ -556,15 +586,44 @@ object Sql {
         LIMIT :limit
         """
 
-    /** The tab badge while conversations are shown: conversations in that box. */
-    const val CONVERSATIONS_COUNT_BY_MODE =
+    /**
+     * Per-category conversation counts, for the tab strips. The category is the
+     * one of each conversation's **latest message** — the same join and the same
+     * rule the Timeline uses, so a tab's badge and its list cannot disagree.
+     * Alerts has no entry here (there are no rules yet); the UI reads it as 0.
+     */
+    const val CONVERSATIONS_COUNTS_BY_CATEGORY =
         """
-        SELECT COUNT(*) FROM conversations
-        WHERE source = 'sms'
-          AND (:mode = 'all'
-               OR (:mode = 'inbox' AND inbox_count > 0)
-               OR (:mode = 'sent'  AND sent_count > 0)
-               OR (:mode = 'other' AND other_count > 0))
+        SELECT e.category AS category, COUNT(*) AS count
+        FROM conversations c
+        JOIN events e ON e.id = c.last_message_id
+        WHERE c.source = 'sms'
+        GROUP BY e.category
+        """
+
+    /**
+     * The Timeline: every conversation whose **latest message** is [categoryId],
+     * newest last-message first, one row per sender. A conversation appears under
+     * exactly one tab, because it has exactly one latest message.
+     *
+     * The category filter joins `events` on `last_message_id`; the cursor is the
+     * `(lastAt, sender)` keyset of the previous page: `last_at` is the display
+     * order and `sender` is the tiebreak that keeps the boundary exact when two
+     * conversations share a millisecond — the primary key makes `sender` unique,
+     * exactly like the thread's `(timestamp, id)`.
+     */
+    const val CONVERSATIONS_TIMELINE =
+        """
+        SELECT c.*, e.content AS last_content
+        FROM conversations c
+        JOIN events e ON e.id = c.last_message_id
+        WHERE c.source = 'sms'
+          AND e.category = :categoryId
+          AND (:cursorAt IS NULL
+               OR c.last_at < :cursorAt
+               OR (c.last_at = :cursorAt AND c.sender > :cursorSender))
+        ORDER BY c.last_at DESC, c.sender ASC
+        LIMIT :limit
         """
 
     /**
@@ -666,6 +725,48 @@ object Sql {
 
     /** A rule's total fire count, so a section can say how many it is not showing. */
     const val ITEM_RULES_COUNT_FOR_RULE = "SELECT COUNT(*) FROM item_rules WHERE rule_id = :ruleId"
+
+    /**
+     * The cross-rule Alerts read: every stored match, newest **event** first, not
+     * scoped to one rule (cf. [ITEM_RULES_FOR_RULE]). One row per matched event —
+     * `GROUP_CONCAT` folds the rules that matched it into a single column, so a
+     * page is a page of **events** and the Alerts badge counts events, not fires.
+     *
+     * Deliberately **not** scoped `source = 'sms'` like the rest of Messages: an
+     * alert is about an item, whatever channel it arrived on (docs/plans/
+     * categorization.md — Alerts is a view over matches, cross-source).
+     *
+     * Keyset-paged on `(events.timestamp, events.id)`, the same total order the
+     * thread and timeline use, so pages cannot skip or duplicate as matches are
+     * written. `:cursorTs` null starts the walk. `LIMIT` is always supplied.
+     */
+    const val ITEM_RULES_ALERTS_PAGE =
+        """
+        SELECT ir.item_id AS item_id,
+               e.id AS event_id,
+               MIN(ir.matched_at) AS matched_at,
+               e.timestamp AS item_timestamp,
+               GROUP_CONCAT(ir.rule_id) AS rule_ids
+        FROM item_rules ir
+        JOIN events e ON e.ulid = ir.item_id
+        WHERE (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND e.id < :cursorId))
+        GROUP BY ir.item_id
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
+        """
+
+    /**
+     * The Alerts badge: matched **events**, the same grain [ITEM_RULES_ALERTS_PAGE]
+     * lists, so the count and the list cannot disagree about how many there are.
+     */
+    const val ITEM_RULES_ALERTS_COUNT =
+        """
+        SELECT COUNT(DISTINCT ir.item_id)
+        FROM item_rules ir
+        JOIN events e ON e.ulid = ir.item_id
+        """
 
     /** Every item's stored facts at once, so one fire batch costs one read per table. */
     const val EVENTS_BY_ULIDS = "SELECT * FROM events WHERE ulid IN (:ulids)"

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.personalos.app.core.AppContainer
 
 /**
@@ -21,14 +22,17 @@ class RuleBackfillWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val ruleId = inputData.getString(KEY_RULE_ID) ?: return Result.failure()
+        // No setProgress here: the walk knows scanned-of-window (5000), not
+        // scanned-of-what-exists, so a bar would misread. The match count it
+        // returns is exact, and that is what the status row shows.
+        val ruleId = inputData.getString(KEY_RULE_ID) ?: return Result.failure(workDataOf(KEY_ERROR to "unknown rule"))
         val generation = inputData.getLong(KEY_GENERATION, 0L)
         val container = AppContainer(applicationContext)
         return runCatching { container.ruleBackfill.run(ruleId, generation) }
             .fold(
                 onSuccess = { wrote ->
                     Log.i(TAG, "rule backfill $ruleId: +$wrote matches (generation=$generation)")
-                    Result.success()
+                    Result.success(workDataOf(KEY_MATCHES to wrote))
                 },
                 onFailure = { failure ->
                     Log.w(TAG, "rule backfill failed for $ruleId; will retry", failure)
@@ -41,5 +45,6 @@ class RuleBackfillWorker(
         const val TAG = "RuleBackfillWorker"
         const val KEY_RULE_ID = "ruleId"
         const val KEY_GENERATION = "generation"
+        const val KEY_MATCHES = "matches"
     }
 }

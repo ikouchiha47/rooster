@@ -1,5 +1,7 @@
 package com.personalos.app.data
 
+import com.personalos.app.core.category.Categorizer
+import com.personalos.app.core.category.CategoryTaxonomyJson
 import com.personalos.app.core.mention.ListPartySource
 import com.personalos.app.core.tag.TagInput
 import com.personalos.app.core.tag.TagResult
@@ -11,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /**
  * The poll path, exercised against a plain list: a poll ingests exactly the
@@ -19,6 +22,9 @@ import org.junit.Test
  * the inbox).
  */
 class SmsSourceTest {
+    private val taxonomy =
+        CategoryTaxonomyJson.parse(File("src/main/assets/category/categorization.v1.json").readText())
+
     private class FakeSmsReader(
         var messages: List<SmsMessage>,
         private val accessible: Boolean = true,
@@ -322,6 +328,7 @@ class SmsSourceTest {
                     FakeMentionDao(),
                     FakeItemFieldDao(),
                 ),
+            categorizer = { Categorizer(taxonomy) },
         )
 
     /** The bank-strike SMS from the device, against the rule that was seeded for it. */
@@ -439,5 +446,26 @@ class SmsSourceTest {
     @Test
     fun `the observer and the worker share the one SmsIngest entry point`() {
         assertTrue(SmsIngest::class.java.isAssignableFrom(SmsSource::class.java))
+    }
+
+    @Test
+    fun `an ingested message carries the categorizer's new category id`() {
+        val events = FakeEventDao()
+        val reader =
+            FakeSmsReader(
+                listOf(
+                    SmsMessage(
+                        id = 1,
+                        address = "VM-BANKIN-S",
+                        body = "482910 is your OTP. Do not share it with anyone.",
+                        date = 1_700_000_000_000L,
+                        type = 1,
+                    ),
+                ),
+            )
+
+        runBlocking { source(reader, events = events).ingestNewMessages() }
+
+        assertEquals("transactional", events.rows.single().category)
     }
 }

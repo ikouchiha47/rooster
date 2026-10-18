@@ -36,8 +36,8 @@ data class EventEntity(
     @ColumnInfo(name = "dedupe_key") val dedupeKey: String,
     @ColumnInfo(name = "source") val source: String,
     @ColumnInfo(name = "type") val type: String,
-    /** SmsClass name for SMS; other sources fill in their own categories. */
-    @ColumnInfo(name = "category") val category: String = "UNKNOWN",
+    /** Categorizer category id for SMS (`transactional`, ...); other sources fill in their own. */
+    @ColumnInfo(name = "category") val category: String = "unknown",
     @ColumnInfo(name = "timestamp") val timestamp: Long,
     @ColumnInfo(name = "title") val title: String,
     @ColumnInfo(name = "content") val content: String,

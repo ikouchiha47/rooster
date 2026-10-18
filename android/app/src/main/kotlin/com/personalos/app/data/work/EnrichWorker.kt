@@ -20,17 +20,25 @@ class EnrichWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val container = AppContainer(applicationContext)
-        return runCatching { container.enricher.enrichBatch() }
-            .fold(
-                onSuccess = { enriched ->
-                    Log.i(TAG, "scheduled enrichment: +$enriched summaries")
-                    Result.success(workDataOf(KEY_ENRICHED to enriched))
-                },
-                onFailure = { error ->
-                    Log.w(TAG, "enrichment batch failed (attempt $runAttemptCount)", error)
-                    if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
+        return runCatching {
+            container.enricher.enrichBatch(
+                // The candidates list is the exact denominator, so this is a
+                // real fraction. Only here: the other workers know
+                // done-or-not, which reads as state with no bar.
+                onProgress = { done, total ->
+                    setProgress(workDataOf(KEY_PROGRESS_DONE to done, KEY_PROGRESS_TOTAL to total))
                 },
             )
+        }.fold(
+            onSuccess = { enriched ->
+                Log.i(TAG, "scheduled enrichment: +$enriched summaries")
+                Result.success(workDataOf(KEY_ENRICHED to enriched))
+            },
+            onFailure = { error ->
+                Log.w(TAG, "enrichment batch failed (attempt $runAttemptCount)", error)
+                if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure(workDataOf(KEY_ERROR to failureKindName(error)))
+            },
+        )
     }
 
     companion object {

@@ -18,27 +18,22 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface ConversationDao {
-    /** Recent: bounded, recency-ordered, never paged. */
-    @Query(Sql.CONVERSATIONS_RECENT)
-    suspend fun recent(
-        mode: String,
-        limit: Int,
-    ): List<ConversationWithLast>
+    /** Per-category conversation counts, for the tab strip badges. */
+    @Query(Sql.CONVERSATIONS_COUNTS_BY_CATEGORY)
+    fun observeCountsByCategory(): Flow<List<CategoryCount>>
 
     /**
-     * All: alphabetically ordered by sender, keyset-paged on [cursor] (the last
-     * sender of the previous page). A null cursor starts the walk.
+     * The Timeline: recency-ordered conversations whose latest message carries
+     * [categoryId], one row per sender, keyset-paged on `(lastAt, sender)`. A
+     * null cursor starts the walk.
      */
-    @Query(Sql.CONVERSATIONS_ALL)
-    suspend fun all(
-        mode: String,
-        cursor: String?,
+    @Query(Sql.CONVERSATIONS_TIMELINE)
+    suspend fun timeline(
+        categoryId: String,
+        cursorAt: Long?,
+        cursorSender: String?,
         limit: Int,
     ): List<ConversationWithLast>
-
-    /** The tab badge while conversations are shown. */
-    @Query(Sql.CONVERSATIONS_COUNT_BY_MODE)
-    fun observeCountByMode(mode: String): Flow<Int>
 
     /** One sender's messages, newest first, keyset-paged on `(timestamp, id)`. */
     @Query(Sql.EVENTS_THREAD_PAGE)

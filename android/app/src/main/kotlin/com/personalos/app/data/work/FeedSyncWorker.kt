@@ -30,7 +30,9 @@ class FeedSyncWorker(
                 onFailure = { error ->
                     Log.w(TAG, "scheduled sync failed (attempt $runAttemptCount)", error)
                     // Transient network failures are worth retrying; give up after a few.
-                    if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
+                    // The recorded kind is the exception kind only, so the
+                    // status row can name the failure without storing a message.
+                    if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure(workDataOf(KEY_ERROR to failureKindName(error)))
                 },
             )
     }

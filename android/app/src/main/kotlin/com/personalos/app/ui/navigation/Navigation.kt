@@ -249,7 +249,12 @@ fun AppNavHost(
             )
         }
         composable("sources") { OverviewScreen() }
-        composable("watchers") { WatchersScreen(onBack = backOrNull(navController)) }
+        composable("watchers") {
+            WatchersScreen(
+                onBack = backOrNull(navController),
+                onNavigate = { navigateToDetail(navController, it) },
+            )
+        }
         composable("calendar") { CalendarScreen(onBack = backOrNull(navController)) }
         composable("travel") {
             TravelScreen(

@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — Messaging</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --paper:#F7F4EC; --paper-2:#FAF8F2; --paper-3:#EFEADB; --paper-4:#E4DCC7;
+    --fresh:#FFFFF4;
+    --ink:#171513; --ink-2:#4A443C; --ink-3:#837B70;
+    --rule:#171513; --rule-soft:#CFC6B3; --rule-dot:#B8AE99;
+    --verm:#D93B2B; --indigo:#2B4C8C; --mustard:#E0A800; --teal:#1F8A70;
+    --chart:#A8C020; --peri:#6C7BD9; --plum:#7A2E5E; --cyan:#1B7A8C; --rust:#B4532A;
+    --serif:"Noto Serif","Hiragino Mincho ProN","Yu Mincho","Songti SC",Georgia,"Times New Roman",serif;
+    --display:"Noto Serif","Hiragino Mincho ProN","Yu Mincho",Georgia,"Times New Roman",serif;
+    --sans:"Noto Sans",-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans",Arial,sans-serif;
+    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --fs-micro:10px; --fs-tiny:11px; --fs-small:12px; --fs-body:13px; --fs-lead:14px; --fs-h4:15px; --fs-h3:17px;
+  }
+  body{font-family:var(--sans);font-size:var(--fs-body);line-height:1.35;color:var(--ink);background:#E3DFD5;}
+  button{font-family:inherit}
+  .viewer{min-height:100vh;padding:28px 18px 40px;display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;justify-content:center;}
+  .phone{width:390px;max-width:100%;}
+  .phone__frame{width:100%;padding:10px;background:#2B2724;border:1px solid var(--ink);border-radius:26px;}
+  .phone__screen{width:100%;height:1320px;border:1px solid var(--ink);border-radius:14px;overflow-y:auto;background:var(--paper-2);scrollbar-width:none;}
+  .phone__screen::-webkit-scrollbar{display:none}
+  .device{width:100%;max-width:430px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;background:var(--paper-2);position:relative;}
+  .phone__label{margin-top:9px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);}
+  .topchrome{position:sticky;top:0;z-index:8;background:var(--paper-2);}
+  .sysbar{display:flex;align-items:center;justify-content:space-between;height:24px;padding:0 10px;background:var(--paper-3);border-bottom:1px solid var(--rule);}
+  .sysbar__time{font-family:var(--mono);font-size:var(--fs-tiny);font-weight:700;font-variant-numeric:tabular-nums;}
+  .sysbar__icons{display:flex;align-items:center;gap:5px}
+  .sysbar__icons svg{width:15px;height:10px;fill:currentColor}
+  .sysbar__icons svg.batt{width:19px;height:10px}
+  .appbar{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 8px;border-bottom:3px solid var(--ink);background:var(--paper-2);}
+  .appmark{flex:0 0 auto;width:26px;height:26px;display:grid;place-content:center;background:var(--peri);color:#fff;border-radius:2px;font-family:var(--display);font-size:11px;font-weight:700;letter-spacing:.04em;}
+  .appbar__t{flex:1;min-width:0}
+  .appbar__title{font-family:var(--display);font-size:var(--fs-h3);font-weight:700;line-height:1.05;}
+  .appbar__sub{margin-top:1px;font-size:var(--fs-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);}
+  .appbar__actions{display:flex;align-items:center;gap:2px}
+  .iconbtn{width:30px;height:30px;display:grid;place-content:center;border:1px solid transparent;border-radius:2px;background:none;color:var(--ink);cursor:pointer;}
+  .ico{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7}
+  .ico--solid{fill:currentColor;stroke:none}
+  .sync{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 8px;border-bottom:1px solid var(--rule);background:var(--paper-3);font-size:var(--fs-micro);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);}
+  .sync__dot{display:inline-block;width:6px;height:6px;background:var(--teal);margin-right:4px;vertical-align:1px;}
+  .tabs{display:flex;overflow-x:auto;border-bottom:1px solid var(--rule);background:var(--paper-2);scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:1 0 auto;padding:6px 8px;font-size:var(--fs-small);font-weight:600;letter-spacing:.04em;color:var(--ink-2);background:none;border:0;border-right:1px solid var(--rule-soft);cursor:pointer;white-space:nowrap;text-align:center;}
+  .tab:last-child{border-right:0}
+  .tab .tab__n{margin-left:3px;font-size:var(--fs-micro);color:var(--ink-3);font-variant-numeric:tabular-nums;}
+  .tab.is-active{background:var(--ink);color:var(--paper-2);}
+  .tab.is-active .tab__n{color:var(--paper-4);}
+  .sec{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 0;border-bottom:1px solid var(--rule);border-top:1px solid var(--rule);background:var(--paper-4);}
+  .sec:first-of-type{border-top:0}
+  .sec__bar{width:4px;align-self:stretch;background:var(--accent,var(--ink));flex:0 0 auto;}
+  .sec__t{font-family:var(--display);font-size:var(--fs-h4);font-weight:700;letter-spacing:.02em;text-decoration:underline dotted;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--accent,currentColor);}
+  .sec__n{font-size:var(--fs-micro);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);}
+  .sec__sp{flex:1;border-top:2px dotted var(--rule-dot);min-width:12px;}
+  .sec--ink{background:var(--ink);color:var(--paper-2);}
+  .sec--ink .sec__n{color:var(--paper-4);}
+  /* message rows: 3px spine carries the CATEGORY colour; unread adds fresh tint + dot, never a second spine */
+  .msgrow{display:grid;grid-template-columns:52px 1fr;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--cat,var(--ink));background:var(--paper-2);cursor:pointer;}
+  .msgrow.is-unread{background:var(--fresh);}
+  .msgrow.is-hidden{display:none}
+  .msgrow__gut{padding:6px 5px 6px 4px;border-right:1px dotted var(--rule-dot);text-align:right;}
+  .msgrow__time{font-family:var(--mono);font-size:var(--fs-tiny);font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;}
+  .msgrow__date{margin-top:1px;font-family:var(--mono);font-size:9px;color:var(--ink-3);font-variant-numeric:tabular-nums;}
+  .msgrow__body{padding:6px 8px;min-width:0;}
+  .msgrow__top{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-bottom:2px;}
+  .msgrow__title{font-family:var(--serif);font-size:var(--fs-lead);font-weight:700;line-height:1.22;overflow-wrap:anywhere;}
+  .msgrow.is-unread .msgrow__title{font-weight:700;}
+  .msgrow:not(.is-unread) .msgrow__title{font-weight:400;}
+  .msgrow__preview{margin-top:1px;font-size:var(--fs-small);line-height:1.4;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .msgrow__meta{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:4px;padding-top:4px;border-top:1px dotted var(--rule-dot);font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.03em;}
+  .msgrow__meta b{color:var(--ink);font-variant-numeric:tabular-nums;}
+  .udot{display:inline-block;width:7px;height:7px;background:var(--verm);flex:0 0 auto;}
+  .chip{display:inline-block;padding:1px 5px;border-radius:2px;background:var(--ink);color:var(--paper-2);font-size:var(--fs-micro);font-weight:700;line-height:1.5;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;}
+  .chip--personal{background:var(--peri);}
+  .chip--txn{background:var(--teal);}
+  .chip--promo{background:var(--mustard);color:var(--ink);}
+  .chip--buy{background:var(--plum);}
+  .chip--unknown{background:transparent;color:var(--ink-2);border:1px dashed var(--ink-3);}
+  .chip--mute{background:var(--paper-4);color:var(--ink-2);}
+  .chip--sug{background:var(--mustard);color:var(--ink);}
+  .chip--conf{background:var(--teal);}
+  .org{display:inline-block;padding:0 4px;border:1px solid var(--rule-soft);border-radius:2px;background:var(--paper);color:var(--ink-2);font-size:var(--fs-micro);letter-spacing:.03em;white-space:nowrap;}
+  .createbar{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--rule);background:var(--paper-3);}
+  /* compact cross-category strip */
+  .minirow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:5px 8px;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--cat,var(--ink));background:var(--paper-2);}
+  .minirow__t{font-size:var(--fs-small);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .minirow__m{font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* thread */
+  .thandle{border-bottom:1px solid var(--rule);background:var(--paper-3);}
+  .thandle__row{display:flex;align-items:center;gap:8px;padding:6px 8px;}
+  .backbtn{flex:0 0 auto;border:1px solid var(--ink);border-radius:2px;background:var(--paper-2);font-size:11px;font-weight:700;padding:3px 7px;cursor:pointer;}
+  .thandle__name{font-family:var(--serif);font-size:var(--fs-h4);font-weight:700;line-height:1.2;}
+  .thandle__sub{font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.04em;font-variant-numeric:tabular-nums;}
+  .addbar{display:flex;align-items:center;gap:8px;padding:5px 8px;border-top:1px dashed var(--rule-dot);background:var(--paper-2);font-size:var(--fs-small);}
+  .addbar .num{font-family:var(--mono);font-size:var(--fs-tiny);font-weight:700;font-variant-numeric:tabular-nums;}
+  .daymark{display:flex;align-items:center;gap:8px;padding:3px 8px;background:var(--ink);color:var(--paper-2);font-size:var(--fs-micro);font-weight:700;letter-spacing:.18em;text-transform:uppercase;}
+  .daymark__sp{flex:1;height:1px;background:var(--ink-3);}
+  .thread{padding:8px;display:flex;flex-direction:column;gap:6px;}
+  .bub{max-width:82%;padding:5px 8px;border:1px solid var(--ink);border-radius:2px;font-size:var(--fs-small);line-height:1.45;}
+  .bub--in{align-self:flex-start;background:var(--paper-3);border-left:3px solid var(--peri);}
+  .bub--in.txn{border-left-color:var(--teal);}
+  .bub--in.unk{border-left-color:var(--ink-3);border-style:solid;background:var(--paper);}
+  .bub--out{align-self:flex-end;background:var(--ink);color:var(--paper-2);border-color:var(--ink);}
+  .bub__ts{margin-top:3px;font-family:var(--mono);font-size:9px;letter-spacing:.03em;color:var(--ink-3);font-variant-numeric:tabular-nums;}
+  .bub--out .bub__ts{color:var(--paper-4);}
+  .sysnote{margin:2px auto;padding:2px 8px;border:1px dotted var(--rule-dot);font-size:var(--fs-micro);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);text-align:center;}
+  /* composer: sticky, SMS protocol box + field + send */
+  .composer{position:sticky;bottom:0;z-index:7;margin-top:auto;border-top:1px solid var(--rule);background:var(--paper-3);padding:6px 8px;}
+  .composer__row{display:flex;gap:6px;align-items:stretch;}
+  .proto{flex:0 0 auto;display:flex;align-items:center;gap:3px;border:1px solid var(--ink);border-radius:2px;background:var(--paper-2);padding:0 6px;font-size:var(--fs-micro);font-weight:700;letter-spacing:.08em;cursor:pointer;}
+  .proto .caret{color:var(--ink-3);font-size:9px;}
+  .field{flex:1;min-width:0;border:1px solid var(--ink);border-radius:2px;background:var(--paper-2);padding:6px 8px;font-size:var(--fs-small);color:var(--ink-2);}
+  .btn{display:inline-block;padding:4px 8px;border:1px solid var(--ink);border-radius:2px;background:var(--paper-2);color:var(--ink);font-size:var(--fs-tiny);font-weight:700;letter-spacing:.08em;text-transform:uppercase;line-height:1.35;cursor:pointer;white-space:nowrap;}
+  .btn--solid{background:var(--ink);color:var(--paper-2);}
+  .btn--sm{padding:2px 5px;font-size:9px;letter-spacing:.06em;}
+  .composer__sub{display:flex;justify-content:space-between;margin-top:4px;font-size:var(--fs-micro);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);}
+  /* reminders */
+  .remrow{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-bottom:1px solid var(--rule-soft);border-left:3px solid var(--teal);background:var(--paper-2);}
+  .remrow.is-done .remrow__t{text-decoration:line-through;color:var(--ink-3);}
+  .remrow.is-over{border-left-color:var(--verm);}
+  .chk{flex:0 0 auto;width:14px;height:14px;border:1px solid var(--ink);border-radius:2px;background:var(--paper-2);display:grid;place-content:center;font-size:10px;font-weight:700;line-height:1;color:var(--paper-2);cursor:pointer;margin-top:1px;}
+  .chk.is-done{background:var(--ink);}
+  .remrow__t{font-size:var(--fs-small);font-weight:600;line-height:1.3;}
+  .remrow__m{margin-top:1px;font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.03em;font-variant-numeric:tabular-nums;}
+  .remrow__m b{color:var(--ink);}
+  .remrow__m .over{color:var(--verm);font-weight:700;}
+  .remrow__acts{margin-left:auto;display:flex;gap:4px;flex:0 0 auto;}
+  .bottomnav{position:sticky;bottom:0;z-index:8;margin-top:auto;display:grid;grid-template-columns:repeat(5,1fr);background:var(--paper-3);border-top:1px solid var(--rule);}
+  .composer + .bottomnav{position:static;}
+  .navitem{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px 5px;color:var(--ink-3);border-right:1px solid var(--rule-soft);text-decoration:none;}
+  .navitem:last-child{border-right:0}
+  .navitem__ind{position:absolute;top:0;left:0;right:0;height:3px;background:transparent;}
+  .navitem__l{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+  .navitem.is-current{color:var(--ink);background:var(--paper-2);}
+  .navitem.is-current .navitem__ind{background:var(--verm);}
+  .navitem .ico{width:19px;height:19px;}
+  .foot{padding:6px 8px 10px;border-top:1px solid var(--rule);background:var(--paper-3);font-size:var(--fs-micro);color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;}
+  .pad{padding:6px 8px}
+  .dim{color:var(--ink-3)}
+  .upper{text-transform:uppercase;letter-spacing:.12em;font-size:var(--fs-micro);}
+</style>
+</head>
+<body>
+<div class="viewer">
+
+  <!-- ============ FRAME 1 · MESSAGE LIST ============ -->
+  <div class="phone" id="v-list">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar">
+          <span class="sysbar__time">09:44</span>
+          <span class="sysbar__icons">
+            <svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg>
+            <svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg>
+            <svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg>
+          </span>
+        </div>
+        <header class="appbar">
+          <div class="appmark">PR</div>
+          <div class="appbar__t">
+            <h1 class="appbar__title">Messages</h1>
+            <div class="appbar__sub">On device · Tue 13 Oct · 4 unread</div>
+          </div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Search messages"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><line x1="15.3" y1="15.3" x2="21" y2="21"/></svg></button>
+            <button class="iconbtn" aria-label="More options"><svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+        </header>
+        <div class="tabs" role="tablist" id="cattabs">
+          <button class="tab is-active" role="tab" data-cat="personal">Personal<span class="tab__n">3</span></button>
+          <button class="tab" role="tab" data-cat="txn">Transactional<span class="tab__n">2</span></button>
+          <button class="tab" role="tab" data-cat="promo">Promotions<span class="tab__n">2</span></button>
+          <button class="tab" role="tab" data-cat="buy">Purchases<span class="tab__n">2</span></button>
+          <button class="tab" role="tab" data-cat="unknown">Unknown<span class="tab__n">2</span></button>
+        </div>
+      </div>
+
+      <div class="sync"><span><span class="sync__dot"></span>SIM 1 · SMS only · no cloud</span><span>4 unread</span></div>
+
+      <div class="sec" style="--accent:var(--peri)"><span class="sec__bar"></span><span class="sec__t">Personal</span><span class="sec__sp"></span><span class="sec__n">3 threads · 2 unread</span></div>
+
+      <article class="msgrow is-unread" data-cat="personal" style="--cat:var(--peri)">
+        <div class="msgrow__gut"><div class="msgrow__time">11:15</div><div class="msgrow__date">13 Oct</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="udot" title="Unread"></span><span class="msgrow__title">Ananya</span><span class="chip chip--personal">Personal</span></div>
+          <div class="msgrow__preview">Are we still on for 7? I can leave office by 6:30</div>
+          <div class="msgrow__meta"><span>2 NEW <b>SMS</b></span><span>13 Oct 11:15</span></div>
+        </div>
+      </article>
+      <article class="msgrow is-unread" data-cat="personal" style="--cat:var(--peri)">
+        <div class="msgrow__gut"><div class="msgrow__time">09:02</div><div class="msgrow__date">13 Oct</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="udot"></span><span class="msgrow__title">Baba</span><span class="chip chip--personal">Personal</span></div>
+          <div class="msgrow__preview">Call when free. The plumber is coming at 5</div>
+          <div class="msgrow__meta"><span>1 NEW <b>SMS</b></span><span>13 Oct 09:02</span></div>
+        </div>
+      </article>
+      <article class="msgrow" data-cat="personal" style="--cat:var(--peri)">
+        <div class="msgrow__gut"><div class="msgrow__time">29 Jun</div><div class="msgrow__date">2026</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="msgrow__title">Priya Nair</span><span class="chip chip--personal">Personal</span></div>
+          <div class="msgrow__preview">You: Sent the photos from Sunday, check when you can</div>
+          <div class="msgrow__meta"><span>READ <b>SMS</b></span><span>29 Jun 2026</span></div>
+        </div>
+      </article>
+
+      <div class="sec" style="--accent:var(--teal)"><span class="sec__bar"></span><span class="sec__t">More threads · other categories</span><span class="sec__sp"></span><span class="sec__n">tap a tab to filter</span></div>
+
+      <article class="msgrow is-unread" data-cat="txn" style="--cat:var(--teal)">
+        <div class="msgrow__gut"><div class="msgrow__time">10:41</div><div class="msgrow__date">13 Oct</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="udot"></span><span class="msgrow__title">Sample Bank</span><span class="chip chip--txn">Txn</span></div>
+          <div class="msgrow__preview">A/c ••4021 debited Rs 12,480 on 13 Oct. Avl bal Rs 38,112</div>
+          <div class="msgrow__meta"><span>1 NEW <b>OTP masked</b></span><span>13 Oct 10:41</span></div>
+        </div>
+      </article>
+      <article class="msgrow" data-cat="txn" style="--cat:var(--teal)">
+        <div class="msgrow__gut"><div class="msgrow__time">08:17</div><div class="msgrow__date">13 Oct</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="msgrow__title">Sample Bank</span><span class="chip chip--txn">Txn</span></div>
+          <div class="msgrow__preview">OTP 482913 for Rs 12,480 at Sample Electronics. Do not share</div>
+          <div class="msgrow__meta"><span>READ <b>auto-kept 3 min</b></span><span>13 Oct 08:17</span></div>
+        </div>
+      </article>
+      <article class="msgrow is-unread" data-cat="promo" style="--cat:var(--mustard)">
+        <div class="msgrow__gut"><div class="msgrow__time">07:50</div><div class="msgrow__date">12 Oct</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="udot"></span><span class="msgrow__title">BSNL</span><span class="chip chip--promo">Promo</span></div>
+          <div class="msgrow__preview">Recharge Rs 199, get 2GB/day for 28 days. Dial *123# to renew</div>
+          <div class="msgrow__meta"><span>1 NEW <b>sender ID BSNL-IN</b></span><span>12 Oct 07:50</span></div>
+        </div>
+      </article>
+      <article class="msgrow" data-cat="promo" style="--cat:var(--mustard)">
+        <div class="msgrow__gut"><div class="msgrow__time">02 Sep</div><div class="msgrow__date">2026</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="msgrow__title">Sample Store</span><span class="chip chip--promo">Promo</span></div>
+          <div class="msgrow__preview">Festive sale ends Sunday. Extra 10% on store pickup orders</div>
+          <div class="msgrow__meta"><span>READ</span><span>02 Sep 2026</span></div>
+        </div>
+      </article>
+      <article class="msgrow" data-cat="buy" style="--cat:var(--plum)">
+        <div class="msgrow__gut"><div class="msgrow__time">18:22</div><div class="msgrow__date">11 Oct</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="msgrow__title">Amazon</span><span class="chip chip--buy">Order</span></div>
+          <div class="msgrow__preview">Order 402-8817234 shipped. Arriving Thursday. Track in app</div>
+          <div class="msgrow__meta"><span>READ <b>AWB 8891</b></span><span>11 Oct 18:22</span></div>
+        </div>
+      </article>
+      <article class="msgrow" data-cat="buy" style="--cat:var(--plum)">
+        <div class="msgrow__gut"><div class="msgrow__time">29 Jun</div><div class="msgrow__date">2026</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="msgrow__title">Sample Courier</span><span class="chip chip--buy">Order</span></div>
+          <div class="msgrow__preview">Delivered: parcel left with security at 14:05. OTP 2210</div>
+          <div class="msgrow__meta"><span>READ</span><span>29 Jun 2026</span></div>
+        </div>
+      </article>
+      <article class="msgrow is-unread" data-cat="unknown" style="--cat:var(--ink-3)">
+        <div class="msgrow__gut"><div class="msgrow__time">06:33</div><div class="msgrow__date">13 Oct</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="udot"></span><span class="msgrow__title">+91 98200 11223</span><span class="chip chip--unknown">Unknown</span></div>
+          <div class="msgrow__preview">Your KYC is pending. Click http://sample-link.example to update</div>
+          <div class="msgrow__meta"><span>1 NEW <b>not in contacts</b></span><span>13 Oct 06:33</span></div>
+        </div>
+      </article>
+      <article class="msgrow" data-cat="unknown" style="--cat:var(--ink-3)">
+        <div class="msgrow__gut"><div class="msgrow__time">14 Aug</div><div class="msgrow__date">2026</div></div>
+        <div class="msgrow__body">
+          <div class="msgrow__top"><span class="msgrow__title">+91 90041 77880</span><span class="chip chip--unknown">Unknown</span></div>
+          <div class="msgrow__preview">Interview tomorrow at 11. Bring two copies of your resume</div>
+          <div class="msgrow__meta"><span>READ <b>not in contacts</b></span><span>14 Aug 2026</span></div>
+        </div>
+      </article>
+
+      <footer class="foot">List sample · tabs filter · unread = fresh tint + dot · spine = category</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="home.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="services.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg><span class="navitem__l">Services</span></a>
+        <a class="navitem is-current" href="messaging.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg><span class="navitem__l">Messages</span></a>
+        <a class="navitem" href="blank.html?s=Wallet"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="blank.html?s=Me"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">List — Gmail-style category tabs</div>
+  </div>
+
+  <!-- ============ FRAME 2 · THREAD, RESOLVED CONTACT ============ -->
+  <div class="phone" id="v-thread-known">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar"><span class="sysbar__time">11:16</span>
+          <span class="sysbar__icons"><svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg><svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg><svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg></span>
+        </div>
+        <div class="thandle">
+          <div class="thandle__row">
+            <button class="backbtn" data-goto="v-list">&lt; Back</button>
+            <div style="flex:1;min-width:0">
+              <div class="thandle__name">Ananya</div>
+              <div class="thandle__sub">+91 98210 44556 · Personal · SMS thread</div>
+            </div>
+            <span class="chip chip--personal">Personal</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="daymark"><span>Today</span><span class="daymark__sp"></span><span>Tue 13 Oct</span></div>
+      <div class="thread">
+        <div class="bub bub--in">Are we still on for 7?<div class="bub__ts">13 Oct 10:58 · SMS</div></div>
+        <div class="bub bub--out">Yes. I will leave office by 6:30, reach by 7:15<div class="bub__ts">13 Oct 11:04 · SMS · sent</div></div>
+        <div class="bub bub--in">Good. Table is under my name, 2 people<div class="bub__ts">13 Oct 11:15 · SMS</div></div>
+      </div>
+      <div class="daymark"><span>Earlier</span><span class="daymark__sp"></span><span>Mon 12 Oct</span></div>
+      <div class="thread">
+        <div class="bub bub--in">Sent the menu options. Pick whichever works<div class="bub__ts">12 Oct 19:40 · SMS</div></div>
+        <div class="bub bub--out">Second one. Shall I book the cab for both ways?<div class="bub__ts">12 Oct 19:52 · SMS · sent</div></div>
+      </div>
+      <div class="sysnote">On this device only · nothing uploaded</div>
+
+      <div class="composer">
+        <div class="composer__row">
+          <button class="proto" title="Protocol">SMS <span class="caret">▾</span></button>
+          <div class="field">Message Ananya…</div>
+          <button class="btn btn--solid">Send</button>
+        </div>
+        <div class="composer__sub"><span>SMS · SIM 1 · plain text</span><span>160 / 1</span></div>
+      </div>
+      <footer class="foot">Thread sample · resolved contact · square bubbles · mono date+time</footer>
+    </div></div></div>
+    <div class="phone__label">Thread — resolved contact + composer</div>
+  </div>
+
+  <!-- ============ FRAME 3 · THREAD, UNKNOWN SENDER ============ -->
+  <div class="phone" id="v-thread-unknown">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar"><span class="sysbar__time">09:44</span>
+          <span class="sysbar__icons"><svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg><svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg><svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg></span>
+        </div>
+        <div class="thandle">
+          <div class="thandle__row">
+            <button class="backbtn" data-goto="v-list">&lt; Back</button>
+            <div style="flex:1;min-width:0">
+              <div class="thandle__name">+91 98200 11223</div>
+              <div class="thandle__sub">Not in contacts · first seen 13 Oct 06:33</div>
+            </div>
+            <span class="chip chip--unknown">Unknown</span>
+          </div>
+          <div class="addbar">
+            <div style="flex:1;min-width:0"><span class="num">+91 98200 11223</span> <span class="dim" style="font-size:11px">is not saved. Links are not opened automatically.</span></div>
+            <button class="btn btn--sm">Add to contact</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="daymark"><span>Today</span><span class="daymark__sp"></span><span>Tue 13 Oct</span></div>
+      <div class="thread">
+        <div class="bub bub--in unk">Your KYC is pending. Click http://sample-link.example to update<div class="bub__ts">13 Oct 06:33 · SMS · link held, tap to copy</div></div>
+        <div class="sysnote">Possible spam · kept on device · no reply sent</div>
+        <div class="bub bub--out">I do not recognise this number. Who is this?<div class="bub__ts">13 Oct 07:02 · SMS · sent</div></div>
+      </div>
+      <div class="daymark"><span>Earlier</span><span class="daymark__sp"></span><span>Thu 14 Aug</span></div>
+      <div class="thread">
+        <div class="bub bub--in unk">Interview tomorrow at 11. Bring two copies of your resume<div class="bub__ts">14 Aug 2026 10:20 · SMS</div></div>
+      </div>
+      <div class="pad dim" style="font-size:11px;border-top:1px dotted var(--rule-dot)">Unknown senders show the raw number everywhere until saved. Saving renames every row at once.</div>
+
+      <div class="composer">
+        <div class="composer__row">
+          <button class="proto" title="Protocol">SMS <span class="caret">▾</span></button>
+          <div class="field">Reply… links stay paused until saved</div>
+          <button class="btn btn--solid">Send</button>
+        </div>
+        <div class="composer__sub"><span>SMS · SIM 1 · stays on device</span><span>160 / 1</span></div>
+      </div>
+      <footer class="foot">Thread sample · unknown sender · add-to-contact strip</footer>
+    </div></div></div>
+    <div class="phone__label">Thread — unknown sender + save strip</div>
+  </div>
+
+  <!-- ============ FRAME 4 · ACTIONS (MESSAGES + CALENDAR + MANUAL) ============ -->
+  <div class="phone" id="v-actions">
+    <div class="phone__frame"><div class="phone__screen"><div class="device">
+      <div class="topchrome">
+        <div class="sysbar"><span class="sysbar__time">09:44</span>
+          <span class="sysbar__icons"><svg viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4"/><rect x="5" y="5.5" width="3" height="6.5"/><rect x="10" y="2.5" width="3" height="9.5"/><rect x="15" y="0" width="3" height="12"/></svg><svg viewBox="0 0 18 13" aria-hidden="true"><path d="M9 3.2c-3 0-5.7 1.1-7.8 3L3 8.1C4.6 6.7 6.7 5.9 9 5.9s4.4.8 6 2.2l1.8-1.9C14.7 4.3 12 3.2 9 3.2Z"/><path d="M9 7.5c-1.5 0-2.9.55-4 1.5l1.9 2L9 9.6l2.1 1.4 1.9-2c-1.1-.95-2.5-1.5-4-1.5Z"/><rect x="7.9" y="11" width="2.2" height="2"/></svg><svg class="batt" viewBox="0 0 24 12" aria-hidden="true"><rect x="0.5" y="0.5" width="20" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="2.5" y="2.5" width="12" height="7"/><rect x="21.5" y="4" width="2" height="4"/></svg></span>
+        </div>
+        <header class="appbar">
+          <div class="appmark" style="background:var(--teal)">PR</div>
+          <div class="appbar__t">
+            <h1 class="appbar__title">Actions</h1>
+            <div class="appbar__sub">Messages + calendar + manual · Tue 13 Oct</div>
+          </div>
+          <div class="appbar__actions">
+            <button class="iconbtn" aria-label="Add action"><svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+            <button class="iconbtn" aria-label="More options"><svg class="ico ico--solid" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+        </header>
+        <div class="sync"><span><span class="sync__dot"></span>One list over the same facts</span><span>2 suggested · 3 confirmed</span></div>
+        <div class="createbar">
+          <button class="btn btn--sm">+ Reminder</button>
+          <button class="btn btn--sm">+ Event</button>
+          <span class="dim" style="font-size:10px;letter-spacing:.04em">both land in this list, never in the threads</span>
+        </div>
+      </div>
+
+      <div class="sec" style="--accent:var(--mustard)"><span class="sec__bar"></span><span class="sec__t">Suggested · needs a yes</span><span class="sec__sp"></span><span class="sec__n">2 items</span></div>
+
+      <div class="remrow" style="border-left-color:var(--teal)">
+        <span class="chk" role="checkbox" aria-checked="false" aria-label="CESC bill suggestion not confirmed"></span>
+        <div style="min-width:0">
+          <div class="msgrow__top"><span class="chip chip--sug">Suggested</span><span class="org">from SMS · 11 Oct</span></div>
+          <div class="remrow__t">CESC bill due 18 Oct · <b class="mono">Rs 1,840</b></div>
+          <div class="remrow__m">DUE <b>18 Oct 18:00</b> · "pay by 18th to avoid late fee" · wallet shows the same Rs 1,840 debit</div>
+        </div>
+        <div class="remrow__acts"><button class="btn btn--sm btn--solid">Confirm</button><button class="btn btn--sm">Dismiss</button></div>
+      </div>
+      <div class="remrow" style="border-left-color:var(--mustard)">
+        <span class="chk" role="checkbox" aria-checked="false" aria-label="Recharge suggestion not confirmed"></span>
+        <div style="min-width:0">
+          <div class="msgrow__top"><span class="chip chip--sug">Suggested</span><span class="org">from SMS · 12 Oct</span></div>
+          <div class="remrow__t">Renew BSNL Rs 199 pack · <b class="mono">2 GB/day</b></div>
+          <div class="remrow__m">DUE <b>15 Oct 09:00</b> · "dial *123# to renew" · pack ends 15 Oct</div>
+        </div>
+        <div class="remrow__acts"><button class="btn btn--sm btn--solid">Confirm</button><button class="btn btn--sm">Dismiss</button></div>
+      </div>
+
+      <div class="sec sec--ink" style="--accent:var(--teal)"><span class="sec__bar"></span><span class="sec__t">Confirmed · real reminders</span><span class="sec__sp"></span><span class="sec__n">3 items · 1 done</span></div>
+
+      <div class="remrow is-over">
+        <span class="chk" role="checkbox" aria-checked="false" aria-label="Broadband bill overdue"></span>
+        <div style="min-width:0">
+          <div class="msgrow__top"><span class="chip chip--conf">Confirmed</span><span class="org">from SMS · 09 Oct</span></div>
+          <div class="remrow__t">Pay broadband bill · <b class="mono">Rs 999</b></div>
+          <div class="remrow__m">WAS DUE <b>12 Oct 20:00</b> · <span class="over">overdue by 13 h</span> · confirmed 10 Oct 09:12</div>
+        </div>
+        <div class="remrow__acts"><button class="btn btn--sm btn--solid">Done</button><button class="btn btn--sm">Snooze</button></div>
+      </div>
+      <div class="remrow" style="border-left-color:var(--indigo)">
+        <span class="chk" role="checkbox" aria-checked="false" aria-label="Calendar meeting not done"></span>
+        <div style="min-width:0">
+          <div class="msgrow__top"><span class="chip chip--conf">Confirmed</span><span class="org">from Calendar</span></div>
+          <div class="remrow__t">1:1 with Priya · 3F Cabin 2</div>
+          <div class="remrow__m">WHEN <b>14 Oct 12:00</b> · 30 min · bring the promotion draft</div>
+        </div>
+        <div class="remrow__acts"><button class="btn btn--sm btn--solid">Done</button><button class="btn btn--sm">Snooze</button></div>
+      </div>
+      <div class="remrow" style="border-left-color:var(--ink)">
+        <span class="chk" role="checkbox" aria-checked="false" aria-label="Manual reminder not done"></span>
+        <div style="min-width:0">
+          <div class="msgrow__top"><span class="chip chip--conf">Confirmed</span><span class="org">manual · 13 Oct</span></div>
+          <div class="remrow__t">Buy milk and bread on the way back</div>
+          <div class="remrow__m">DUE <b>13 Oct 19:00</b> · typed in here this morning</div>
+        </div>
+        <div class="remrow__acts"><button class="btn btn--sm btn--solid">Done</button><button class="btn btn--sm">Snooze</button></div>
+      </div>
+      <div class="remrow is-done" style="border-left-color:var(--plum)">
+        <span class="chk is-done" role="checkbox" aria-checked="true" aria-label="Parcel collection done">✓</span>
+        <div style="min-width:0">
+          <div class="msgrow__top"><span class="chip chip--mute">Done</span><span class="org">from SMS · 11 Oct</span></div>
+          <div class="remrow__t">Collect Amazon parcel · AWB 8891</div>
+          <div class="remrow__m">DONE <b>12 Oct 17:20</b> · was due 12 Oct 19:00 · OTP 2210</div>
+        </div>
+        <div class="remrow__acts"><button class="btn btn--sm">Undo</button></div>
+      </div>
+
+      <div class="sec" style="--accent:var(--ink)"><span class="sec__bar"></span><span class="sec__t">Why one list</span><span class="sec__sp"></span><span class="sec__n">same facts</span></div>
+      <div class="pad dim" style="font-size:11px;line-height:1.5">Messages, calendar, wallet and manual notes all read the same on-device facts. Actions only decides what needs doing: suggested items wait for a yes, confirmed items wait for a tick. Nothing is copied anywhere.</div>
+
+      <footer class="foot">Actions sample · suggested confirm/dismiss · confirmed done/snooze · spine = origin</footer>
+      <nav class="bottomnav">
+        <a class="navitem" href="home.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/></svg><span class="navitem__l">Home</span></a>
+        <a class="navitem" href="services.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg><span class="navitem__l">Services</span></a>
+        <a class="navitem is-current" href="messaging.html"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5Z"/></svg><span class="navitem__l">Messages</span></a>
+        <a class="navitem" href="blank.html?s=Wallet"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/></svg><span class="navitem__l">Wallet</span></a>
+        <a class="navitem" href="blank.html?s=Me"><span class="navitem__ind"></span><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-5.8 7.5-5.8s7.5 2.2 7.5 5.8"/></svg><span class="navitem__l">Me</span></a>
+      </nav>
+    </div></div></div>
+    <div class="phone__label">Actions — messages + calendar + manual, one list</div>
+  </div>
+
+</div>
+<script>
+  // Category tabs filter the list frame rows (exclusive, Gmail-like).
+  var tabs = document.querySelectorAll('#cattabs .tab');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.classList.remove('is-active'); });
+      t.classList.add('is-active');
+      var cat = t.getAttribute('data-cat');
+      var scope = document.getElementById('v-list');
+      scope.querySelectorAll('.msgrow[data-cat]').forEach(function (r) {
+        r.classList.toggle('is-hidden', r.getAttribute('data-cat') !== cat);
+      });
+    });
+  });
+  // Back buttons scroll to the list frame.
+  document.querySelectorAll('[data-goto]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var el = document.getElementById(b.getAttribute('data-goto'));
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  // Action checkboxes toggle done state.
+  document.querySelectorAll('.chk[role="checkbox"]').forEach(function (c) {
+    c.addEventListener('click', function () {
+      var done = c.classList.toggle('is-done');
+      c.setAttribute('aria-checked', done ? 'true' : 'false');
+      c.textContent = done ? '✓' : '';
+      var row = c.closest('.remrow');
+      if (row) row.classList.toggle('is-done', done);
+    });
+  });
+</script>
+</body>
+</html>

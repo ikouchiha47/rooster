@@ -7,6 +7,7 @@ import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.rules.TextTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -137,6 +138,105 @@ class RuleDraftTest {
         assertEquals(RuleDraft.Composition.ANY, draft.composition)
         assertEquals(2, draft.predicates.size)
         assertFalse(draft.push)
+    }
+
+    // ------------------------------------------------------------------- scope
+
+    @Test
+    fun `all scope emits no source clause`() {
+        val draft =
+            RuleDraft(
+                name = "A",
+                composition = RuleDraft.Composition.ALL,
+                predicates = listOf(PredicateDraft.Subject("finance")),
+                push = true,
+                position = 0L,
+                scope = null,
+            )
+        assertEquals("""{"all":[{"subject":"finance"}]}""", draft.toConditionJson())
+    }
+
+    @Test
+    fun `a chosen scope ands a source clause around the condition`() {
+        val draft =
+            RuleDraft(
+                name = "A",
+                composition = RuleDraft.Composition.ALL,
+                predicates = listOf(PredicateDraft.Subject("finance")),
+                push = true,
+                position = 0L,
+                scope = "sms",
+            )
+        assertEquals(
+            """{"all":[{"source":"sms"},{"all":[{"subject":"finance"}]}]}""",
+            draft.toConditionJson(),
+        )
+    }
+
+    @Test
+    fun `scope with an any composition keeps the any body`() {
+        val draft =
+            RuleDraft(
+                name = "A",
+                composition = RuleDraft.Composition.ANY,
+                predicates = listOf(PredicateDraft.Subject("finance"), PredicateDraft.Nature("incident")),
+                push = true,
+                position = 0L,
+                scope = "rss:thehindu-top",
+            )
+        assertEquals(
+            """{"all":[{"source":"rss:thehindu-top"},{"any":[{"subject":"finance"},{"nature":"incident"}]}]}""",
+            draft.toConditionJson(),
+        )
+    }
+
+    @Test
+    fun `a chosen scope roundtrips through condition json`() {
+        val draft =
+            RuleDraft(
+                name = "A",
+                composition = RuleDraft.Composition.ANY,
+                predicates = listOf(PredicateDraft.Subject("finance"), PredicateDraft.Nature("incident")),
+                push = false,
+                position = 0L,
+                scope = "rss:thehindu-top",
+            )
+        val restored = RuleDraft.fromRule(draft.name, draft.toConditionJson(), draft.toActionJson())
+        assertEquals("rss:thehindu-top", restored.scope)
+        assertEquals(RuleDraft.Composition.ANY, restored.composition)
+        assertEquals(2, restored.predicates.size)
+        assertEquals("re-save does not duplicate or lose the source clause", draft.toConditionJson(), restored.toConditionJson())
+    }
+
+    @Test
+    fun `a stored scoped rule re-saves byte-identically`() {
+        val stored = """{"all":[{"source":"sms"},{"all":[{"subject":"finance"}]}]}"""
+        val draft = RuleDraft.fromRule("A", stored, """{"delivery":"push","position":0}""")
+        assertEquals("sms", draft.scope)
+        assertEquals(1, draft.predicates.size)
+        assertTrue(draft.predicates.single() is PredicateDraft.Subject)
+        assertEquals(stored, draft.toConditionJson())
+    }
+
+    @Test
+    fun `a stored unscoped rule gains no source clause on re-save`() {
+        val stored = """{"all":[{"subject":"finance"},{"nature":"incident"}]}"""
+        val draft = RuleDraft.fromRule("A", stored, """{"delivery":"none","position":0}""")
+        assertNull(draft.scope)
+        assertEquals(stored, draft.toConditionJson())
+    }
+
+    @Test
+    fun `a user source predicate is not promoted to a scope`() {
+        // The heuristic that recovers a scope only fires on `all:[source, composition]`.
+        // A user's own source predicate is a bare leaf under their `all`, so it
+        // must stay in the predicate list and survive a re-save unchanged.
+        val stored = """{"all":[{"source":"sms"},{"subject":"finance"}]}"""
+        val draft = RuleDraft.fromRule("A", stored, """{"delivery":"none","position":0}""")
+        assertNull(draft.scope)
+        assertEquals(2, draft.predicates.size)
+        assertTrue(draft.predicates[0] is PredicateDraft.Source)
+        assertEquals(stored, draft.toConditionJson())
     }
 
     @Test

@@ -3,8 +3,9 @@ package com.personalos.app.core
 /**
  * How a **sender** reads in the Messages list — a *relationship*, not a subject.
  *
- * This is deliberately separate from [SmsClass] (what a message *is*): a bank is
- * `OTP`/`TRANSACTION` and never Social or Others; a friend's 200-message thread is
+ * This is deliberately separate from the message's category (what a message
+ * *is*, [com.personalos.app.core.category.Categorizer]): a bank is
+ * `transactional` and never Social or Others; a friend's 200-message thread is
  * Social whatever they talk about. Only individual numbers (a person) land here;
  * business senders (DLT headers, short codes) are classified by content instead.
  *

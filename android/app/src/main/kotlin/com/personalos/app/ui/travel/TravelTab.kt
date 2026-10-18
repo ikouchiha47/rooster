@@ -6,7 +6,7 @@ package com.personalos.app.ui.travel
  * Two tabs, two different reads — Calendar reads the calendar repository's
  * observances, News reads travel-tagged items. Modelling the mapping here means
  * the screen has no special case of its own to get wrong, and the distinction is
- * testable without rendering anything (same shape as `MessagesTab`).
+ * testable without rendering anything (same shape as `MessageTab`).
  */
 enum class TravelTab(
     val label: String,

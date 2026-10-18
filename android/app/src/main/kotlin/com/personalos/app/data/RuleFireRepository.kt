@@ -5,6 +5,7 @@ import com.personalos.app.core.rules.ConditionJson
 import com.personalos.app.core.rules.MatchedClause
 import com.personalos.app.core.rules.RuleItem
 import com.personalos.app.core.rules.matchedClauses
+import kotlinx.coroutines.flow.Flow
 
 /**
  * One fire as the Watchers feed renders it: which rule, which item, and **what
@@ -53,6 +54,51 @@ data class RuleWithFires(
     /** Every fire the rule has, so a section can say how many it is not showing. */
     val total: Int = fires.size,
 )
+
+/**
+ * One row of the cross-rule Alerts feed before it is mapped: the matched event
+ * and the rules that matched it. `rule_ids` arrives comma-joined (the query's
+ * `GROUP_CONCAT`), so a page reads one row per event rather than one per fire.
+ */
+data class AlertCandidate(
+    @ColumnInfo(name = "item_id") val itemId: String,
+    /** `events.id` — the keyset cursor's tiebreak, not the ULID. */
+    @ColumnInfo(name = "event_id") val eventId: Long,
+    @ColumnInfo(name = "matched_at") val matchedAt: Long,
+    @ColumnInfo(name = "item_timestamp") val itemTimestamp: Long,
+    @ColumnInfo(name = "rule_ids") val ruleIds: String,
+)
+
+/** One matched rule on an event, as an Alerts row names it. */
+data class AlertRuleMatch(
+    val ruleId: String,
+    val name: String,
+    /** The clauses that held, e.g. `temp_c 40.2 > 40`. */
+    val clauses: List<MatchedClause>,
+)
+
+/**
+ * One matched event and the rules that matched it — an Alerts list row. The
+ * event travels whole so the row can render it like any other message; the
+ * rules travel with it so the row can say *why* without a second read.
+ */
+data class AlertMatch(
+    val event: EventEntity,
+    val rules: List<AlertRuleMatch>,
+) {
+    val itemId: String get() = event.ulid
+
+    val itemTimestamp: Long get() = event.timestamp
+}
+
+/** One page of the Alerts feed, and where the next page starts (null = no more). */
+data class AlertPage(
+    val alerts: List<AlertMatch>,
+    val nextTs: Long?,
+    val nextId: Long?,
+) {
+    val hasMore: Boolean get() = nextTs != null
+}
 
 /**
  * Reads fired rule matches (ADR 0003: matches are written once at ingest and
@@ -150,6 +196,74 @@ class RuleFireRepository(
     }
 
     /**
+     * One keyset page of the **cross-rule** Alerts feed: every stored match,
+     * across every source, newest event first. This is the read the watchers feed
+     * cannot serve — that one is deliberately one rule at a time — so a Messages
+     * "Alerts" tab can show what fired without asking rule by rule.
+     *
+     * One row per matched event; the rules that matched it ride along. The
+     * mapping reuses [toFires], so a row's "what matched" is computed from the
+     * same stored facts, through the same reader ingest used, as Watchers — the
+     * two views cannot disagree about why a rule fired.
+     */
+    suspend fun alerts(
+        cursorTs: Long?,
+        cursorId: Long,
+        limit: Int = ALERT_PAGE_SIZE,
+    ): AlertPage {
+        val raw =
+            runCatching { ruleFireDao.alertsPage(cursorTs, cursorId, limit + 1) }
+                .getOrDefault(emptyList())
+        if (raw.isEmpty()) return AlertPage(emptyList(), null, null)
+
+        val page = raw.take(limit)
+        val events = eventsByUlid(page.map { it.itemId })
+        val items = itemsById(events)
+        val rules = runCatching { ruleDao.all() }.getOrDefault(emptyList()).associateBy { it.id }
+
+        // Reuse the watchers mapping: fold the page's (event, rule) pairs back into
+        // the per-rule fires `toFires` expects, then regroup the fires by event.
+        val firesByEvent =
+            page
+                .flatMap { candidate ->
+                    candidate.matchedRuleIds().map { ItemRuleEntity(candidate.itemId, it, candidate.matchedAt) }
+                }.groupBy { it.ruleId }
+                .flatMap { (ruleId, raw) -> rules[ruleId]?.let { toFires(it, raw, events, items) }.orEmpty() }
+                .groupBy { it.itemId }
+
+        val alerts =
+            page.mapNotNull { candidate ->
+                val event = events[candidate.itemId] ?: return@mapNotNull null
+                AlertMatch(
+                    event = event,
+                    rules =
+                        firesByEvent[candidate.itemId]
+                            .orEmpty()
+                            .map { fire ->
+                                AlertRuleMatch(
+                                    ruleId = fire.ruleId,
+                                    name = rules[fire.ruleId]?.name ?: fire.ruleId,
+                                    clauses = fire.clauses,
+                                )
+                            }
+                            // The `GROUP_CONCAT` fold has no order of its own, so the
+                            // row's rules are ordered here, by name — a stable list the
+                            // store's scan order cannot shuffle between reads.
+                            .sortedWith(compareBy({ it.name }, { it.ruleId })),
+                )
+            }
+        val more = raw.size > limit
+        return AlertPage(
+            alerts = alerts,
+            nextTs = page.last().itemTimestamp.takeIf { more },
+            nextId = page.last().eventId.takeIf { more },
+        )
+    }
+
+    /** The Alerts badge: matched events, the same grain [alerts] lists. */
+    fun observeAlertCount(): Flow<Int> = ruleFireDao.observeAlertCount()
+
+    /**
      * Maps stored fires to the feed's shape. An unreadable condition costs the
      * *reason*, not the fire: the match is stored history, so hiding it would lose
      * the fact that the rule ran at all.
@@ -184,6 +298,11 @@ class RuleFireRepository(
             .associateBy { it.ulid }
     }
 
+    /** The stored row id behind a fire, for destinations addressed by id. Null when gone. */
+    suspend fun eventIdFor(itemId: String): Long? =
+        runCatching { ruleFireDao.eventsByUlids(listOf(itemId)).firstOrNull()?.id }
+            .getOrNull()
+
     private suspend fun itemsById(events: Map<String, EventEntity>): Map<String, RuleItem> = itemsFor(events.values.map { RuleItemSeed(it.ulid, it.source, it.title, it.content) })
 
     private suspend fun itemsFor(seeds: List<RuleItemSeed>): Map<String, RuleItem> {
@@ -195,11 +314,17 @@ class RuleFireRepository(
 
     private fun parseCondition(json: String) = runCatching { ConditionJson.parse(json) }.getOrNull()
 
+    /** The rules folded into an alerts row's `GROUP_CONCAT` column, blanks dropped. */
+    private fun AlertCandidate.matchedRuleIds(): List<String> = ruleIds.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
     companion object {
         /** Fires shown per rule collapsed; the rest are one "more" tap away. */
         const val DEFAULT_PER_RULE = 5
 
         /** Fires fetched per "more" tap — incremental, never the whole rule at once. */
         const val PAGE_SIZE = 20
+
+        /** Alert rows fetched per page. One page is events, not fires. */
+        const val ALERT_PAGE_SIZE = 20
     }
 }

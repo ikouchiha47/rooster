@@ -6,7 +6,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
 import com.personalos.app.core.SmsAmountParser
-import com.personalos.app.core.SmsClassifier
+import com.personalos.app.core.category.Categorizer
 import com.personalos.app.core.rules.FieldNames
 import com.personalos.app.core.rules.FieldValue
 import com.personalos.app.core.tag.TagInput
@@ -61,6 +61,13 @@ class SmsSource(
     private val ruleWriter: RuleWriter,
     /** Every ingest writes one run row, so the Events tab sees SMS like any source. */
     private val syncRecorder: SyncRecorder = NoOpSyncRecorder,
+    /**
+     * The one categorizer (the taxonomy is seeded from the DB before first use,
+     * so this is resolved lazily rather than at construction).
+     */
+    private val categorizer: suspend () -> Categorizer,
+    /** Whether a sender is a saved contact: the contact-wins rule's input. */
+    private val isContact: (String) -> Boolean = { false },
 ) : LifecycleObserver,
     SmsIngest {
     companion object {
@@ -137,6 +144,9 @@ class SmsSource(
             val fieldInputs = ArrayList<Map<String, FieldValue>>(messages.size)
             var maxId = since
 
+            // One classifier for the whole batch; its taxonomy is already stored.
+            val classifier = categorizer()
+
             for (message in messages) {
                 if (message.id > maxId) maxId = message.id
 
@@ -144,8 +154,9 @@ class SmsSource(
                 val body = message.body ?: ""
 
                 // Classify once, at ingest, so the category is queryable
-                // (Radar filters on it) instead of recomputed per render.
-                val category = SmsClassifier.classify(address, body).klass.name
+                // (Radar filters on it) instead of recomputed per render. The
+                // categorizer is the one owner of the category id.
+                val category = classifier.categorize(address, body, isContact(address)).id
 
                 events.add(
                     EventEntity(

@@ -2,6 +2,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Opt-in only: resolves an SMS sender to a contact's display name. When
+         not granted, the app shows the stored number/header exactly as before. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Ask the user to exempt the app, so the long retag is not deferred into
          never by Doze/App Standby. Granting is optional; without it, background

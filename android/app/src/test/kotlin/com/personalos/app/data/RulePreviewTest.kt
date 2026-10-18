@@ -385,6 +385,44 @@ class RulePreviewTest {
             assertFalse(result.truncated)
         }
 
+    // ------------------------------------------------------------ source scope
+
+    @Test
+    fun `a source-scoped condition narrows on the source and matches only it`() =
+        runBlocking {
+            val events =
+                FakeEventDao(
+                    mutableListOf(
+                        candidate("sms-item", sourceId = "sms", timestamp = NOW),
+                        candidate("feed-item", sourceId = "rss:thehindu-top", timestamp = NOW - 1_000L),
+                    ),
+                )
+            // The builder's scoped shape: the source leaf ANDed around the user
+            // body. Both items carry matching text; only the scoped source may match.
+            val scoped = """{"all":[{"source":"sms"},{"all":[{"text":{"pattern":"title","target":"any"}}]}]}"""
+
+            val result = previewer(events).preview(scoped, now = NOW) as RulePreview.Available
+
+            assertEquals("the loader narrowed in SQL on the scope's source", "sms", events.lastArgs!!.sourceId)
+            assertEquals("only the scoped source matches", 1, result.matchedCount)
+            assertEquals(listOf("sms-item"), result.sample.map { it.itemId })
+        }
+
+    @Test
+    fun `an unscoped condition narrows on no source`() =
+        runBlocking {
+            val events =
+                FakeEventDao(
+                    mutableListOf(candidate("a", sourceId = "sms"), candidate("b", sourceId = "rss:thehindu-top")),
+                )
+
+            val result =
+                previewer(events).preview("""{"all":[{"text":{"pattern":"title","target":"any"}}]}""", now = NOW) as RulePreview.Available
+
+            assertNull("All is unscoped: no source filter is applied", events.lastArgs!!.sourceId)
+            assertEquals(2, result.matchedCount)
+        }
+
     // ----------------------------------------------------------------- series
 
     @Test

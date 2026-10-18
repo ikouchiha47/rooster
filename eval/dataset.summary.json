@@ -1,0 +1,16 @@
+{
+  "rows": 2694,
+  "distinct_senders": 754,
+  "duplicate_body_groups": 229,
+  "duplicate_rows": 940,
+  "by_current_label": {
+    "promotions": 1054,
+    "transactional": 836,
+    "unknown": 404,
+    "government": 147,
+    "purchases": 108,
+    "personal": 80,
+    "spam": 65
+  },
+  "note": "label == current until reviewed; current is the categorizer output (NOT verified)."
+}

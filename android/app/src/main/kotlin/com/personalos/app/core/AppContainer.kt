@@ -1,6 +1,7 @@
 package com.personalos.app.core
 
 import android.content.Context
+import androidx.work.WorkManager
 import com.personalos.app.core.place.PlaceRanker
 import com.personalos.app.core.place.RecencyPlaceRanker
 import com.personalos.app.core.provider.FxProvider
@@ -16,9 +17,13 @@ import com.personalos.app.core.tag.TagVocabulary
 import com.personalos.app.core.tag.Tagger
 import com.personalos.app.core.tag.taxonomy.source
 import com.personalos.app.data.AppDatabase
+import com.personalos.app.data.CATEGORY_TAXONOMY_ASSET
 import com.personalos.app.data.CalendarRepository
 import com.personalos.app.data.CatalogSeeder
 import com.personalos.app.data.CatalogStore
+import com.personalos.app.data.CategoryBackfill
+import com.personalos.app.data.CategorySeeder
+import com.personalos.app.data.CategoryStore
 import com.personalos.app.data.ContentResolverSmsReader
 import com.personalos.app.data.FieldWriter
 import com.personalos.app.data.MentionWriter
@@ -235,6 +240,15 @@ class AppContainer(
                 ).map { it.fileName },
             ).size
 
+    /**
+     * Background-job status: one snapshot per scheduled unique-work name,
+     * observed from WorkManager. Screens derive rows from the snapshots; a
+     * newly scheduled worker appears by registration data, not a screen edit.
+     */
+    val workerJobs: com.personalos.app.data.work.WorkerStatusRepository =
+        com.personalos.app.data.work
+            .WorkerStatusRepository(WorkManager.getInstance(context))
+
     /** The scheduler a rule edit enqueues through; one owner, WorkManager behind it. */
     private val ruleBackfillScheduler: com.personalos.app.data.RuleBackfillScheduler =
         com.personalos.app.data.RuleBackfillScheduler { ruleId, generation ->
@@ -361,6 +375,50 @@ class AppContainer(
             .ConversationRepository(database.conversationDao())
 
     /**
+     * Resolves an SMS sender to a contact's display name. Empty until
+     * [refreshContactNames] runs with READ_CONTACTS granted, so a row falls back
+     * to the raw sender and nothing regresses without the permission.
+     */
+    private val androidContacts =
+        com.personalos.app.data.contacts
+            .AndroidContactNames(context)
+
+    val contactNames: com.personalos.app.data.contacts.ContactNames = androidContacts
+
+    /** Re-reads the address book into [contactNames]; a no-op without the grant. */
+    suspend fun refreshContactNames() = androidContacts.refresh()
+
+    /**
+     * The one categorisation taxonomy: the bundled asset seeds `categories` and
+     * `category_rules` once ([categorySeeder]), and [categoryStore] reads those
+     * tables back as the pure core taxonomy. The DB is the runtime store; the
+     * asset is only the seed.
+     */
+    val categorySeeder: CategorySeeder =
+        CategorySeeder(
+            database.categoryDao(),
+            cache,
+            openAsset = { context.applicationContext.assets.open(CATEGORY_TAXONOMY_ASSET) },
+        )
+
+    val categoryStore: CategoryStore = CategoryStore(database.categoryDao(), categorySeeder)
+
+    /**
+     * Rewrites SMS rows written under the old classifier to the new category
+     * ids, once (version-gated). Runs from [com.personalos.app.data.work.BackfillWorker].
+     * The gate folds in the applied bundle version, so a release that only edits
+     * a rule still re-derives history.
+     */
+    val categoryBackfill: CategoryBackfill =
+        CategoryBackfill(
+            database.categoryBackfillDao(),
+            cache,
+            categorizer = { categoryStore.categorizer() },
+            isContact = { contactNames.nameFor(it) != null },
+            bundleVersion = { cache.read(CategorySeeder.KEY)?.value },
+        )
+
+    /**
      * The Watchers feed: fired matches with what matched. Reads through
      * [ruleWriter], so a fire's clause evaluation uses the same reader ingest did.
      */
@@ -425,6 +483,8 @@ class AppContainer(
             fieldWriter,
             ruleWriter,
             syncRecorder,
+            categorizer = { categoryStore.categorizer() },
+            isContact = { contactNames.nameFor(it) != null },
         )
 
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
@@ -481,6 +541,9 @@ class AppContainer(
                 com.personalos.app.data.work
                     .PrefsScheduleStore(context),
             runFamily = { retagger.run(it) },
+            health =
+                com.personalos.app.data.work
+                    .PrefsHealthStore(context),
         )
 
     /** Tasks the standalone foreground service can run by id. Add one = add here. */

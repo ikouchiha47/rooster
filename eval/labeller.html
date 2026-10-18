@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Category labeller</title>
+<style>
+  :root { --bg:#faf7f0; --paper:#fff; --ink:#1a1a1a; --dim:#6b6b6b; --rule:#dcd6c8; --accent:#0d47a1; --sug:#c98a00; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { position:sticky; top:0; background:var(--paper); border-bottom:1px solid var(--rule); padding:10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; font-weight:700; letter-spacing:.02em; }
+  .spacer { flex:1; }
+  .bar { height:8px; background:var(--rule); border-radius:4px; overflow:hidden; min-width:160px; flex:0 0 220px; }
+  .bar > i { display:block; height:100%; width:0; background:var(--accent); }
+  .meta { color:var(--dim); font-size:13px; }
+  button { font:inherit; border:1px solid var(--rule); background:var(--paper); border-radius:8px; padding:8px 12px; cursor:pointer; }
+  button:hover { border-color:#b9b1a0; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { max-width:820px; margin:0 auto; padding:20px 16px 140px; }
+  .card { background:var(--paper); border:1px solid var(--rule); border-radius:12px; padding:18px; }
+  .sender { font-weight:700; font-size:17px; }
+  .body { white-space:pre-wrap; margin-top:10px; font-size:15px; }
+  .tags { margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; }
+  .tag { font-size:12px; padding:3px 8px; border-radius:999px; border:1px solid var(--rule); color:var(--dim); }
+  .tag.sug { color:var(--sug); border-color:var(--sug); }
+  .choices { position:fixed; left:0; right:0; bottom:0; background:var(--paper); border-top:1px solid var(--rule); padding:12px 16px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .choices .k { opacity:.5; font-size:12px; margin-left:6px; }
+  .done { color:var(--accent); }
+  kbd { background:#eee; border-radius:4px; padding:1px 5px; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Category labeller</h1>
+  <span class="meta" id="progress">—</span>
+  <div class="bar"><i id="barfill"></i></div>
+  <span class="spacer"></span>
+  <label class="meta">Load sheet <input id="file" type="file" accept=".json" /></label>
+  <button id="download">Download labels</button>
+  <button id="skip">Skip empty</button>
+</header>
+
+<main>
+  <div class="card" id="card">
+    <div class="meta">Load <code>eval/categories.label.template.json</code> to begin.</div>
+  </div>
+</main>
+
+<div class="choices" id="choices" style="display:none"></div>
+
+<script>
+const CLASSES = ["personal","transactional","promotions","purchases","government","spam"];
+const KEYS = {"1":"personal","2":"transactional","3":"promotions","4":"purchases","5":"government","6":"spam","u":"","0":""};
+let sheet = null, items = [], i = 0;
+const KEYSTORE = "categories.labels.v1";
+
+function save() { try { localStorage.setItem(KEYSTORE, JSON.stringify(items.map(x => [x.id, x.label]))); } catch(e){} }
+function restore() {
+  try {
+    const raw = localStorage.getItem(KEYSTORE); if (!raw) return;
+    const map = Object.fromEntries(JSON.parse(raw));
+    items.forEach(x => { if (map[x.id] !== undefined) x.label = map[x.id]; });
+  } catch(e){}
+}
+function loadSheet(obj) {
+  sheet = obj; items = obj.items || [];
+  restore();
+  i = items.findIndex(x => !x.label);
+  if (i < 0) i = 0;
+  document.getElementById("choices").style.display = "flex";
+  buildChoices();
+  render();
+}
+function buildChoices() {
+  const wrap = document.getElementById("choices");
+  wrap.innerHTML = "";
+  const mk = (label, val, key) => {
+    const b = document.createElement("button");
+    b.innerHTML = label + (key ? `<span class="k">${key}</span>` : "");
+    if (val === "" ) b.innerHTML = "Unknown" + (key ? `<span class="k">${key}</span>` : "");
+    b.onclick = () => choose(val);
+    wrap.appendChild(b);
+    return b;
+  };
+  CLASSES.forEach((c, n) => mk(c[0].toUpperCase()+c.slice(1), c, String(n+1)));
+  mk("Unknown", "", "U");
+  const s = document.createElement("button"); s.innerHTML = `Accept suggestion<span class="k">S</span>`; s.className="primary"; s.onclick = () => { const it = items[i]; if (it && it.suggested) choose(it.suggested); }; wrap.appendChild(s);
+  const p = document.createElement("button"); p.innerHTML = `Prev<span class="k">←</span>`; p.onclick = prev; wrap.appendChild(p);
+}
+function render() {
+  const card = document.getElementById("card");
+  const it = items[i];
+  if (!it) { card.innerHTML = `<div class="done">All 320 labelled. Hit “Download labels”.</div>`; updateProgress(); return; }
+  card.innerHTML = "";
+  const s = document.createElement("div"); s.className = "sender"; s.textContent = it.sender; card.appendChild(s);
+  const b = document.createElement("div"); b.className = "body"; b.textContent = it.body; card.appendChild(b);
+  const t = document.createElement("div"); t.className = "tags";
+  if (it.suggested) { const x=document.createElement("span"); x.className="tag sug"; x.textContent = "suggested: " + it.suggested + " (" + (it.suggested_source||"") + ")"; t.appendChild(x); }
+  if (it.pocket) { const x=document.createElement("span"); x.className="tag"; x.textContent = "pocket: " + it.pocket; t.appendChild(x); }
+  if (it.old_category) { const x=document.createElement("span"); x.className="tag"; x.textContent = "old: " + it.old_category; t.appendChild(x); }
+  if (it.label !== undefined && it.label !== "") { const x=document.createElement("span"); x.className="tag done"; x.textContent = "✓ " + it.label; t.appendChild(x); }
+  card.appendChild(t);
+  updateProgress();
+}
+function updateProgress() {
+  const n = items.filter(x => x.label !== undefined && x.label !== "").length;
+  document.getElementById("progress").textContent = `${n} / ${items.length} labelled · item ${Math.min(i+1, items.length)}`;
+  document.getElementById("barfill").style.width = (items.length ? (n/items.length*100) : 0) + "%";
+  const it = items[i];
+}
+function advance() { let j = i+1; while (j < items.length && items[j] && items[j].label) { /* keep going */ break; } i = Math.min(i+1, items.length-1); }
+function choose(val) { const it = items[i]; if (!it) return; it.label = val; save(); advance(); render(); }
+function prev() { i = Math.max(0, i-1); render(); }
+
+document.addEventListener("keydown", e => {
+  if (!items.length) return;
+  const k = e.key.toLowerCase();
+  if (k in KEYS) { choose(KEYS[k]); e.preventDefault(); return; }
+  if (k === "s") { const it = items[i]; if (it && it.suggested) choose(it.suggested); e.preventDefault(); return; }
+  if (e.key === "ArrowLeft") { prev(); e.preventDefault(); }
+  if (e.key === "ArrowRight") { advance(); render(); e.preventDefault(); }
+});
+document.getElementById("file").addEventListener("change", ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try { loadSheet(JSON.parse(r.result)); } catch(err){ alert("Bad JSON: " + err.message); } };
+  r.readAsText(f);
+});
+document.getElementById("download").addEventListener("click", () => {
+  if (!sheet) return;
+  const out = Object.assign({}, sheet, items);
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "categories.labelled.json";
+  a.click();
+});
+document.getElementById("skip").addEventListener("click", () => { i = Math.min(i+1, items.length-1); render(); });
+</script>
+</body>
+</html>

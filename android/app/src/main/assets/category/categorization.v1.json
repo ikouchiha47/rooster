@@ -1,0 +1,112 @@
+{
+  "id": "categorization-v1",
+  "version": 4,
+  "note": "Message categories and classification rules as data. A category is a row; a rule is a row ordered by priority (ascending, first match wins). matcherType ids resolve through a registry of RuleMatcher implementations, so a new kind of test is a new handler, not a branch.",
+  "unknownId": "unknown",
+  "categories": [
+    { "id": "personal", "label": "Personal", "sort": 10, "color": "#1B5E20" },
+    { "id": "transactional", "label": "Transactional", "sort": 20, "color": "#0D47A1" },
+    { "id": "promotions", "label": "Promotions", "sort": 30, "color": "#E65100" },
+    { "id": "purchases", "label": "Purchases", "sort": 40, "color": "#4A148C" },
+    { "id": "government", "label": "Government", "sort": 50, "color": "#004D40" },
+    { "id": "spam", "label": "Spam", "sort": 60, "color": "#B71C1C" },
+    { "id": "unknown", "label": "Unknown", "sort": 99, "color": "#616161" }
+  ],
+  "rules": [
+    {
+      "id": "contact-wins",
+      "categoryId": "personal",
+      "priority": 10,
+      "matcherType": "contact",
+      "note": "Relationship beats nature: a saved contact is Personal even when the message is promotional."
+    },
+    {
+      "id": "govt-header-g",
+      "categoryId": "government",
+      "priority": 20,
+      "matcherType": "header_suffix",
+      "pattern": "G",
+      "note": "DLT -G suffix is the strongest government signal."
+    },
+    {
+      "id": "govt-body",
+      "categoryId": "government",
+      "priority": 25,
+      "matcherType": "body_any",
+      "pattern": "trai|epfo|income tax|cbi|bribe|department of telecom|ministry of|narcotics control|cyber crime|cybercrime|cert-in|sancharsaathi|uidai|erss|police|gstin|gst department|gst notice|gst return|সিবিআই|ঘুষ|আয়কর|ইপিএফও|জিএসটি|সরকার",
+      "note": "Govt bodies in the text. Bare 'govt'/'government' deliberately excluded (scam ads say 'Modi Govt Growth Fund'); GST alone excluded (retail tax-saving hook)."
+    },
+    {
+      "id": "bill-transactional",
+      "categoryId": "transactional",
+      "priority": 26,
+      "matcherType": "body_any",
+      "pattern": "bill of rs|bill for|your bill|is due for payment|due date|due of|dues of|overdue|repay|payment of rs|receipt of rs|credited to your account|debited|outstanding|kindly pay|clear the due",
+      "note": "A real bill/payment outranks generic threat language. Above spam, so a genuine dunning notice ('services will be stopped ... clear the bill of Rs X') is transactional, not spam."
+    },
+    {
+      "id": "spam-prize",
+      "categoryId": "spam",
+      "priority": 30,
+      "matcherType": "body_any",
+      "pattern": "you have won|you won|you've won|lottery|lucky draw|prize|gift card|claim your prize|congratulations",
+      "note": "Prize / lottery language. Bare 'winner' excluded: retail promos say 'match winner deal'."
+    },
+    {
+      "id": "spam-threat",
+      "categoryId": "spam",
+      "priority": 31,
+      "matcherType": "body_any",
+      "pattern": "will be stopped|will be discontinued|will be deactivated|will be suspended|account blocked|account suspended|account will be",
+      "note": "Coercive shutdown language."
+    },
+    {
+      "id": "spam-kyc",
+      "categoryId": "spam",
+      "priority": 32,
+      "matcherType": "body_any",
+      "pattern": "kyc is pending|kyc pending|kyc update|kyc expired|kyc has expired|kyc suspended|kyc blocked|complete your kyc|update your kyc|verify your kyc|kyc verification pending",
+      "note": "KYC-phishing phrasings. A bare mention of KYC (e.g. a legitimate courier) does not fire."
+    },
+    {
+      "id": "transactional",
+      "categoryId": "transactional",
+      "priority": 40,
+      "matcherType": "body_any",
+      "pattern": "otp|one time password|one-time password|verification code|login code|auth code|do not share|don't share|never share|share it with anyone|share this code|debited|withdrawn|spent|transferred|txn|transaction|payment of|paid to|successfully paid|payment confirmed|payment failed|amount paid|refund|credited with rs|digital receipt|recent purchase|data pack|activation code|a/c|acct|upi|neft|imps|missed call|minimum payment|renewal|auto-debit",
+      "note": "OTP + money movement + service notices. Bare 'credited'/'expiring'/'recharge'/'salary' removed: promos use them ('CREDITED INR 500 ... use code', 'cash expiring'). Real bill/due/overdue now sits in bill-transactional (priority 26)."
+    },
+    {
+      "id": "purchases",
+      "categoryId": "purchases",
+      "priority": 50,
+      "matcherType": "body_any",
+      "pattern": "out for delivery|has been delivered|was delivered|delivery code|shipped|shipment|dispatched|arriving today|order #|order no|your order|tracking number|tracking id|awb|consignment",
+      "note": "Order lifecycle. Bare 'delivered'/'courier'/'parcel' removed: promos say 'delivered in 10 mins'."
+    },
+    {
+      "id": "promo-header-p",
+      "categoryId": "promotions",
+      "priority": 60,
+      "matcherType": "header_suffix",
+      "pattern": "P",
+      "note": "DLT -P suffix. Placed after transactional/purchases so a service message is not read as a promo."
+    },
+    {
+      "id": "promotions",
+      "categoryId": "promotions",
+      "priority": 61,
+      "matcherType": "body_any",
+      "pattern": "% off|off on|flat|promo|offer|sale|redeem|coupon|use code|code:|discount|deal|cashback|activate|exclusive|limited period|limited time|shop now|buy now|order now|hurry|savings|save|free|upto|up to|enroll|master|course|program|collection|new in|just dropped|in-store|in store|available in stores|book your|claim now|shop|visit|upgrade|fest|rewards|voucher|bonus|points|earn|benefits|membership|loyalty|new arrival|launch|monsoon|summer|winter|festive|অফার|ছাড়|বিনামূল্যে|ট্রায়াল|লাইভ|প্ল্যান|সাবস্ক্রিপশন|উপভোগ|অ্যাকশন|ফ্রি",
+      "note": "Marketing language, incl. modern forms the seed missed (enrol/master/collection/claim now/visit/upgrade) and Bengali offers (Bengali text has no Latin markers)."
+    },
+    {
+      "id": "number-human-text",
+      "categoryId": "personal",
+      "priority": 70,
+      "matcherType": "human_text",
+      "pattern": "number",
+      "note": "An unsaved number sending human prose with no template marker is a person."
+    }
+  ]
+}

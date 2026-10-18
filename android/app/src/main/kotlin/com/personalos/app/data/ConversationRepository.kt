@@ -13,21 +13,22 @@ import kotlinx.coroutines.flow.Flow
 class ConversationRepository(
     private val dao: ConversationDao,
 ) {
-    /** Recent conversations for [mode], newest message first, bounded. */
-    suspend fun recent(
-        mode: String,
+    /**
+     * The conversation list for [categoryId]: every conversation whose latest
+     * message carries that category, one row per sender, newest first. Paged by
+     * the `(lastAt, sender)` keyset of the previous page; a null cursor starts
+     * the walk. Recency moves under writes, so this is bounded by [limit] and
+     * never loads the set whole.
+     */
+    suspend fun timeline(
+        categoryId: String,
+        cursorAt: Long?,
+        cursorSender: String?,
         limit: Int,
-    ): List<Conversation> = dao.recent(mode, limit).map(ConversationWithLast::toDomain)
+    ): List<Conversation> = dao.timeline(categoryId, cursorAt, cursorSender, limit).map(ConversationWithLast::toDomain)
 
-    /** A page of all conversations for [mode], sender A -> Z after [cursor]. */
-    suspend fun all(
-        mode: String,
-        cursor: String?,
-        limit: Int,
-    ): List<Conversation> = dao.all(mode, cursor, limit).map(ConversationWithLast::toDomain)
-
-    /** The tab badge while conversations are shown. */
-    fun observeCountByMode(mode: String): Flow<Int> = dao.observeCountByMode(mode)
+    /** The tab badges: conversation counts per category. */
+    fun observeCountsByCategory(): Flow<List<CategoryCount>> = dao.observeCountsByCategory()
 
     /** One sender's messages, newest first, keyset-paged on `(timestamp, id)`. */
     suspend fun thread(

@@ -5,74 +5,35 @@ import com.personalos.app.data.Conversation
 
 /*
  * The conversations list's decisions, kept out of the composable so they can be
- * tested without rendering — the same split as [MessagesTab] and `WatchersModel`.
+ * tested without rendering — the same split as [MessageTab] and `WatchersModel`.
  * The screen lays these out; it does not decide what they say.
  *
- * The two sections order differently on purpose:
- *
- *  - **Recent** is recency (pinned, then newest message id). Recency moves under
- *    writes, so this section is bounded and never cursored.
- *  - **All** is alphabetical by **sender**, because that order does not move when
- *    a message arrives, which is what lets it carry a stable keyset cursor.
+ * There is one ordering: **recency** of the last message. Both views read the
+ * same [ConversationRepository.timeline] source and differ only in whether the
+ * rows are bucketed under day markers.
  */
-
-/** Recent order: pinned first, then the highest message id (the newest). */
-val CONVERSATION_RECENT_ORDER: Comparator<Conversation> =
-    compareByDescending<Conversation> { it.pinned }.thenByDescending { it.lastMessageId }
-
-/** All order: pinned first, then sender A -> Z. Stable under writes. */
-val CONVERSATION_ALL_ORDER: Comparator<Conversation> =
-    compareByDescending<Conversation> { it.pinned }.thenBy { it.sender }
-
-/** The two bodies the Messages list renders, each already ordered. */
-data class ConversationSections(
-    val recent: List<Conversation>,
-    val all: List<Conversation>,
-)
 
 /**
- * Shapes the two reads the screen makes: the bounded recent page and the
- * complete (paged) all page. Both are re-ordered here rather than trusted from
- * SQL, so the list cannot disagree with the query about what "first" means and
- * the cap is re-applied defensively.
+ * Timeline order: newest last-message first, `sender` as the tiebreak. This is
+ * the same ordering (and the same `(lastAt, sender)` key) the Timeline query
+ * pages on, so a merged list cannot disagree with the store about "newest".
  */
-fun conversationSections(
-    recent: List<Conversation>,
-    all: List<Conversation>,
-    recentLimit: Int,
-): ConversationSections =
-    ConversationSections(
-        recent = recent.sortedWith(CONVERSATION_RECENT_ORDER).take(recentLimit.coerceAtLeast(0)),
-        all = all.sortedWith(CONVERSATION_ALL_ORDER),
-    )
+val CONVERSATION_TIMELINE_ORDER: Comparator<Conversation> =
+    compareByDescending<Conversation> { it.lastAt }.thenBy { it.sender }
 
 /**
- * Whether a conversation belongs in a box tab. `all` is every conversation;
- * the others need at least one message in that box, which is exactly the SQL
- * filter the reads use.
+ * The conversation list: conversations newest-last-message first, re-applied
+ * here rather than trusted from SQL. Grouping into day buckets is
+ * [com.personalos.app.ui.common.groupIntoDays]; the row stays a conversation, so
+ * the view is one row per sender.
  */
-fun conversationMatchesMode(
-    conversation: Conversation,
-    mode: String,
-): Boolean =
-    when (mode) {
-        "inbox" -> conversation.inboxCount > 0
-        "sent" -> conversation.sentCount > 0
-        "other" -> conversation.otherCount > 0
-        else -> true
-    }
+fun conversationTimeline(conversations: List<Conversation>): List<Conversation> = conversations.sortedWith(CONVERSATION_TIMELINE_ORDER)
 
 /**
- * The All section's keyset: the next page starts strictly after the last sender
- * of this one. A null cursor starts the walk; the cursor row itself is never
- * returned again.
+ * The fallback label: the stored sender, verbatim. The row overlays it with a
+ * known contact name; when contacts are unavailable this is what shows, so the
+ * list is never blank and never invents a name.
  */
-fun conversationAfterCursor(
-    sender: String,
-    cursor: String?,
-): Boolean = cursor == null || sender > cursor
-
-/** The label is the stored sender. No contacts permission, so no invented name. */
 fun conversationLabel(conversation: Conversation): String = conversation.sender
 
 /**

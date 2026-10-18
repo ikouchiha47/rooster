@@ -3,7 +3,9 @@ package com.personalos.app.ui.watchers
 import com.personalos.app.core.Chars
 import com.personalos.app.data.RuleFire
 import com.personalos.app.data.RuleWithFires
+import com.personalos.app.data.SmsSource
 import com.personalos.app.ui.common.compactNumber
+import com.personalos.app.ui.navigation.Destination
 
 /**
  * Watchers' decisions, kept out of the composable so they can be tested without
@@ -39,3 +41,21 @@ fun visibleClauses(fire: RuleFire): List<String> = fire.clauses.take(CLAUSES_SHO
 
 /** Beyond this the rule's name carries the rest. */
 private const val CLAUSES_SHOWN = 3
+
+/**
+ * Where a tap on a fire goes, decided by the source already on the fire — so a
+ * matched item never needs to store a view. SMS opens the sender's thread (the
+ * title carries the stored sender address, exactly as the Messages timeline
+ * navigates); anything with a stored row id opens the in-app article, whatever
+ * tab would also list it; anything else stays inert, today's behavior.
+ */
+fun fireDestination(
+    source: String,
+    title: String,
+    eventId: Long?,
+): Destination? =
+    when {
+        source == SmsSource.SOURCE_ID -> Destination.Conversation(title)
+        eventId != null -> Destination.Article(eventId)
+        else -> null
+    }

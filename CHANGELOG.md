@@ -7,6 +7,21 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## chore: snapshot of in-flight work in main before integrating sms-send
+
+_2026-10-18_
+
+Commits the uncommitted working tree so feature branches fork from the current
+state instead of a stale HEAD. The changes are entangled across shared files
+(AppContainer.kt, Sql.kt, Migrations.kt, AppDatabase.kt), so they are one
+snapshot rather than feature commits that would not compile independently.
+
+Areas: the Messages UI rewrite; the categorisation taxonomy (schema v21);
+rules; the SMS classifier -> SmsDetails refactor; watchers/travel/radar; and
+work/scheduling.
+
+Verified: :app:assembleDebug builds.
+
 ## fix(enrich): drain oldest candidates first
 
 _2026-10-16_

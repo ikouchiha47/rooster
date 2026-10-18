@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,10 +28,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -45,12 +47,14 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
-import com.personalos.app.core.SmsClass
-import com.personalos.app.core.SmsClassifier
+import com.personalos.app.core.SmsDetails
+import com.personalos.app.core.category.CategoryTaxonomy
+import com.personalos.app.core.time.UserZone
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.ConversationRepository
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
+import com.personalos.app.data.RuleFireRepository
 import com.personalos.app.data.SmsSource
 import com.personalos.app.ui.common.CategorySpine
 import com.personalos.app.ui.common.Chip
@@ -73,10 +77,8 @@ import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.roundToInt
 
 private const val PAGE_SIZE = 200
@@ -95,9 +97,6 @@ private const val LOADED_CAP = 1_000
  */
 private val newestMessageFirst: Comparator<EventEntity> =
     compareByDescending<EventEntity> { it.timestamp }.thenByDescending { it.id }
-
-// Hoisted formatter: created once, never per row.
-private val TIME_FMT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
 private sealed interface MsgRow {
     data class Header(
@@ -119,18 +118,35 @@ fun MessagesScreen(
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val mode = messagesTabAt(selectedTab).mode()
+    // The taxonomy lives in the DB; load once so each row's chip reads its label
+    // and colour from it rather than from a second classifier.
+    val taxonomy by
+        produceState<CategoryTaxonomy?>(initialValue = null, container) {
+            value = runCatching { container.categoryStore.taxonomy() }.getOrNull()
+        }
 
-    // The body is conversations by default; the flat timeline is one toggle away,
-    // so day-bucketing is never lost. Saved and search stay flat either way:
-    // they are messages, not conversations.
-    var conversationsView by remember { mutableStateOf(true) }
+    // The strip is built from the taxonomy (plus Alerts), never an enum. Selection
+    // is by id, so a category added as a DB row appears without touching this
+    // screen. Before the taxonomy loads there is one tab (Alerts); once it lands
+    // the default becomes the first category.
+    val tabs = remember(taxonomy) { messageTabs(taxonomy) }
+    var selectedTabId by remember { mutableStateOf<String?>(null) }
+    val activeTabId =
+        selectedTabId?.takeIf { id -> tabs.any { it.id == id } } ?: defaultMessageTabId(taxonomy)
+    val selectedTabIndex = messageTabIndex(tabs, activeTabId)
+    val activeCategoryId = tabs.firstOrNull { it.id == activeTabId }?.categoryId
+
+    // Both conversation views read the same recency-ordered source; this toggle
+    // only chooses whether it is grouped by day (Timeline, the default) or left
+    // flat. Search stays flat on its own path: it is messages, not conversations.
+    var conversationsView by remember { mutableStateOf(false) }
+
+    // Saved is not a tab — it is a bookmark filter over messages. Kept as a
+    // toggle so the swipe-to-save feature keeps a surface to read back from.
+    var savedOnly by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     var items by remember { mutableStateOf<List<EventEntity>>(emptyList()) }
-    var cursorTs by remember { mutableStateOf<Long?>(null) }
-    var cursorId by remember { mutableStateOf(0L) }
     var savedCursor by remember { mutableStateOf<Long?>(null) }
     var loading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
@@ -159,31 +175,29 @@ fun MessagesScreen(
         .messageSearchDao()
         .observeMaxIdForSource(SmsSource.SOURCE_ID)
         .collectAsStateWithLifecycle(initialValue = null)
+
+    // The re-classify walk rewrites `events.category` on already-stored rows, which
+    // the timeline (a suspend read) cannot see. It publishes its gate version, so
+    // the list re-reads when a re-classify lands rather than staying stale until a
+    // relaunch. New messages are the other trigger; the two are independent.
+    val categoryVersion by container.categoryBackfill
+        .observeVersion()
+        .collectAsStateWithLifecycle(initialValue = null)
     var loadedOnce by remember { mutableStateOf(false) }
 
-    LaunchedEffect(mode) {
+    // The saved list is the only message-level browse path left; the category
+    // tabs list conversations. It reads the save stamp, not the publish time.
+    LaunchedEffect(savedOnly) {
+        if (!savedOnly) return@LaunchedEffect
         loadedOnce = false
         items = emptyList()
-        cursorTs = null
-        cursorId = 0L
         savedCursor = null
         endReached = false
         loading = true
-        if (mode == null) {
-            // Saved is not a box: it reads the save stamp, not the publish time.
-            val first = container.bookmarks.saved(source = SmsSource.SOURCE_ID, limit = PAGE_SIZE)
-            items = first
-            savedCursor = first.lastOrNull()?.bookmarkedAt
-            if (first.size < PAGE_SIZE) endReached = true
-        } else {
-            val first = dao.page(mode, null, 0L, PAGE_SIZE)
-            items = first
-            if (first.isNotEmpty()) {
-                cursorTs = first.last().timestamp
-                cursorId = first.last().id
-            }
-            if (first.size < PAGE_SIZE) endReached = true
-        }
+        val first = container.bookmarks.saved(source = SmsSource.SOURCE_ID, limit = PAGE_SIZE)
+        items = first
+        savedCursor = first.lastOrNull()?.bookmarkedAt
+        if (first.size < PAGE_SIZE) endReached = true
         loading = false
         loadedOnce = true
     }
@@ -193,13 +207,8 @@ fun MessagesScreen(
     // torn down. Skipped while search results are showing, because those are a
     // different list with a different order.
     LaunchedEffect(smsMaxId) {
-        if (!loadedOnce || committed != null) return@LaunchedEffect
-        val fresh =
-            if (mode == null) {
-                container.bookmarks.saved(source = SmsSource.SOURCE_ID, limit = PAGE_SIZE)
-            } else {
-                dao.page(mode, null, 0L, PAGE_SIZE)
-            }
+        if (!savedOnly || !loadedOnce || committed != null) return@LaunchedEffect
+        val fresh = container.bookmarks.saved(source = SmsSource.SOURCE_ID, limit = PAGE_SIZE)
         items =
             mergeArrivals(
                 current = items,
@@ -213,7 +222,7 @@ fun MessagesScreen(
     // Re-read the saved flags for the loaded page, so the glyph and the swipe
     // reflect the store rather than a guess made at render time. Search results
     // are included: the same row rendering shows the same bookmark glyph.
-    LaunchedEffect(items, results, mode) {
+    LaunchedEffect(items, results) {
         savedIds =
             (items + results)
                 .filter { it.bookmarkedAt != null }
@@ -229,7 +238,7 @@ fun MessagesScreen(
         savedIds = if (nowSaved) savedIds + ulid else savedIds - ulid
         // Only the Saved view has to drop the row: elsewhere the message stays,
         // it just stops being marked.
-        if (!nowSaved && mode == null) {
+        if (!nowSaved && savedOnly) {
             items = items.filterNot { it.ulid == ulid }
             results = results.filterNot { it.ulid == ulid }
         }
@@ -243,40 +252,29 @@ fun MessagesScreen(
         savedIds = savedIds - ulid
     }
 
-    // ...and the next page when the list nears its end.
-    LaunchedEffect(listState, mode) {
+    // ...and the next page when the saved list nears its end.
+    LaunchedEffect(listState, savedOnly) {
         snapshotFlow {
             listState.layoutInfo.visibleItemsInfo
                 .lastOrNull()
                 ?.index ?: 0
         }.collect { lastVisible ->
             // Never page the browse stream while search results are on screen.
-            if (committed == null &&
+            if (savedOnly &&
+                committed == null &&
                 !loading &&
                 !endReached &&
                 items.isNotEmpty() &&
                 lastVisible >= items.size - 5
             ) {
                 loading = true
-                if (mode == null) {
-                    val next = container.bookmarks.saved(SmsSource.SOURCE_ID, savedCursor, PAGE_SIZE)
-                    if (next.isEmpty()) {
-                        endReached = true
-                    } else {
-                        items = items + next
-                        savedCursor = next.lastOrNull()?.bookmarkedAt
-                        if (next.size < PAGE_SIZE) endReached = true
-                    }
+                val next = container.bookmarks.saved(SmsSource.SOURCE_ID, savedCursor, PAGE_SIZE)
+                if (next.isEmpty()) {
+                    endReached = true
                 } else {
-                    val next = dao.page(mode, cursorTs, cursorId, PAGE_SIZE)
-                    if (next.isEmpty()) {
-                        endReached = true
-                    } else {
-                        items = items + next
-                        cursorTs = next.last().timestamp
-                        cursorId = next.last().id
-                        if (next.size < PAGE_SIZE) endReached = true
-                    }
+                    items = items + next
+                    savedCursor = next.lastOrNull()?.bookmarkedAt
+                    if (next.size < PAGE_SIZE) endReached = true
                 }
                 loading = false
             }
@@ -288,9 +286,7 @@ fun MessagesScreen(
             val out = ArrayList<MsgRow>(items.size + 8)
             var currentBucket = Long.MIN_VALUE
             for (e in items) {
-                val bucket =
-                    com.personalos.app.core.time.UserZone
-                        .dayStart(e.timestamp)
+                val bucket = UserZone.dayStart(e.timestamp)
                 if (bucket != currentBucket) {
                     currentBucket = bucket
                     out.add(MsgRow.Header(e.timestamp))
@@ -313,6 +309,7 @@ fun MessagesScreen(
             MessagesAppBar(
                 dao = dao,
                 conversationsView = conversationsView,
+                savedOnly = savedOnly,
                 onSearch = {
                     searchOpen = !searchOpen
                     if (!searchOpen) {
@@ -323,6 +320,7 @@ fun MessagesScreen(
                     }
                 },
                 onToggleView = { conversationsView = !conversationsView },
+                onToggleSaved = { savedOnly = !savedOnly },
             )
             if (searchOpen) {
                 Box(
@@ -377,10 +375,22 @@ fun MessagesScreen(
                 }
             }
             if (committed == null) {
-                MessagesTabs(container.conversations, dao, conversationsView, selectedTab, onSelect = { selectedTab = it })
+                if (!savedOnly) {
+                    MessagesTabs(
+                        conversations = container.conversations,
+                        ruleFires = container.ruleFires,
+                        tabs = tabs,
+                        selectedIndex = selectedTabIndex,
+                        onSelect = { index ->
+                            selectedTabId = tabs.getOrNull(index)?.id
+                            // Choosing a category leaves the saved filter.
+                            savedOnly = false
+                        },
+                    )
+                }
                 SyncLine(
-                    left = "Push + in-app inbox",
-                    right = "Quiet hours 23:00${Chars.EN_DASH}07:00",
+                    left = if (savedOnly) "Saved ${Chars.MIDDLE_DOT} bookmarked messages" else "Push + in-app inbox",
+                    right = if (savedOnly) "Newest save first" else "Quiet hours 23:00${Chars.EN_DASH}07:00",
                 )
             }
 
@@ -398,56 +408,73 @@ fun MessagesScreen(
                             results = results,
                             savedIds = savedIds,
                             listState = searchListState,
+                            taxonomy = taxonomy,
                             // A result is a message: the same save and delete
                             // actions apply, so it renders the same row.
+                            onOpenConversation = onOpenConversation,
                             onToggleSave = { ulid -> scope.launch { toggleSave(ulid) } },
                             onDelete = { ulid -> scope.launch { deleteMessage(ulid) } },
                         )
 
-                    // Conversations are the body for the box tabs. Saved (mode ==
-                    // null) and search stay flat: they are not conversations.
-                    conversationsView && mode != null ->
-                        ConversationsBody(
+                    // Saved is a message filter, not a category: one flat list,
+                    // ordered by when it was saved.
+                    savedOnly ->
+                        if (rows.isEmpty()) {
+                            EmptySaved(Modifier.fillMaxSize())
+                        } else {
+                            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                                items(
+                                    items = rows,
+                                    key = { row ->
+                                        when (row) {
+                                            is MsgRow.Header -> "d-${row.dayStart}"
+                                            is MsgRow.Item -> "e-${row.event.id}"
+                                        }
+                                    },
+                                ) { row ->
+                                    when (row) {
+                                        is MsgRow.Header -> {
+                                            val (label, right) =
+                                                remember(row.dayStart) {
+                                                    val l = dayLabel(row.dayStart)
+                                                    l to dayLabelRight(l, row.dayStart)
+                                                }
+                                            DayMarker(label = label, right = right)
+                                        }
+
+                                        is MsgRow.Item ->
+                                            SwipeableMessageRow(
+                                                entity = row.event,
+                                                saved = row.event.ulid in savedIds,
+                                                taxonomy = taxonomy,
+                                                onOpen = { onOpenConversation(row.event.title) },
+                                                onToggleSave = { scope.launch { toggleSave(row.event.ulid) } },
+                                                onDelete = { scope.launch { deleteMessage(row.event.ulid) } },
+                                            )
+                                    }
+                                }
+                                item { FooterStrip("Last refresh 09:44 ${Chars.MIDDLE_DOT} sample data") }
+                            }
+                        }
+
+                    // A category tab lists conversations whose latest message
+                    // carries that category. One body, one ordering (recency via
+                    // `timeline`); the toggle only chooses grouping: the Timeline
+                    // buckets by day, the flat view does not.
+                    activeCategoryId != null ->
+                        ConversationsListBody(
                             repository = container.conversations,
-                            mode = mode,
+                            categoryId = activeCategoryId,
                             smsMaxId = smsMaxId,
+                            categoryVersion = categoryVersion,
+                            groupByDay = !conversationsView,
                             onOpenConversation = onOpenConversation,
                         )
 
-                    rows.isEmpty() -> EmptyInbox(Modifier.fillMaxSize())
-
-                    else ->
-                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                            items(
-                                items = rows,
-                                key = { row ->
-                                    when (row) {
-                                        is MsgRow.Header -> "d-${row.dayStart}"
-                                        is MsgRow.Item -> "e-${row.event.id}"
-                                    }
-                                },
-                            ) { row ->
-                                when (row) {
-                                    is MsgRow.Header -> {
-                                        val (label, right) =
-                                            remember(row.dayStart) {
-                                                val l = dayLabel(row.dayStart)
-                                                l to dayLabelRight(l, row.dayStart)
-                                            }
-                                        DayMarker(label = label, right = right)
-                                    }
-
-                                    is MsgRow.Item ->
-                                        SwipeableMessageRow(
-                                            entity = row.event,
-                                            saved = row.event.ulid in savedIds,
-                                            onToggleSave = { scope.launch { toggleSave(row.event.ulid) } },
-                                            onDelete = { scope.launch { deleteMessage(row.event.ulid) } },
-                                        )
-                                }
-                            }
-                            item { FooterStrip("Last refresh 09:44 ${Chars.MIDDLE_DOT} sample data") }
-                        }
+                    // Alerts: a cross-source view over stored rule matches — the
+                    // same matches Watchers shows, flattened across every rule.
+                    // Distinct from the SMS-scoped category tabs by design.
+                    else -> AlertsListBody(repository = container.ruleFires)
                 }
             }
         }
@@ -460,19 +487,27 @@ fun MessagesScreen(
 private fun MessagesAppBar(
     dao: EventDao,
     conversationsView: Boolean,
+    savedOnly: Boolean,
     onSearch: () -> Unit,
     onToggleView: () -> Unit,
+    onToggleSaved: () -> Unit,
 ) {
     val unread by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
     RadarAppBar(
         title = "Messages",
         sub = "Notifications ${Chars.MIDDLE_DOT} $unread unread",
         actions = {
-            // Grouped conversations <-> flat timeline. Day-bucketing lives in the
-            // timeline, so it stays one tap away rather than being lost.
+            // Flat conversations <-> day-bucketed timeline. Both list the same
+            // recency-ordered source; day-bucketing is the only difference.
             GlyphActionButton(
                 glyph = if (conversationsView) Glyph.Stack else Glyph.Chat,
                 onClick = onToggleView,
+            )
+            // Saved is a filter over messages, not a tab. The filled mark shows
+            // when it is on, so the surface is never silently somewhere else.
+            GlyphActionButton(
+                glyph = if (savedOnly) Glyph.BookmarkFilled else Glyph.Bookmark,
+                onClick = onToggleSaved,
             )
             GlyphActionButton(Glyph.Search, onClick = onSearch)
             GlyphActionButton(Glyph.Dots, onClick = { })
@@ -480,37 +515,31 @@ private fun MessagesAppBar(
     )
 }
 
+/**
+ * The strip is built from [tabs]: each category badge from the conversations
+ * whose latest message carries that category — the same join and rule the list
+ * uses — and the Alerts badge from the count of matched events, the same grain
+ * the Alerts list shows. Both counts are read from the store, so a badge and its
+ * list cannot disagree.
+ */
 @Composable
 private fun MessagesTabs(
     conversations: ConversationRepository,
-    dao: EventDao,
-    conversationsView: Boolean,
+    ruleFires: RuleFireRepository,
+    tabs: List<MessageTab>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
 ) {
-    val container = LocalAppContainer.current
-    val saved by container.bookmarks.observeSavedCount(SmsSource.SOURCE_ID).collectAsStateWithLifecycle(initialValue = 0)
+    val counts by
+        conversations
+            .observeCountsByCategory()
+            .collectAsStateWithLifecycle(initialValue = emptyList())
+    val alerts by ruleFires.observeAlertCount().collectAsStateWithLifecycle(initialValue = 0)
+    // Rebuild only when a count changes, not on every recomposition.
+    val byCategory = remember(counts) { counts.associate { it.category to it.count } }
 
-    // The count shown belongs to what the body is listing: conversations while
-    // grouped, messages while flat. Saved is the same either way — it is not a box.
-    val counts =
-        if (conversationsView) {
-            val all by conversations.observeCountByMode("all").collectAsStateWithLifecycle(initialValue = 0)
-            val inbox by conversations.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
-            val sent by conversations.observeCountByMode("sent").collectAsStateWithLifecycle(initialValue = 0)
-            val other by conversations.observeCountByMode("other").collectAsStateWithLifecycle(initialValue = 0)
-            listOf(all, inbox, sent, other, saved)
-        } else {
-            val all by dao.observeCountByMode("all").collectAsStateWithLifecycle(initialValue = 0)
-            val inbox by dao.observeCountByMode("inbox").collectAsStateWithLifecycle(initialValue = 0)
-            val sent by dao.observeCountByMode("sent").collectAsStateWithLifecycle(initialValue = 0)
-            val other by dao.observeCountByMode("other").collectAsStateWithLifecycle(initialValue = 0)
-            listOf(all, inbox, sent, other, saved)
-        }
-
-    // Labels come from the tab model, so the strip and the loader cannot disagree.
     TabStrip(
-        items = MessagesTab.entries.mapIndexed { index, tab -> TabSpec(tab.label, counts[index]) },
+        items = tabs.map { TabSpec(it.label, messageTabCount(it, byCategory, alerts)) },
         selectedIndex = selectedIndex,
         onSelect = onSelect,
     )
@@ -529,17 +558,26 @@ private val ACTION_WIDTH = 84.dp
  * spring back tells you nothing about whether it worked, and an action you can
  * see before you press it is the whole point. The row comes back only after the
  * action has run, so the movement is the receipt.
+ *
+ * A tap opens the sender's thread. Tap and swipe share one [pointerInput] as two
+ * concurrent detectors rather than a `clickable` over the drag: a horizontal
+ * drag past touch slop consumes its moves, which cancels the tap, so the two
+ * cannot both fire. A tap with the actions already revealed just closes the row
+ * — the same gesture, so navigation is never a surprise.
  */
 @Composable
 private fun SwipeableMessageRow(
     entity: EventEntity,
     saved: Boolean,
+    taxonomy: CategoryTaxonomy?,
+    onOpen: () -> Unit,
     onToggleSave: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val revealPx = with(LocalDensity.current) { REVEAL_WIDTH.toPx() }
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+    val currentOnOpen by rememberUpdatedState(onOpen)
 
     Box(Modifier.fillMaxWidth()) {
         // Behind the row: revealed as it slides, tap-only.
@@ -575,22 +613,42 @@ private fun SwipeableMessageRow(
                 Modifier
                     .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                     .pointerInput(revealPx) {
-                        detectHorizontalDragGestures(
-                            onHorizontalDrag = { _, dragAmount ->
-                                scope.launch {
-                                    offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-revealPx, 0f))
-                                }
-                            },
-                            onDragEnd = {
-                                scope.launch {
-                                    val open = offsetX.value < -revealPx / 2f
-                                    offsetX.animateTo(if (open) -revealPx else 0f)
-                                }
-                            },
-                        )
+                        // Both detectors run on the same pointer stream. The drag
+                        // detector consumes only once touch slop is crossed, which
+                        // cancels the tap; below slop the up is unconsumed and the
+                        // tap wins. The row being open is the other guard: it
+                        // closes rather than navigates.
+                        coroutineScope {
+                            launch {
+                                detectTapGestures(
+                                    onTap = {
+                                        if (offsetX.value < 0f) {
+                                            scope.launch { offsetX.animateTo(0f) }
+                                        } else {
+                                            currentOnOpen()
+                                        }
+                                    },
+                                )
+                            }
+                            launch {
+                                detectHorizontalDragGestures(
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        scope.launch {
+                                            offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-revealPx, 0f))
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        scope.launch {
+                                            val open = offsetX.value < -revealPx / 2f
+                                            offsetX.animateTo(if (open) -revealPx else 0f)
+                                        }
+                                    },
+                                )
+                            }
+                        }
                     },
         ) {
-            MessageRow(entity, saved = saved)
+            MessageRow(entity, saved = saved, taxonomy = taxonomy)
         }
     }
 }
@@ -621,16 +679,23 @@ private fun RowAction(
 @Composable
 private fun MessageRow(
     entity: EventEntity,
+    taxonomy: CategoryTaxonomy?,
     saved: Boolean = false,
 ) {
     val unread = entity.type == "inbox"
-    val time = remember(entity.timestamp) { TIME_FMT.format(Date(entity.timestamp)) }
-    // Classification drives the chip. It is a pure function, so it is safe to
-    // run per visible row (LazyColumn keeps this to a handful at once).
-    val classification =
-        remember(entity.title, entity.content) {
-            SmsClassifier.classify(entity.title, entity.content)
+    val time =
+        remember(entity.timestamp) {
+            formatMessageTime(System.currentTimeMillis(), entity.timestamp, UserZone.current)
         }
+    // The stored sender is the fallback; a known contact name overlays it. Not
+    // remembered: the resolver is empty at first composition and fills in later.
+    val title = LocalAppContainer.current.contactNames.nameFor(entity.title) ?: entity.title
+    // The chip reads the message's stored category id and the taxonomy's label
+    // and colour. No classification happens here: ingest is the one owner.
+    val category = remember(entity.category, taxonomy) { taxonomy?.category(entity.category) }
+    // Display-only extras, never the category.
+    val amount = remember(entity.content) { SmsDetails.amount(entity.content) }
+    val code = remember(entity.content) { SmsDetails.code(entity.content) }
 
     Row(
         modifier =
@@ -677,21 +742,21 @@ private fun MessageRow(
                 GlyphIcon(channelGlyph(entity.source), RadarColors.ink2, 12.dp)
                 Spacer(Modifier.width(6.dp))
                 Chip(
-                    text = labelFor(classification.klass),
-                    color = colorFor(classification.klass),
+                    text = category?.label ?: entity.category,
+                    color = category?.color?.let(::hexColor) ?: RadarColors.ruleSoft,
                 )
-                classification.amount?.let { amount ->
+                amount?.let { value ->
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "${Chars.RUPEE}${"%,.0f".format(amount)}",
+                        text = "${Chars.RUPEE}${"%,.0f".format(value)}",
                         style = RadarType.microBold,
                         color = RadarColors.ink,
                     )
                 }
-                classification.code?.let { code ->
+                code?.let { value ->
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "code $code",
+                        text = "code $value",
                         style = RadarType.microPlain,
                         color = RadarColors.ink3,
                     )
@@ -700,7 +765,7 @@ private fun MessageRow(
             Spacer(Modifier.height(2.dp))
 
             Text(
-                text = entity.title,
+                text = title,
                 style = RadarType.serifTitle,
                 color = RadarColors.ink,
                 maxLines = 1,
@@ -747,14 +812,36 @@ private fun MessageRow(
     HardRule()
 }
 
+/** The saved filter has no rows yet: say how to make one. */
 @Composable
-private fun EmptyInbox(modifier: Modifier = Modifier) {
+private fun EmptySaved(modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "NO NOTIFICATIONS", style = RadarType.micro, color = RadarColors.ink3)
+            Text(text = "NO SAVED MESSAGES", style = RadarType.micro, color = RadarColors.ink3)
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Grant SMS access to ingest messages",
+                text = "Swipe a message left to save it",
+                style = RadarType.small,
+                color = RadarColors.ink3,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+/**
+ * Alerts has no matches to show: either no rule has fired, or none exists yet.
+ * Still the genuine empty state — [AlertsListBody] renders it only when the
+ * store returns a page with no rows.
+ */
+@Composable
+internal fun AlertsEmpty(modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "NO ALERTS YET", style = RadarType.micro, color = RadarColors.ink3)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Create a rule from a message",
                 style = RadarType.small,
                 color = RadarColors.ink3,
                 textAlign = TextAlign.Center,
@@ -776,6 +863,8 @@ private fun SearchResults(
     results: List<EventEntity>,
     savedIds: Set<String>,
     listState: LazyListState,
+    taxonomy: CategoryTaxonomy?,
+    onOpenConversation: (String) -> Unit,
     onToggleSave: (String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
@@ -808,6 +897,8 @@ private fun SearchResults(
             SwipeableMessageRow(
                 entity = event,
                 saved = event.ulid in savedIds,
+                taxonomy = taxonomy,
+                onOpen = { onOpenConversation(event.title) },
                 onToggleSave = { onToggleSave(event.ulid) },
                 onDelete = { onDelete(event.ulid) },
             )
@@ -858,30 +949,11 @@ private fun stateColor(type: String): Color =
         else -> RadarColors.paper4
     }
 
-/** Short chip label per intent class. */
-private fun labelFor(klass: SmsClass): String =
-    when (klass) {
-        SmsClass.PERSONAL -> "Social"
-        SmsClass.OTP -> "OTP"
-        SmsClass.TRANSACTION -> "Money"
-        SmsClass.BILL -> "Bill"
-        SmsClass.TRAVEL_LOGISTICS -> "Travel"
-        SmsClass.UPDATES -> "Update"
-        SmsClass.PROMOTIONAL -> "Promo"
-        SmsClass.SPAM_FRAUD -> "Spam"
-    }
-
-private fun colorFor(klass: SmsClass): Color =
-    when (klass) {
-        SmsClass.PERSONAL -> RadarColors.ink2
-        SmsClass.OTP -> CategoryColors.Cyan
-        SmsClass.TRANSACTION -> CategoryColors.Teal
-        SmsClass.BILL -> CategoryColors.Mustard
-        SmsClass.TRAVEL_LOGISTICS -> CategoryColors.Indigo
-        SmsClass.UPDATES -> CategoryColors.Periwinkle
-        SmsClass.PROMOTIONAL -> CategoryColors.Plum
-        SmsClass.SPAM_FRAUD -> CategoryColors.Vermilion
-    }
+/** A stored `#RRGGBB` as an opaque Compose colour; bad input falls back to ink. */
+private fun hexColor(hex: String): Color {
+    val rgb = hex.removePrefix("#").toLongOrNull(16) ?: return RadarColors.ruleSoft
+    return Color(0xFF000000L or rgb)
+}
 
 private fun deliveryFor(type: String): String =
     when (type) {

@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.personalos.app.core.AppContainer
 import com.personalos.app.data.SmsSource
@@ -54,6 +55,7 @@ import com.personalos.app.ui.theme.RadarType
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private lateinit var container: AppContainer
     private lateinit var smsSource: SmsSource
     private var hasStartedObserving = false
 
@@ -64,6 +66,16 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             smsPermissionGranted = granted
             if (granted) startSmsObserving()
+        }
+
+    /**
+     * Contacts are opt-in and independent of SMS. Nothing depends on the result:
+     * the resolver is empty when denied, so the Messages flow keeps working with
+     * raw numbers.
+     */
+    private val requestReadContactsPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) lifecycleScope.launch { container.refreshContactNames() }
         }
 
     /**
@@ -85,7 +97,7 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
 
-        val container = AppContainer.get(this)
+        container = AppContainer.get(this)
         // SMS ingest lives in the container so the foreground observer here and
         // the background worker share one instance and one entry point.
         smsSource = container.smsSource
@@ -115,6 +127,19 @@ class MainActivity : ComponentActivity() {
             startSmsObserving()
         } else {
             requestReadSmsPermission.launch(Manifest.permission.READ_SMS)
+        }
+
+        // Contacts are opt-in and independent of SMS: granted, we load names;
+        // denied, the Messages flow is untouched and shows raw senders.
+        val hasContacts =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_CONTACTS,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (hasContacts) {
+            lifecycleScope.launch { container.refreshContactNames() }
+        } else {
+            requestReadContactsPermission.launch(Manifest.permission.READ_CONTACTS)
         }
 
         // Coarse is enough for a forecast; asked once, at launch.

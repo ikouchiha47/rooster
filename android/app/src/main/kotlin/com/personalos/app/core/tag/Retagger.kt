@@ -115,7 +115,7 @@ class Retagger(
                 // Recover the source's full tag set from the catalog rather than
                 // the single `category` column, so a re-tag restores *all* of a
                 // source's tags. Sources the catalog never heard of fall back to
-                // the source table. SMS rows store an SmsClass name in `category`,
+                // the source table. SMS rows store a category id in `category`,
                 // which is not a tag, so they declare nothing.
                 declaredTags =
                     if (isSms) {

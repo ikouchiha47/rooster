@@ -3,7 +3,7 @@ package com.personalos.app.ui.messages
 import com.personalos.app.core.Chars
 
 // Messages search's display decisions, kept out of the composable so they can
-// be tested without rendering - the same split as [MessagesTab] and
+// be tested without rendering - the same split as [MessageTab] and
 // `WatchersModel`. The composable lays these out; it does not decide what they
 // say. The search itself (what counts as a query, and how it reaches the store)
 // lives in `core/search`; these are only the two strings the results area needs.

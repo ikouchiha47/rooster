@@ -5,6 +5,7 @@ import com.personalos.app.core.rules.MatchedClause
 import com.personalos.app.data.RuleEntity
 import com.personalos.app.data.RuleFire
 import com.personalos.app.data.RuleWithFires
+import com.personalos.app.ui.navigation.Destination
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -118,5 +119,34 @@ class WatchersModelTest {
         val ordered = watchersOrder(groups)
         assertEquals(2, ordered.size)
         assertFalse(ordered.map { it.rule.id }.toSet() != setOf("a", "b"))
+    }
+
+    @Test
+    fun `an sms fire opens the senders thread by its stored title`() {
+        assertEquals(
+            Destination.Conversation("+911234567890"),
+            fireDestination(source = "sms", title = "+911234567890", eventId = 7L),
+        )
+    }
+
+    @Test
+    fun `a feed fire opens the stored article by row id`() {
+        assertEquals(
+            Destination.Article(7L),
+            fireDestination(source = "rss:thehindu", title = "Bandh disrupts traffic", eventId = 7L),
+        )
+    }
+
+    @Test
+    fun `a fire with no stored row stays inert`() {
+        assertEquals(null, fireDestination(source = "rss:thehindu", title = "Bandh disrupts traffic", eventId = null))
+    }
+
+    @Test
+    fun `any other source with a stored row opens the article`() {
+        assertEquals(
+            Destination.Article(7L),
+            fireDestination(source = "weather:bengaluru", title = "40.2C", eventId = 7L),
+        )
     }
 }

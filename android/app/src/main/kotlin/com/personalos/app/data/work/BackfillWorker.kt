@@ -53,10 +53,15 @@ class BackfillWorker(
         val parties = step(0) { container.partySeeder.seed() }
         val sources = step(0) { container.sourceSeeder.seed() }
         val rules = step(0) { container.ruleSeeder.seed() }
+        // The taxonomy must be stored before the re-classify walk can run: the
+        // walk resolves the categorizer lazily, which seeds first, but seeding
+        // here makes the ordering explicit and its count visible in the log.
+        val categories = step(0) { container.categorySeeder.seed() }
+        val reclassified = step(0) { container.categoryBackfill.run() }
         val cleaned = step(0) { cleanStopwordedMentions() }
         val mentions = step(0) { container.mentionWriter.backfill() }
         val swept = step(0) { sweepRuleBackfillsOnce() }
-        Log.i(TAG, "backfill done: embedding=$upgraded, +$places places, +$parties parties, +$sources sources, +$rules rules, -$cleaned stale mentions, +$mentions mentions, $swept rule backfills")
+        Log.i(TAG, "backfill done: embedding=$upgraded, +$places places, +$parties parties, +$sources sources, +$rules rules, +$categories categories, $reclassified re-classified, -$cleaned stale mentions, +$mentions mentions, $swept rule backfills")
         return Result.success()
     }
 

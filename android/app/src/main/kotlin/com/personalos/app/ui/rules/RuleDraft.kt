@@ -27,6 +27,16 @@ data class RuleDraft(
     val predicates: List<PredicateDraft>,
     val push: Boolean,
     val position: Long,
+    /**
+     * The source the whole rule is scoped to, or `null` for **All** (unscoped).
+     *
+     * A scoped rule is the user's condition ANDed with the existing
+     * [Condition.Source] leaf; All adds no clause, so it behaves exactly as an
+     * unscoped rule always did. `null`, never a sentinel string, is "All": there
+     * is one representation of an unset scope, and one representation of a set
+     * one (the `source` leaf inside `condition_json`).
+     */
+    val scope: String? = null,
 ) {
     enum class Composition {
         ALL,
@@ -37,9 +47,31 @@ data class RuleDraft(
 
     fun toConditionJson(): String {
         val array = JsonArray(predicates.map { it.toJson() })
-        return when (composition) {
-            Composition.ALL -> buildJsonObject { put("all", array) }.toString()
-            Composition.ANY -> buildJsonObject { put("any", array) }.toString()
+        val body =
+            when (composition) {
+                Composition.ALL -> buildJsonObject { put("all", array) }
+                Composition.ANY -> buildJsonObject { put("any", array) }
+            }
+        // All (`scope == null`) is unscoped: the condition is the user's alone,
+        // so nothing changes for existing rules. A chosen source is ANDed around
+        // it through the existing `source` leaf, emitted as the first child of a
+        // top-level `all`. The user's composition is always the second child —
+        // never a bare leaf — which is what lets [fromRule] tell this scope
+        // clause apart from a `source` predicate the user added themselves.
+        return if (scope == null) {
+            body.toString()
+        } else {
+            buildJsonObject {
+                put(
+                    "all",
+                    JsonArray(
+                        listOf(
+                            buildJsonObject { put("source", JsonPrimitive(scope)) },
+                            body,
+                        ),
+                    ),
+                )
+            }.toString()
         }
     }
 
@@ -57,6 +89,7 @@ data class RuleDraft(
                 predicates = emptyList(),
                 push = true,
                 position = 0L,
+                scope = null,
             )
 
         fun fromRule(
@@ -66,14 +99,37 @@ data class RuleDraft(
         ): RuleDraft {
             val condition = ConditionJson.parse(conditionJson)
             val action = ActionJson.parse(actionJson)
-            val (composition, predicates) = extractPredicates(condition)
+            val (scope, scoped) = extractScope(condition)
+            val (composition, predicates) = extractPredicates(scoped)
             return RuleDraft(
                 name = name,
                 composition = composition,
                 predicates = predicates,
                 push = action.delivery == Delivery.PUSH,
                 position = action.position,
+                scope = scope,
             )
+        }
+
+        /**
+         * Recovers a top-level scope clause, if the condition carries one.
+         *
+         * [toConditionJson] emits a scoped rule as `all:[{source}, <user body>]`,
+         * where the user body is itself an `all`/`any` composition — never a bare
+         * leaf. Requiring that exact shape means a user's own `source` predicate
+         * (a bare leaf directly under their `all`) is **not** mistaken for a
+         * scope, so nothing is promoted out of their predicate list and a save
+         * with no edit changes nothing. A condition that does not carry the
+         * paired shape is unscoped.
+         */
+        private fun extractScope(condition: Condition): Pair<String?, Condition> {
+            if (condition !is Condition.All || condition.conditions.size != 2) return null to condition
+            val head = condition.conditions[0]
+            val tail = condition.conditions[1]
+            return when {
+                head is Condition.Source && (tail is Condition.All || tail is Condition.Any) -> head.sourceId to tail
+                else -> null to condition
+            }
         }
 
         private fun extractPredicates(condition: Condition): Pair<Composition, List<PredicateDraft>> =

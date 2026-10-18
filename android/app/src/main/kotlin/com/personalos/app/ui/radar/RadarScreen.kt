@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -38,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
-import com.personalos.app.core.SmsClass
-import com.personalos.app.core.SmsClassifier
+import com.personalos.app.core.SmsDetails
+import com.personalos.app.core.category.CategoryTaxonomy
 import com.personalos.app.core.feed.FeedCategories
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.EventDao
@@ -96,17 +97,21 @@ private sealed interface RadarRow {
     ) : RadarRow
 }
 
+/**
+ * The SMS category tabs. Only *which* of the taxonomy's categories get a tab is
+ * a display choice; each id's label and colour are read from the stored
+ * taxonomy at render (see [categoryLabel]/[categoryColor]). The ids are the
+ * categorizer's, never a second list of classes.
+ */
+private val RADAR_CATEGORY_IDS =
+    listOf("personal", "transactional", "promotions", "purchases", "government", "spam", "unknown")
+
 private val RADAR_TABS: List<Pair<String, String?>> =
     listOf(
         "All" to null,
         "Incidents" to FeedCategories.INCIDENT,
         "News" to FeedCategories.NEWS,
-        "Money" to SmsClass.TRANSACTION.name,
-        "Travel" to SmsClass.TRAVEL_LOGISTICS.name,
-        "Bills" to SmsClass.BILL.name,
-        "Promo" to SmsClass.PROMOTIONAL.name,
-        "Updates" to SmsClass.UPDATES.name,
-    )
+    ) + RADAR_CATEGORY_IDS.map { it to it }
 
 /** The activity-log tab sits past every category tab: content timelines never see it. */
 internal val radarEventsTabIndex: Int get() = RADAR_TABS.size
@@ -121,6 +126,14 @@ fun RadarScreen(
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
     val scope = rememberCoroutineScope()
+
+    // The taxonomy lives in the DB; load it once so tabs and rows can read their
+    // labels and colours from it. Null until loaded; the label/colour helpers
+    // fall back to the raw id until then.
+    val taxonomy by
+        produceState<CategoryTaxonomy?>(initialValue = null, container) {
+            value = runCatching { container.categoryStore.taxonomy() }.getOrNull()
+        }
 
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, RADAR_TABS.size)) }
     val isEvents = selectedTab == RADAR_TABS.size
@@ -230,7 +243,7 @@ fun RadarScreen(
                 left = "Sync on open ${Chars.MIDDLE_DOT} cached 1h",
                 right = if (category == null) "curated" else "filtered",
             )
-            RadarTabs(database, selectedTab, onSelect = { selectedTab = it })
+            RadarTabs(database, taxonomy, selectedTab, onSelect = { selectedTab = it })
             FilterRail()
             RadarGlance(dao)
 
@@ -274,7 +287,7 @@ fun RadarScreen(
                                         DayMarker(label = label, right = right)
                                     }
 
-                                    is RadarRow.Item -> RadarEventRow(row.event)
+                                    is RadarRow.Item -> RadarEventRow(row.event, taxonomy)
                                 }
                             }
                             item {
@@ -362,6 +375,7 @@ private fun StatColumn(
 @Composable
 private fun RadarTabs(
     database: AppDatabase,
+    taxonomy: CategoryTaxonomy?,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
 ) {
@@ -373,12 +387,19 @@ private fun RadarTabs(
     val eventsCount by database.syncRunDao().observeSourceCount().collectAsStateWithLifecycle(initialValue = 0)
     TabStrip(
         items =
-            RADAR_TABS.mapIndexed { i, (label, _) -> TabSpec(label, counts[i].value) } +
+            RADAR_TABS.mapIndexed { i, (label, category) -> TabSpec(category?.let { tabLabel(it, label, taxonomy) } ?: label, counts[i].value) } +
                 TabSpec("Events", eventsCount),
         selectedIndex = selectedIndex,
         onSelect = onSelect,
     )
 }
+
+/** A tab's label: the taxonomy's for a category id, else the feed/static label. */
+private fun tabLabel(
+    id: String,
+    fallback: String,
+    taxonomy: CategoryTaxonomy?,
+): String = taxonomy?.category(id)?.label ?: fallback
 
 /**
  * The activity log: latest sync run per source — when it ran, whether it
@@ -561,14 +582,17 @@ private fun RadarGlance(dao: EventDao) {
 // --------------------------------------------------------------------- rows
 
 @Composable
-private fun RadarEventRow(entity: EventEntity) {
+private fun RadarEventRow(
+    entity: EventEntity,
+    taxonomy: CategoryTaxonomy?,
+) {
     val time = remember(entity.timestamp) { TIME_FMT.format(Date(entity.timestamp)) }
-    val classification =
-        remember(entity.title, entity.content) {
-            SmsClassifier.classify(entity.title, entity.content)
-        }
-    val amount = classification.amount
-    val code = classification.code
+    // Display-only extras, never the category: the amount is the conservative
+    // parser's, the code only from a message that reads as an OTP.
+    val amount = remember(entity.content) { SmsDetails.amount(entity.content) }
+    val code = remember(entity.content) { SmsDetails.code(entity.content) }
+    val label = remember(entity.category, taxonomy) { categoryLabel(entity.category, taxonomy) }
+    val color = remember(entity.category, taxonomy) { categoryColor(entity.category, taxonomy) }
 
     Row(
         modifier =
@@ -576,7 +600,7 @@ private fun RadarEventRow(entity: EventEntity) {
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min),
     ) {
-        CategorySpine(categoryColor(entity.category))
+        CategorySpine(color)
 
         Column(
             modifier =
@@ -612,7 +636,7 @@ private fun RadarEventRow(entity: EventEntity) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GlyphIcon(channelGlyph(entity.source), RadarColors.ink2, 12.dp)
                 Spacer(Modifier.width(5.dp))
-                Chip(text = categoryLabel(entity.category), color = categoryColor(entity.category))
+                Chip(text = label, color = color)
             }
             Spacer(Modifier.height(2.dp))
             Text(
@@ -677,36 +701,32 @@ private fun EmptyRadar(modifier: Modifier = Modifier) {
 
 // ------------------------------------------------------------------ mapping
 
-private fun categoryLabel(category: String): String =
+private fun categoryLabel(
+    category: String,
+    taxonomy: CategoryTaxonomy?,
+): String =
     when (category) {
         FeedCategories.NEWS -> "News"
         FeedCategories.INCIDENT -> "Incident"
-        // A relationship, not a subject: shown as Social everywhere it is read.
-        SmsClass.PERSONAL.name -> "Social"
-        SmsClass.OTP.name -> "OTP"
-        SmsClass.TRANSACTION.name -> "Money"
-        SmsClass.BILL.name -> "Bill"
-        SmsClass.TRAVEL_LOGISTICS.name -> "Travel"
-        SmsClass.UPDATES.name -> "Update"
-        SmsClass.PROMOTIONAL.name -> "Promo"
-        SmsClass.SPAM_FRAUD.name -> "Spam"
-        else -> "Other"
+        else -> taxonomy?.category(category)?.label ?: category.replaceFirstChar { it.uppercase() }
     }
 
-private fun categoryColor(category: String): Color =
+private fun categoryColor(
+    category: String,
+    taxonomy: CategoryTaxonomy?,
+): Color =
     when (category) {
         FeedCategories.NEWS -> CategoryColors.Indigo
         FeedCategories.INCIDENT -> CategoryColors.Rust
-        SmsClass.PERSONAL.name -> RadarColors.ink2
-        SmsClass.OTP.name -> CategoryColors.Cyan
-        SmsClass.TRANSACTION.name -> CategoryColors.Teal
-        SmsClass.BILL.name -> CategoryColors.Mustard
-        SmsClass.TRAVEL_LOGISTICS.name -> CategoryColors.Indigo
-        SmsClass.UPDATES.name -> CategoryColors.Periwinkle
-        SmsClass.PROMOTIONAL.name -> CategoryColors.Plum
-        SmsClass.SPAM_FRAUD.name -> CategoryColors.Vermilion
-        else -> RadarColors.ruleSoft
+        // The category's colour is data, stored as `#RRGGBB`; the UI only renders it.
+        else -> taxonomy?.category(category)?.color?.let(::hexColor) ?: RadarColors.ruleSoft
     }
+
+/** A stored `#RRGGBB` as an opaque Compose colour; bad input falls back to ink. */
+private fun hexColor(hex: String): Color {
+    val rgb = hex.removePrefix("#").toLongOrNull(16) ?: return RadarColors.ruleSoft
+    return Color(0xFF000000L or rgb)
+}
 
 private fun channelGlyph(source: String): Glyph =
     when {

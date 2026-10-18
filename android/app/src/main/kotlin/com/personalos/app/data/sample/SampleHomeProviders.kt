@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.flowOf
  * the UI needs to change.
  *
  * Real sources when available:
- *  - moneyOutToday -> parsed from SMS (SmsClassifier + amount extraction)
+ *  - moneyOutToday -> parsed from SMS (amount extraction)
  *  - nowPlaying    -> radio-browser.info
  *  - pinned        -> locally ranked recent events
  */

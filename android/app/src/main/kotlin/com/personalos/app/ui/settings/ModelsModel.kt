@@ -3,7 +3,7 @@ package com.personalos.app.ui.settings
 import com.personalos.mlsdk.ModelStatus
 
 // The Models section's decisions, kept out of the composable so they can be
-// tested without rendering — the same split as `MessagesTab` and `WatchersModel`.
+// tested without rendering — the same split as `MessageTab` and `WatchersModel`.
 
 /** A model's state, in the words the row shows. */
 fun modelStatusLabel(status: ModelStatus): String =

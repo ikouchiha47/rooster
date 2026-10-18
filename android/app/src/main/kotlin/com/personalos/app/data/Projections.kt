@@ -21,6 +21,15 @@ data class TagCount(
     val count: Int,
 )
 
+/**
+ * Room projection: how many conversations sit under each category, read by the
+ * category of each conversation's **latest message**.
+ */
+data class CategoryCount(
+    val category: String,
+    val count: Int,
+)
+
 /** One row handed to the re-tagger, in insertion order. */
 data class RetagCandidate(
     val rowId: Long,
@@ -30,6 +39,10 @@ data class RetagCandidate(
     val category: String,
     val title: String,
     val content: String,
+    /** Carried so the "which text to embed" rule can tell a real body from a late one. */
+    val url: String?,
+    /** `null` never attempted, `0` failed, `>0` attempted. See [EventEntity.enrichedAt]. */
+    val enrichedAt: Long?,
 )
 
 /** One row handed to the mention backfiller, in insertion order. */

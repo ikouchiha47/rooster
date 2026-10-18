@@ -825,6 +825,67 @@ val MIGRATION_19_20_STATEMENTS: List<String> =
     CONVERSATION_BASE_STATEMENTS + CONVERSATION_TRIGGER_STATEMENTS
 
 /**
+ * v20 -> v21: the categorisation taxonomy (`categories`, `category_rules`).
+ *
+ * New tables only, like v5 -> v6 and v6 -> v7: nothing existing changes, so no
+ * rebuild and no data to carry. The tables are **seeded from the bundled asset**
+ * at launch by [CategorySeeder] (the same asset -> DB pattern as
+ * `places`/`parties`), then read by [CategoryStore] — the asset is the seed, the
+ * DB is the runtime store.
+ *
+ * No `DEFAULT` clauses and no `CHECK`/enums (Room compares declared defaults and
+ * does not model CHECK, so a migrated schema must hold exactly what a fresh
+ * install creates — the note above). `sort_order`, not `sort`: the DDL is
+ * hand-written and the spelling avoids any quoting ambiguity. Column order and
+ * affinities mirror `CategoryEntities.kt`; neither table needs an index (seven
+ * categories, a handful of rules, read whole).
+ */
+val MIGRATION_20_21_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id TEXT NOT NULL,
+            label TEXT NOT NULL,
+            sort_order INTEGER NOT NULL,
+            color TEXT NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS category_rules (
+            id TEXT NOT NULL,
+            category_id TEXT NOT NULL,
+            priority INTEGER NOT NULL,
+            matcher_type TEXT NOT NULL,
+            pattern TEXT NOT NULL,
+            note TEXT NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+    )
+
+/**
+ * v21 -> v22: the deferred-tag queue ([DeferredTagEntity]).
+ *
+ * New table only, like every table migration before it: no rebuild, no defaults,
+ * no data to carry. The re-tag walk is a one-way cursor, so an item whose body is
+ * still pending is stored here instead of being tagged on its headline, and drained
+ * once the body lands or the fetch fails. Column order and affinities mirror
+ * `DeferredTagEntity`; the primary key is the lookup path, so no index.
+ */
+val MIGRATION_21_22_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS deferred_tags (
+            item_id TEXT NOT NULL,
+            row_id INTEGER NOT NULL,
+            enqueued_at INTEGER NOT NULL,
+            PRIMARY KEY(item_id)
+        )
+        """.trimIndent(),
+    )
+
+/**
  * Everything that exists in the database but **not as an entity**.
  *
  * Installed on every open, and created by the migrations that introduced each
@@ -866,6 +927,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         18 to MIGRATION_17_18_STATEMENTS,
         19 to MIGRATION_18_19_STATEMENTS,
         20 to MIGRATION_19_20_STATEMENTS,
+        21 to MIGRATION_20_21_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

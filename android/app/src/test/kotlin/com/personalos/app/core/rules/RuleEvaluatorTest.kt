@@ -69,6 +69,16 @@ class RuleEvaluatorTest {
         assertFalse(holds(Condition.Source("the-hindu")))
     }
 
+    @Test
+    fun `a source-scoped rule matches only its source`() {
+        // The shape the builder emits for a scoped rule: the whole condition
+        // ANDed with the `source` leaf. A copy of the same item from another
+        // source must not match.
+        val scoped = ConditionJson.parse("""{"all":[{"source":"gnews:west-bengal"},{"subject":"travel"}]}""")
+        assertTrue(holds(scoped))
+        assertFalse(RuleEvaluator.evaluate(item.copy(sourceId = "sms:bank"), scoped))
+    }
+
     // -------------------------------------------------------------------- field
 
     @Test

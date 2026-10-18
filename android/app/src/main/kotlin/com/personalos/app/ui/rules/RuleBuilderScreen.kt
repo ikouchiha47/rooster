@@ -176,6 +176,12 @@ fun RuleBuilderScreen(
                 onChange = { draft = draft.copy(name = it) },
             )
 
+            ScopeSelector(
+                scope = draft.scope,
+                choices = sourceChoices,
+                onSelect = { draft = draft.copy(scope = it) },
+            )
+
             SectionHeader(
                 title = "Match when",
                 accent = CategoryColors.Teal,
@@ -291,6 +297,78 @@ private fun NameField(
             textStyle = RadarType.serifTitle.copy(color = RadarColors.ink),
             cursorBrush = SolidColor(RadarColors.ink),
             modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    HardRule()
+}
+
+/**
+ * The rule's top-level source scope, defaulting to **All**.
+ *
+ * All is `null` and adds no clause, so it is today's unscoped behaviour
+ * unchanged. A chosen source ANDs the existing `source` leaf around the whole
+ * condition, so evaluation, the dry run and materialisation scope identically —
+ * there is no second notion of source (CODE-DESIGN-GUIDELINES.md §1). The
+ * choices are the same closed vocabulary the `source` predicate offers
+ * ([sourceChoices]): SMS, catalog feeds and user sources.
+ */
+@Composable
+private fun ScopeSelector(
+    scope: String?,
+    choices: List<SourceChoice>,
+    onSelect: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val currentLabel = scope?.let { id -> choices.find { it.source == id }?.displayName ?: id } ?: "All sources"
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(RadarColors.paper2)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = "Source", style = RadarType.body, color = RadarColors.ink)
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier =
+                    Modifier
+                        .background(RadarColors.paper, RoundedCornerShape(2.dp))
+                        .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
+                        .clickable { expanded = true }
+                        .padding(horizontal = 6.dp, vertical = 5.dp),
+            ) {
+                Text(text = currentLabel, style = RadarType.small, color = RadarColors.ink, maxLines = 1)
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("All sources", style = RadarType.body) },
+                        onClick = {
+                            onSelect(null)
+                            expanded = false
+                        },
+                    )
+                    choices.forEach { choice ->
+                        DropdownMenuItem(
+                            text = { Text(choice.displayName, style = RadarType.body) },
+                            onClick = {
+                                onSelect(choice.source)
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text =
+                if (scope == null) {
+                    "Every source. Leave it here for a cross-source rule."
+                } else {
+                    "Only this source; the condition is matched against it alone."
+                },
+            style = RadarType.microPlain,
+            color = RadarColors.ink3,
         )
     }
     HardRule()

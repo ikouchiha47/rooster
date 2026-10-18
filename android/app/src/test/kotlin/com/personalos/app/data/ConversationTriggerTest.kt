@@ -160,6 +160,28 @@ class ConversationTriggerTest {
         }
     }
 
+    @Test
+    fun `the timeline buckets a conversation by its newest message's category`() {
+        withConversationsDatabase { db ->
+            // ALPHA's newest message (140) is promotions, so ALPHA is a promotions
+            // conversation even though it also has an older personal message.
+            insert(db, "sms", "inbox", "ALPHA", 100, content = "old alpha", category = "personal")
+            insert(db, "sms", "inbox", "BETA", 120, content = "beta", category = "personal")
+            insert(db, "sms", "inbox", "ALPHA", 140, content = "new alpha", category = "promotions")
+
+            val personal = timeline(db, "personal")
+            val promotions = timeline(db, "promotions")
+
+            assertEquals(listOf("BETA" to "beta"), personal)
+            assertEquals(listOf("ALPHA" to "new alpha"), promotions)
+            // Exactly one tab each: the two sets are disjoint and cover everyone.
+            assertEquals(setOf("ALPHA", "BETA"), (personal + promotions).map { it.first }.toSet())
+
+            // The badges are the same rule: conversations per latest category.
+            assertEquals(mapOf("personal" to 1, "promotions" to 1), countsByCategory(db))
+        }
+    }
+
     // ----------------------------------------------------------------- helpers
 
     /**
@@ -180,7 +202,8 @@ class ConversationTriggerTest {
                     type TEXT NOT NULL,
                     title TEXT NOT NULL,
                     timestamp INTEGER NOT NULL,
-                    content TEXT
+                    content TEXT,
+                    category TEXT
                 )
                 """.trimIndent(),
             )
@@ -203,16 +226,18 @@ class ConversationTriggerTest {
         title: String,
         timestamp: Long,
         content: String = "",
+        category: String? = null,
     ): Long {
         db
             .prepareStatement(
-                "INSERT INTO events (source, type, title, timestamp, content) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO events (source, type, title, timestamp, content, category) VALUES (?, ?, ?, ?, ?, ?)",
             ).use { st ->
                 st.setString(1, source)
                 st.setString(2, type)
                 st.setString(3, title)
                 st.setLong(4, timestamp)
                 st.setString(5, content)
+                if (category == null) st.setNull(6, java.sql.Types.NULL) else st.setString(6, category)
                 st.executeUpdate()
             }
         return db.createStatement().executeQuery("SELECT MAX(id) FROM events").use { rs ->
@@ -289,6 +314,27 @@ class ConversationTriggerTest {
             }
         }
     }
+
+    /** The real Timeline query for one category, as `(sender, last_content)`. */
+    private fun timeline(
+        db: Connection,
+        categoryId: String,
+    ): List<Pair<String, String?>> =
+        lastMessages(
+            db,
+            Sql.CONVERSATIONS_TIMELINE,
+            mapOf("categoryId" to categoryId, "cursorAt" to null, "cursorSender" to null, "limit" to 10),
+        )
+
+    /** The real per-category count query, as a `category -> count` map. */
+    private fun countsByCategory(db: Connection): Map<String, Int> =
+        db.prepareStatement(Sql.CONVERSATIONS_COUNTS_BY_CATEGORY).use { st ->
+            st.executeQuery().use { rs ->
+                buildMap {
+                    while (rs.next()) put(rs.getString("category"), rs.getInt("count"))
+                }
+            }
+        }
 
     private data class Row(
         val source: String,

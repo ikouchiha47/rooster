@@ -36,8 +36,18 @@ class ArticleEnricher(
      */
     private val onEnriched: suspend (List<RuleItemSeed>) -> Unit = {},
 ) {
-    /** Returns how many items gained a summary. */
-    suspend fun enrichBatch(limit: Int = DEFAULT_BATCH): Int =
+    /**
+     * Returns how many items gained a summary.
+     *
+     * [onProgress] reports each processed candidate (`done` of `total`): the
+     * candidates list is the exact denominator, so this is a real fraction,
+     * not an estimate. Defaults to a no-op; the worker wires it to
+     * `setProgress`.
+     */
+    suspend fun enrichBatch(
+        limit: Int = DEFAULT_BATCH,
+        onProgress: suspend (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): Int =
         withContext(Dispatchers.IO) {
             val candidates: List<EnrichmentCandidate> = dao.enrichmentCandidates(limit)
             if (candidates.isEmpty()) return@withContext 0
@@ -68,6 +78,7 @@ class ArticleEnricher(
 
                 // Be a polite client: one request at a time, spaced out.
                 if (index != candidates.lastIndex) delay(pauseMs)
+                onProgress(index + 1, candidates.size)
             }
 
             if (enriched.isNotEmpty()) onEnriched(enriched)
