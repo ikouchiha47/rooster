@@ -7,6 +7,24 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(work): enrich runs as the enrich-retag workflow by default
+
+_2026-10-19_
+
+Scheduled enrichment now runs the enrich→retag workflow (ADR 0009 P3) instead of
+calling the enricher directly, so enrich and re-tag are one tracked, resumable run
+rather than two independent schedules. A stored flag
+(WorkflowPrefs.enrichViaWorkflow) picks the path at composition — a Direct or
+Workflow Enrichment bound once in AppContainer — so EnrichWorker never branches.
+The workflow is the default; the flag is the kill switch, with a Settings row.
+
+The engine's step result and progress sink carry the "+N summaries" and the
+progress bar the direct path had, so the swap is invisible from outside.
+
+Verified on device: RUN_ENRICH through the workflow path logged progress 6/20 …
+20/20 and recorded run enrich-1792358277517 with node enrich SUCCEEDED.
+assembleDebug, testDebugUnitTest, ktlintCheck and :workflow:jvmTest green.
+
 ## feat(workflow): step results and a progress sink
 
 _2026-10-19_

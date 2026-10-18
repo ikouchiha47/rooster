@@ -21,7 +21,10 @@ class EnrichWorker(
     override suspend fun doWork(): Result {
         val container = AppContainer(applicationContext)
         return runCatching {
-            container.enricher.enrichBatch(
+            // Which path this is — the direct enricher call, or the enrich→retag
+            // workflow — is bound once in the container from the stored flag, so
+            // this worker never chooses (ADR 0009 P3).
+            container.enrichment.run(
                 // The candidates list is the exact denominator, so this is a
                 // real fraction. Only here: the other workers know
                 // done-or-not, which reads as state with no bar.

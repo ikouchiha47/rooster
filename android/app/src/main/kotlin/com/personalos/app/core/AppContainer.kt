@@ -755,6 +755,26 @@ class AppContainer(
         )
     }
 
+    /** The enrichment path as a stored switch; the workflow is the default. */
+    val workflowPrefs: com.personalos.app.data.workflow.WorkflowPrefs =
+        com.personalos.app.data.workflow
+            .WorkflowPrefs(context)
+
+    /**
+     * Which enrichment path is live, chosen once from the stored flag so no caller
+     * branches. Lazy: the workflow side opens the run database on first use, and
+     * the direct side must not be forced to open it either.
+     */
+    val enrichment: com.personalos.app.data.workflow.Enrichment by lazy {
+        if (workflowPrefs.enrichViaWorkflow()) {
+            com.personalos.app.data.workflow
+                .WorkflowEnrichment(workflowRuns)
+        } else {
+            com.personalos.app.data.workflow
+                .DirectEnrichment(enricher)
+        }
+    }
+
     companion object {
         private const val PLACES_ASSET = "places.dat"
 

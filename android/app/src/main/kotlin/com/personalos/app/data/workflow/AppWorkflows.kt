@@ -12,6 +12,10 @@ object AppWorkflows {
     const val ENRICH = "enrich"
     const val RETAG = "retag"
 
+    /** Node ids inside the workflow. A step *result* is keyed by node, not step id. */
+    const val ENRICH_NODE = "enrich"
+    const val RETAG_NODE = "retag"
+
     /** The workflow's id (a run is `(workflowId, runId)`). */
     const val ENRICH_RETAG = "enrich-retag"
 
@@ -24,8 +28,8 @@ object AppWorkflows {
      */
     fun enrichRetag(): Workflow =
         workflow(ENRICH_RETAG) {
-            val enrich = task("enrich", ENRICH, attempts = 2)
-            val retag = task("retag", RETAG)
+            val enrich = task(ENRICH_NODE, ENRICH, attempts = 2)
+            val retag = task(RETAG_NODE, RETAG)
             edge(enrich, retag)
         }
 }

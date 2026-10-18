@@ -121,6 +121,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(12.dp))
             BatterySection()
+
+            Spacer(Modifier.height(12.dp))
+            EnrichmentSection()
         }
     }
 }
@@ -163,6 +166,54 @@ private fun BatterySection() {
         )
     }
     FooterStrip("Background work is best-effort without this")
+}
+
+/**
+ * Which enrichment path is live. The workflow (enrich → re-tag) is the default;
+ * this row is the kill switch, so a bad release returns to the direct call without
+ * a new build. It takes effect on the next run, not retroactively.
+ */
+@Composable
+private fun EnrichmentSection() {
+    val container = LocalAppContainer.current
+    var viaWorkflow by remember { mutableStateOf(container.workflowPrefs.enrichViaWorkflow()) }
+
+    WidgetHeader(title = "Enrichment", note = if (viaWorkflow) "workflow" else "direct")
+    Text(
+        text =
+            if (viaWorkflow) {
+                "Enrichment runs as a workflow — fetch, then re-tag — so a run is " +
+                    "tracked and resumable."
+            } else {
+                "Enrichment calls the enricher directly and records no run."
+            },
+        style = RadarType.microPlain,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable {
+                    viaWorkflow = !viaWorkflow
+                    container.workflowPrefs.setEnrichViaWorkflow(viaWorkflow)
+                }.padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "USE WORKFLOW", style = RadarType.micro, color = RadarColors.ink3)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = if (viaWorkflow) "ON" else "OFF",
+            style = RadarType.micro,
+            color = if (viaWorkflow) RadarColors.paper2 else RadarColors.ink2,
+            modifier =
+                Modifier
+                    .background(if (viaWorkflow) RadarColors.ink else RadarColors.paper4)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+    FooterStrip("Applies from the next run")
 }
 
 /**
