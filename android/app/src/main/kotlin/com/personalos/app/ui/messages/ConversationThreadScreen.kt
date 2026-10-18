@@ -2,6 +2,7 @@ package com.personalos.app.ui.messages
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,14 +11,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,7 +51,6 @@ import com.personalos.app.ui.common.HardRule
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
-import com.personalos.app.ui.common.SearchField
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.groupIntoDays
@@ -177,35 +183,32 @@ fun ConversationThreadScreen(
         // The stored sender is the fallback; a known contact name overlays it.
         val title = container.contactNames.nameFor(sender) ?: sender
         RadarHeader(
-            title = title,
+            title = title.take(50),
             accent = RadarColors.ink,
             onBack = onBack,
             subtitle = {
-                if (title != sender) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (title != sender) {
+                        Text(
+                            text = sender,
+                            style = RadarType.microPlain,
+                            color = RadarColors.ink,
+                            modifier =
+                                Modifier
+                                    .background(CategoryColors.Mustard)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
                     Text(
-                        text = sender,
-                        style = RadarType.small,
-                        color = RadarColors.ink,
+                        text = "${compactNumber(items.size)} messages",
+                        style = RadarType.microPlain,
+                        color = RadarColors.ink3,
                     )
                 }
             },
             trailing = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings)
-                    Box(
-                        modifier =
-                            Modifier
-                                .border(1.dp, RadarColors.paper4, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = compactNumber(items.size),
-                            style = RadarType.microPlain,
-                            color = RadarColors.paper2,
-                        )
-                    }
-                }
+                GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings)
             },
         )
 
@@ -298,17 +301,45 @@ private fun ThreadComposer(
     ) {
         HardRule()
         SimSelector(sims = sims, selected = selectedSim, onSelect = onSelectSim, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.Bottom,
         ) {
-            SearchField(
-                hint = "Message ${Chars.MIDDLE_DOT} SMS",
-                query = draft,
-                onQueryChange = onDraftChange,
-                onSubmit = { if (!sending) onSend() },
+            BasicTextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.3f).dp)
+                        .background(RadarColors.paper)
+                        .border(1.dp, RadarColors.ink)
+                        .padding(horizontal = 10.dp, vertical = 9.dp),
+                textStyle = RadarType.small.copy(color = RadarColors.ink),
+                cursorBrush = SolidColor(RadarColors.ink),
+                singleLine = false,
+                decorationBox = { inner ->
+                    if (draft.isEmpty()) {
+                        Text(
+                            text = "Message ${Chars.MIDDLE_DOT} SMS",
+                            style = RadarType.small,
+                            color = RadarColors.ink3,
+                        )
+                    }
+                    inner()
+                },
             )
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier =
+                    Modifier
+                        .size(42.dp)
+                        .background(RadarColors.ink, RoundedCornerShape(6.dp))
+                        .clickable { if (!sending && draft.isNotBlank()) onSend() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "\u2191", style = RadarType.serifH3, color = RadarColors.paper2)
+            }
         }
         if (status != null) {
             val color =

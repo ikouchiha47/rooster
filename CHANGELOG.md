@@ -7,6 +7,18 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): multiline composer, mustard number chip, count by the name
+
+_2026-10-19_
+
+The composer is multiline: Enter inserts a newline and the field grows to ~30%
+of the screen before scrolling, with sending on the explicit arrow. The header
+shows the number on a mustard chip with the message count beside it, the contact
+name truncates at 50 chars, and the settings glyph opens the central Settings
+screen.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(messages): thread settings action, boxed count, dotted background
 
 _2026-10-19_
