@@ -215,6 +215,7 @@ fun AppNavHost(
                     navigateToDetail(navController, Destination.Conversation(sender))
                 },
                 onOpenContacts = { navigateToDetail(navController, Destination.Contacts) },
+                onNewMessage = { navigateToDetail(navController, Destination.ComposeSms(emptyList())) },
             )
         }
         composable("contacts") {

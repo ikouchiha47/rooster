@@ -38,6 +38,7 @@ import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
+import com.personalos.app.ui.common.SearchField
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
@@ -75,6 +76,7 @@ fun ComposeSmsScreen(
 
     var to by remember { mutableStateOf(recipients) }
     var body by remember { mutableStateOf("") }
+    var numberDraft by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var statuses by remember { mutableStateOf<Map<String, SendStatus>>(emptyMap()) }
 
@@ -144,6 +146,31 @@ fun ComposeSmsScreen(
                         Spacer(Modifier.width(6.dp))
                     }
                 }
+            }
+
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SearchField(
+                    hint = "Add a number",
+                    query = numberDraft,
+                    onQueryChange = { numberDraft = it },
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "ADD",
+                    style = RadarType.label,
+                    color = if (numberDraft.isBlank()) RadarColors.ink3 else RadarColors.ink,
+                    modifier =
+                        Modifier
+                            .clickable {
+                                val n = numberDraft.trim()
+                                if (n.isNotEmpty() && n !in to) {
+                                    to = to + n
+                                    numberDraft = ""
+                                }
+                            }.padding(horizontal = 8.dp, vertical = 6.dp),
+                )
             }
 
             if (sims.size > 1) {

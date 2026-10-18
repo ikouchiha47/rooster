@@ -7,6 +7,16 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): start a new message from the Messages bar
+
+_2026-10-19_
+
+Adds a + to the Messages app bar that opens an empty compose, plus an "Add a
+number" field so a chat can start from a typed number with no saved contact.
+Multi-recipient still fans out one SMS per number; group MMS remains greyed.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(sms): contacts wheel, multi-SIM, per-day groups, workflow wiring
 
 _2026-10-19_
