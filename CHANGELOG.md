@@ -7,6 +7,20 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): a group is its member set, with a stable id
+
+_2026-10-19_
+
+A group's id is now derived from its member set — six hex of a SHA-1 over the
+sorted numbers — so the same people always rejoin one thread instead of minting
+a fresh group per send. A send finds an existing group by exact member match,
+else the largest group whose members are all present, and adds anyone new while
+keeping the id, so growing a group does not split the thread. The rule lives in a
+pure GroupIdentity object, tested on the JVM without Android.
+
+Verified: assembleDebug, testDebugUnitTest (GroupIdentityTest, 11 cases) and
+ktlintCheck green; installed.
+
 ## feat(messages): group view + a group simulator
 
 _2026-10-19_

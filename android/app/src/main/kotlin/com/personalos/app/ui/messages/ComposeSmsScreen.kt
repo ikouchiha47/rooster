@@ -47,6 +47,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * Compose one message to N recipients.
@@ -88,12 +89,25 @@ fun ComposeSmsScreen(
         if (!canSend) return
         val trimmed = body.trim()
         val targets = to
-        val groupId = if (targets.size >= 2 && groupTag) container.groupStore.newId() else null
+        // A group is the member set: the same people rejoins its thread, and a
+        // new member is added to it rather than starting a second group.
+        val isGroup = targets.size >= 2 && groupTag
+        val existing = if (isGroup) container.groupStore.forMembers(targets) else null
+        val groupId = existing?.id ?: if (isGroup) container.groupStore.idFor(targets) else null
         val payload = if (groupId != null) taggedBody(trimmed, groupId) else trimmed
         sending = true
         statuses = targets.associateWith { SendStatus.Pending }
         scope.launch {
-            if (groupId != null) container.groupStore.record(groupId, targets, trimmed, System.currentTimeMillis())
+            if (groupId != null) {
+                if (existing != null) {
+                    // Existing group: add anyone new, and append our send to its
+                    // thread. The id is untouched, so nobody's thread is split.
+                    container.groupStore.addMembers(groupId, targets)
+                    container.groupStore.attach(groupId, UUID.randomUUID().toString(), "me", trimmed, System.currentTimeMillis())
+                } else {
+                    container.groupStore.record(groupId, targets, trimmed, System.currentTimeMillis())
+                }
+            }
             // Fan out concurrently: each send suspends on its own platform result,
             // so one slow or failed recipient never holds up the rest.
             coroutineScope {

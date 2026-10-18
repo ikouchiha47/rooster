@@ -54,12 +54,62 @@ class GroupStore(
         body: String,
         sentAt: Long,
     ) {
+        write(
+            GroupRecord(
+                id = id,
+                participants = clean(participants),
+                body = body,
+                sentAt = sentAt,
+                replies = get(id)?.replies.orEmpty(),
+            ),
+        )
+    }
+
+    /**
+     * The group for these people: an exact member match, else the largest existing
+     * group whose members are all present — so adding someone grows the group
+     * rather than starting a second one.
+     */
+    fun forMembers(people: List<String>): GroupRecord? = GroupIdentity.bestMatch(people, all())
+
+    /**
+     * A stable id from the member set: the same people always produce the same
+     * group, so a fresh send rejoins its thread instead of making a second one.
+     * The id is the group's identity and never changes once made.
+     */
+    fun idFor(people: List<String>): String = GroupIdentity.idFor(people)
+
+    /** Grows a group's membership; the id stays, so the thread is not broken. */
+    fun addMembers(
+        id: String,
+        people: List<String>,
+    ) {
+        val record = get(id) ?: return
+        val merged = clean(record.participants + people)
+        if (merged.size != record.participants.size) write(record.copy(participants = merged))
+    }
+
+    private fun clean(people: List<String>): List<String> = people.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    private fun write(record: GroupRecord) {
         val json =
             JSONObject()
-                .put("body", body)
-                .put("sentAt", sentAt)
-                .put("participants", JSONArray(participants))
-        prefs.edit().putString(KEY_PREFIX + id, json.toString()).apply()
+                .put("body", record.body)
+                .put("sentAt", record.sentAt)
+                .put("participants", JSONArray(record.participants))
+        if (record.replies.isNotEmpty()) {
+            val replies = JSONArray()
+            record.replies.forEach { reply ->
+                replies.put(
+                    JSONObject()
+                        .put("from", reply.from)
+                        .put("body", reply.body)
+                        .put("at", reply.at),
+                )
+            }
+            json.put("replies", replies)
+        }
+        prefs.edit().putString(KEY_PREFIX + record.id, json.toString()).apply()
     }
 
     fun get(id: String): GroupRecord? =
@@ -142,5 +192,43 @@ object GroupTag {
     fun strip(body: String): Pair<String, String?> {
         val match = TAIL.find(body) ?: return body to null
         return body.substring(0, match.range.first).trimEnd() to match.groupValues[1]
+    }
+}
+
+/**
+ * The pure half of group identity — no prefs, no Android — so the "same people,
+ * same group" rule is testable on its own.
+ */
+object GroupIdentity {
+    /** Trimmed, de-blanked, de-duplicated, order-preserved. */
+    fun clean(people: List<String>): List<String> = people.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    /**
+     * A stable six-hex id from the member set. Order and repeats cannot change it,
+     * so the same people always resolve to one group.
+     */
+    fun idFor(people: List<String>): String {
+        val canonical = clean(people).sorted().joinToString(",")
+        val digest =
+            java.security.MessageDigest
+                .getInstance("SHA-1")
+                .digest(canonical.toByteArray())
+        return digest.take(3).joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Which group a send to these people joins: an exact member match wins, else
+     * the largest group whose members are all present. Null means a new group.
+     */
+    fun bestMatch(
+        people: List<String>,
+        groups: List<GroupRecord>,
+    ): GroupRecord? {
+        val wanted = clean(people).toSet()
+        if (wanted.isEmpty()) return null
+        return groups.firstOrNull { it.participants.toSet() == wanted }
+            ?: groups
+                .filter { it.participants.isNotEmpty() && wanted.containsAll(it.participants) }
+                .maxByOrNull { it.participants.size }
     }
 }
