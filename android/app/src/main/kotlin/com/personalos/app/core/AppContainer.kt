@@ -511,6 +511,29 @@ class AppContainer(
      */
     val contacts: ContactDirectory = AndroidContactDirectory(context.applicationContext)
 
+    /** Active SIMs for the send-SIM picker; empty when READ_PHONE_STATE is denied. */
+    val sims: com.personalos.app.core.sms.SimDirectory =
+        com.personalos.app.data.sims
+            .AndroidSimDirectory(context.applicationContext)
+
+    /** The shared default SIM choice (one preference, read by every send surface). */
+    val simPreference: com.personalos.app.data.sims.SimPreference =
+        com.personalos.app.data.sims
+            .SimPreference(context.applicationContext)
+
+    /** Creates a new contact in the device address book (WRITE_CONTACTS). */
+    val contactWriter: com.personalos.app.core.sms.ContactWriter =
+        com.personalos.app.data.contacts
+            .AndroidContactWriter(context.applicationContext)
+
+    /**
+     * Numbers from attended calls (call log), behind the [com.personalos.app.core.sms.RecentCallers]
+     * seam. Empty when READ_CALL_LOG is not granted. Feeds the picker's Unlisted tab.
+     */
+    val recentCallers: com.personalos.app.core.sms.RecentCallers =
+        com.personalos.app.data.calls
+            .AndroidRecentCallers(context.applicationContext)
+
     /**
      * Whether sending is currently permitted. Computed on each read, so a grant
      * made after construction is seen; [smsSender] also re-checks at send time.
@@ -693,6 +716,36 @@ class AppContainer(
 
     val nowPlaying: NowPlayingProvider = SampleNowPlayingProvider()
     val pinned: PinnedProvider = SamplePinnedProvider()
+
+    /**
+     * The workflow engine, wired to the app's steps and a durable RunStore
+     * (ADR 0009). Workflows are data, so this is a map + the engine; the trigger
+     * is `SyncScheduler.enqueueWorkflow`. Lazy because the steps reference the
+     * tagger/enricher and the database is opened on first use.
+     */
+    val workflowRuns: com.personalos.app.data.workflow.WorkflowRuns by lazy {
+        com.personalos.app.data.workflow.WorkflowRuns(
+            workflows =
+                mapOf(
+                    com.personalos.app.data.workflow.AppWorkflows.ENRICH_RETAG to
+                        com.personalos.app.data.workflow.AppWorkflows
+                            .enrichRetag(),
+                ),
+            steps =
+                mapOf(
+                    com.personalos.app.data.workflow.AppWorkflows.ENRICH to
+                        com.personalos.app.data.workflow
+                            .EnrichStep(enricher),
+                    com.personalos.app.data.workflow.AppWorkflows.RETAG to
+                        com.personalos.app.data.workflow
+                            .RetagStep(retagger),
+                ),
+            store =
+                com.personalos.app.data.workflow.WorkflowStore
+                    .store(context),
+            prepare = { upgradeTagger() },
+        )
+    }
 
     companion object {
         private const val PLACES_ASSET = "places.dat"

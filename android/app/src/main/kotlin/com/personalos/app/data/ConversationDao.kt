@@ -22,6 +22,10 @@ interface ConversationDao {
     @Query(Sql.CONVERSATIONS_COUNTS_BY_CATEGORY)
     fun observeCountsByCategory(): Flow<List<CategoryCount>>
 
+    /** Every SMS sender and their latest message time, most recently active first. */
+    @Query(Sql.CONVERSATIONS_SENDERS)
+    suspend fun sendersWithLast(): List<SenderLast>
+
     /**
      * The Timeline: recency-ordered conversations whose latest message carries
      * [categoryId], one row per sender, keyset-paged on `(lastAt, sender)`. A
@@ -44,3 +48,9 @@ interface ConversationDao {
         limit: Int,
     ): List<EventEntity>
 }
+
+/** One SMS sender and the time of their latest message — the picker's "last seen". */
+data class SenderLast(
+    val sender: String,
+    val lastAt: Long,
+)

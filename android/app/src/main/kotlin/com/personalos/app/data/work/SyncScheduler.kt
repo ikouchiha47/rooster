@@ -315,4 +315,38 @@ object SyncScheduler {
                 request,
             )
     }
+
+    /**
+     * Start one run of a registered workflow (ADR 0009).
+     *
+     * Unique per workflow id and `REPLACE`, so a newer trigger supersedes a
+     * queued or in-flight run — the run's own `RunStore` still lets the new one
+     * skip what already completed. The `runId` is fixed in the request, so a
+     * WorkManager retry resumes the same run instead of starting a new one.
+     */
+    fun enqueueWorkflow(
+        context: Context,
+        workflowId: String,
+    ) {
+        val request =
+            OneTimeWorkRequestBuilder<com.personalos.app.data.workflow.WorkflowRunWorker>()
+                .setInputData(
+                    androidx.work.workDataOf(
+                        com.personalos.app.data.workflow.WorkflowRunWorker.KEY_WORKFLOW to workflowId,
+                        com.personalos.app.data.workflow.WorkflowRunWorker.KEY_RUN_ID to "run-${System.currentTimeMillis()}",
+                    ),
+                ).setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    BACKOFF_MINUTES,
+                    TimeUnit.MINUTES,
+                ).build()
+
+        WorkManager
+            .getInstance(context)
+            .enqueueUniqueWork(
+                "workflow:$workflowId",
+                ExistingWorkPolicy.REPLACE,
+                request,
+            )
+    }
 }

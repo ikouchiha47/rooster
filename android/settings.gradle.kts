@@ -19,3 +19,6 @@ include(":app")
 // The model SDK: locate/fetch/verify shared on-device models. Its own module so
 // it can be lifted into a hub app (and reused by other apps) unchanged.
 include(":mlsdk")
+// The workflow engine: graph-as-data orchestration (ADR 0009). A Kotlin
+// Multiplatform module, shippable on its own.
+include(":workflow")

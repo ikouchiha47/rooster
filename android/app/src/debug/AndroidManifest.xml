@@ -59,5 +59,14 @@
                 <action android:name="com.personalos.app.BACKFILL_STATUS" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".debug.RunWorkflowReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.RUN_WORKFLOW" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

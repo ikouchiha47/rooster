@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Radar — New message (chat-style)</title>
+<style>
+  :root{
+    --paper:#F7F4EC; --paper2:#F1EDE1; --ink:#171513; --ink2:#4A463F; --ink3:#8A8378;
+    --rule:#171513; --rule-soft:#CFC6B3; --verm:#D93B2B; --teal:#1F8A70; --fresh:#EFE6C4;
+    --serif:Georgia,"Noto Serif",serif; --sans:-apple-system,"Noto Sans","Helvetica Neue",sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#E9E4D6;color:var(--ink);font-family:var(--sans)}
+  .page{max-width:760px;margin:0 auto;padding:26px 18px 60px}
+  .page h1{font-family:var(--serif);font-size:26px;margin:0 0 4px}
+  .page p{margin:0 0 18px;color:var(--ink2);font-size:13px}
+  .row{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+
+  .phone{width:380px;height:720px;background:var(--paper);border:1px solid var(--rule);display:flex;flex-direction:column;overflow:hidden}
+  .bar{background:var(--ink);color:var(--paper);padding:10px 12px;display:flex;align-items:center;gap:12px}
+  .back{border:0;background:transparent;color:var(--paper);font-size:20px;line-height:1;padding:2px 4px}
+  .bar__t{font-family:var(--serif);font-size:20px;font-weight:bold;line-height:22px}
+  .bar__m{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#cfc7b7;margin-top:1px}
+
+  .to{padding:8px 10px;border-bottom:1px solid var(--rule);background:var(--paper2);display:flex;gap:8px;align-items:flex-start}
+  .to__label{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--ink3);padding-top:7px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--paper);
+    padding:5px 8px;font-size:12px;line-height:1;font-weight:600}
+  .chip b{font-weight:400;color:var(--ink3);font-size:12px}
+  .add{border:1px dashed var(--rule-soft);background:transparent;font-family:var(--mono);font-size:10px;
+    letter-spacing:.06em;padding:6px 8px;color:var(--ink2)}
+
+  .convo{flex:1;overflow-y:auto;padding:12px 12px 8px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;background:var(--paper)}
+  .hint{align-self:center;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--ink3);
+    border:1px solid var(--rule-soft);background:var(--paper2);padding:4px 8px;margin-bottom:auto}
+
+  .msg{max-width:80%;padding:8px 10px 6px;font-size:14px;line-height:18px;border:1px solid var(--rule)}
+  .msg.out{align-self:flex-end;background:var(--ink);color:var(--paper);border-radius:12px 12px 2px 12px}
+  .msg.out .msg__time{display:block;font-family:var(--mono);font-size:9px;color:#b9b2a4;margin-top:3px;text-align:right}
+  .msg.draft{align-self:flex-end;background:var(--paper);color:var(--ink);border-radius:12px 12px 2px 12px;opacity:.65}
+
+  .delivery{align-self:flex-end;font-family:var(--mono);font-size:9px;letter-spacing:.04em;color:var(--ink3);
+    display:flex;gap:10px;margin-top:-2px}
+  .delivery .ok{color:var(--teal)}
+  .delivery .pending{color:var(--ink3)}
+
+  .composer{display:flex;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--rule);background:var(--paper2)}
+  .field{flex:1;border:1px solid var(--rule);background:var(--paper);padding:9px 10px;font-family:var(--sans);font-size:14px;color:var(--ink)}
+  .field::placeholder{color:var(--ink3)}
+  .send{width:40px;height:40px;border-radius:50%;border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+    font-size:18px;line-height:1}
+
+  .notes{max-width:380px;font-size:12px;color:var(--ink2);line-height:1.5}
+  .notes h2{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px;color:var(--ink2)}
+  .notes ul{margin:0;padding-left:16px}
+  .notes li{margin-bottom:6px}
+  .notes b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>New message — chat-style</h1>
+  <p>Same screen, reshaped as a conversation: recipients as real chips, a message area, and a pinned composer instead of a form.</p>
+
+  <div class="row">
+    <div class="phone">
+      <div class="bar">
+        <button class="back">←</button>
+        <div>
+          <div class="bar__t">New message</div>
+          <div class="bar__m">2 recipients · SMS</div>
+        </div>
+      </div>
+
+      <div class="to">
+        <span class="to__label">TO</span>
+        <div class="chips">
+          <span class="chip">Anil Kumar <b>✕</b></span>
+          <span class="chip">Babu <b>✕</b></span>
+          <button class="add">+ ADD</button>
+        </div>
+      </div>
+
+      <div class="convo">
+        <div class="hint">Sends separately to each recipient</div>
+        <div class="msg out">Are we still on for tomorrow?<span class="msg__time">10:42</span></div>
+        <div class="delivery"><span class="ok">Anil · delivered</span><span class="pending">Babu · sending…</span></div>
+        <div class="msg draft">Typing…</div>
+      </div>
+
+      <div class="composer">
+        <input class="field" placeholder="Message · SMS" autocomplete="off">
+        <button class="send">↑</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h2>What changed</h2>
+      <ul>
+        <li><b>Chips, not tags.</b> 28–30px tall, name-first, tap ✕ to remove — the current tiny tags become legible targets.</li>
+        <li><b>The body is a message area</b>, not a form box. Sent text appears as an outgoing bubble; the draft sits under it.</li>
+        <li><b>Pinned composer.</b> One line + a round send; keyboard-inset like a chat, no fixed form field eating space.</li>
+        <li><b>Per-recipient delivery</b> reads inline under the bubble (“Anil · delivered”, “Babu · sending…”), so fan-out is visible.</li>
+        <li><b>Group MMS</b> stays a greyed option in the recipient area until the platform allows it.</li>
+        <li>Everyone gets <b>their own SMS</b> — the hint says so up front, no surprise.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -30,6 +30,9 @@ class ConversationRepository(
     /** The tab badges: conversation counts per category. */
     fun observeCountsByCategory(): Flow<List<CategoryCount>> = dao.observeCountsByCategory()
 
+    /** Every SMS sender and their latest message time, most recently active first. */
+    suspend fun sendersWithLast(): List<SenderLast> = dao.sendersWithLast()
+
     /** One sender's messages, newest first, keyset-paged on `(timestamp, id)`. */
     suspend fun thread(
         sender: String,

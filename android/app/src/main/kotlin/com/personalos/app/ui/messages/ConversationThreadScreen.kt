@@ -79,6 +79,11 @@ fun ConversationThreadScreen(
     val repository = container.conversations
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    var sims by remember { mutableStateOf<List<com.personalos.app.core.sms.Sim>>(emptyList()) }
+    var selectedSim by remember(sender) { mutableStateOf(container.simPreference.selected()) }
+    androidx.compose.runtime.LaunchedEffect(sender) {
+        sims = runCatching { container.sims.active() }.getOrDefault(emptyList())
+    }
 
     var items by remember(sender) { mutableStateOf<List<EventEntity>>(emptyList()) }
     var cursorTs by remember(sender) { mutableStateOf<Long?>(null) }
@@ -99,7 +104,7 @@ fun ConversationThreadScreen(
         status = SendStatus.Pending
         scope.launch {
             val settled =
-                runCatching { container.smsSender.send(sender, body) }
+                runCatching { container.smsSender.send(sender, body, selectedSim) }
                     .fold(
                         onSuccess = { SendStatus.of(it) },
                         onFailure = { SendStatus.Failed("the send failed") },
@@ -203,6 +208,12 @@ fun ConversationThreadScreen(
             draft = draft,
             sending = sending,
             status = status,
+            sims = sims,
+            selectedSim = selectedSim,
+            onSelectSim = {
+                selectedSim = it
+                container.simPreference.select(it)
+            },
             onDraftChange = {
                 draft = it
                 // Editing starts a new turn, so the old result no longer applies.
@@ -223,6 +234,9 @@ private fun ThreadComposer(
     draft: String,
     sending: Boolean,
     status: SendStatus?,
+    sims: List<com.personalos.app.core.sms.Sim>,
+    selectedSim: Int?,
+    onSelectSim: (Int?) -> Unit,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
 ) {
@@ -234,6 +248,7 @@ private fun ThreadComposer(
             .navigationBarsPadding(),
     ) {
         HardRule()
+        SimSelector(sims = sims, selected = selectedSim, onSelect = onSelectSim, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
         Box(
             Modifier
                 .fillMaxWidth()

@@ -1,0 +1,16 @@
+CREATE TABLE run_nodes (
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    branch TEXT,
+    PRIMARY KEY (run_id, node_id)
+);
+
+selectForNode:
+SELECT status, branch FROM run_nodes WHERE run_id = ? AND node_id = ?;
+
+selectForRun:
+SELECT node_id, status, branch FROM run_nodes WHERE run_id = ?;
+
+upsert:
+INSERT OR REPLACE INTO run_nodes(run_id, node_id, status, branch) VALUES (?, ?, ?, ?);

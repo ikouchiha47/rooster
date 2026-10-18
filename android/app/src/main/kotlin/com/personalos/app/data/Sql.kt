@@ -587,6 +587,19 @@ object Sql {
         """
 
     /**
+     * Every SMS sender, most recently active first — the picker's "Others" band:
+     * people/numbers this app has messages with but that are not in the address
+     * book. The address-book match happens in the UI, because it needs device
+     * contacts and number normalisation the store knows nothing about.
+     */
+    const val CONVERSATIONS_SENDERS =
+        """
+        SELECT sender AS sender, last_at AS lastAt FROM conversations
+        WHERE source = 'sms'
+        ORDER BY last_at DESC
+        """
+
+    /**
      * Per-category conversation counts, for the tab strips. The category is the
      * one of each conversation's **latest message** — the same join and the same
      * rule the Timeline uses, so a tab's badge and its list cannot disagree.

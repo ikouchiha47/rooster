@@ -8,6 +8,12 @@
          the send picker's address book. When not granted, the app shows the stored
          number/header exactly as before and suggestions stay empty. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Creating a contact from the picker, visible to the whole system. -->
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <!-- Unlisted tab: numbers from attended calls that are not saved contacts. -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <!-- Active SIMs, for the per-surface send-SIM picker. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Ask the user to exempt the app, so the long retag is not deferred into
          never by Doze/App Standby. Granting is optional; without it, background

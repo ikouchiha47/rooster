@@ -67,6 +67,11 @@ fun ComposeSmsScreen(
 ) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
+    var sims by remember { mutableStateOf<List<com.personalos.app.core.sms.Sim>>(emptyList()) }
+    var selectedSim by remember { mutableStateOf(container.simPreference.selected()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        sims = runCatching { container.sims.active() }.getOrDefault(emptyList())
+    }
 
     var to by remember { mutableStateOf(recipients) }
     var body by remember { mutableStateOf("") }
@@ -89,7 +94,7 @@ fun ComposeSmsScreen(
                     .map { recipient ->
                         async {
                             val status =
-                                runCatching { container.smsSender.send(recipient, trimmed) }
+                                runCatching { container.smsSender.send(recipient, trimmed, selectedSim) }
                                     .fold(
                                         onSuccess = { SendStatus.of(it) },
                                         onFailure = { SendStatus.Failed("the send failed") },
@@ -139,6 +144,20 @@ fun ComposeSmsScreen(
                         Spacer(Modifier.width(6.dp))
                     }
                 }
+            }
+
+            if (sims.size > 1) {
+                Spacer(Modifier.height(8.dp))
+                Text(text = "SIM", style = RadarType.micro, color = RadarColors.ink3)
+                Spacer(Modifier.height(3.dp))
+                SimSelector(
+                    sims = sims,
+                    selected = selectedSim,
+                    onSelect = {
+                        selectedSim = it
+                        container.simPreference.select(it)
+                    },
+                )
             }
 
             Spacer(Modifier.height(8.dp))

@@ -49,11 +49,12 @@ class AndroidSmsSender(
     override suspend fun send(
         destination: String,
         body: String,
+        subscriptionId: Int?,
     ): SmsSendResult {
         if (destination.isBlank()) return SmsSendResult.Failed("invalid")
         if (body.isBlank()) return SmsSendResult.Failed("invalid")
         if (!permitted()) return SmsSendResult.Failed("permission")
-        return withContext(Dispatchers.IO) { dispatch(destination, body) }
+        return withContext(Dispatchers.IO) { dispatch(destination, body, subscriptionId) }
     }
 
     /**
@@ -63,9 +64,10 @@ class AndroidSmsSender(
     private suspend fun dispatch(
         destination: String,
         body: String,
+        subscriptionId: Int?,
     ): SmsSendResult {
         val parts =
-            runCatching { smsManager().divideMessage(body) }
+            runCatching { smsManager(subscriptionId).divideMessage(body) }
                 .getOrNull()
                 .orEmpty()
         if (parts.isEmpty()) return SmsSendResult.Failed("invalid")
@@ -91,7 +93,7 @@ class AndroidSmsSender(
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                     )
             }
-            smsManager().sendMultipartTextMessage(destination, null, ArrayList(parts), sentIntents, null)
+            smsManager(subscriptionId).sendMultipartTextMessage(destination, null, ArrayList(parts), sentIntents, null)
             withTimeoutOrNull(TIMEOUT_MS) { result.await() } ?: SmsSendResult.Failed("timeout")
         } catch (_: Exception) {
             SmsSendResult.Failed("send_failed")
@@ -104,12 +106,14 @@ class AndroidSmsSender(
      * API 31 moved `getDefault()` behind a typed service lookup; below 31 the
      * static factory is still the only way.
      */
-    private fun smsManager(): SmsManager =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getSystemService(SmsManager::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            SmsManager.getDefault()
+    private fun smsManager(subscriptionId: Int?): SmsManager =
+        when {
+            subscriptionId != null -> SmsManager.getSmsManagerForSubscriptionId(subscriptionId)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> context.getSystemService(SmsManager::class.java)
+            else -> {
+                @Suppress("DEPRECATION")
+                SmsManager.getDefault()
+            }
         }
 
     /**

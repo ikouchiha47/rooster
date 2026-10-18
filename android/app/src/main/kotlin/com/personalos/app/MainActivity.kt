@@ -87,6 +87,21 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     /**
+     * Call history for the picker's Unlisted tab. A denial is not a failure: the
+     * reader returns an empty list, so Unlisted simply omits call numbers.
+     */
+    private val requestReadCallLogPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Active SIMs for the send-SIM picker. Denied just hides the picker. */
+    private val requestReadPhoneStatePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Creating a contact from the picker. Denied just fails the save. */
+    private val requestWriteContactsPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /**
      * Present location for the Weather tile.
      *
      * Nothing depends on the result here: the provider checks the grant itself when
@@ -159,6 +174,35 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch { container.refreshContactNames() }
         } else {
             requestReadContactsPermission.launch(Manifest.permission.READ_CONTACTS)
+        }
+
+        // Attended-call numbers feed Unlisted; denied just means they are absent.
+        val hasCallLog =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_CALL_LOG,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (!hasCallLog) {
+            requestReadCallLogPermission.launch(Manifest.permission.READ_CALL_LOG)
+        }
+
+        val hasWriteContacts =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.WRITE_CONTACTS,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (!hasWriteContacts) {
+            requestWriteContactsPermission.launch(Manifest.permission.WRITE_CONTACTS)
+        }
+
+        // Active SIMs for the send picker; denied just hides the picker.
+        val hasPhoneState =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_PHONE_STATE,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (!hasPhoneState) {
+            requestReadPhoneStatePermission.launch(Manifest.permission.READ_PHONE_STATE)
         }
 
         // Coarse is enough for a forecast; asked once, at launch.

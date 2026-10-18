@@ -13,6 +13,7 @@ interface SmsSender {
     suspend fun send(
         destination: String,
         body: String,
+        subscriptionId: Int? = null,
     ): SmsSendResult
 }
 

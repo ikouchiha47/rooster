@@ -154,6 +154,10 @@ dependencies {
     // module so it can be lifted into the hub app and reused by other apps.
     implementation(project(":mlsdk"))
 
+    // Graph-as-data orchestration (ADR 0009). Kept a separate KMP module so it
+    // can be lifted out and reused; the app supplies the backend and steps.
+    implementation(project(":workflow"))
+
     // On-device embedding — EmbeddingGemma-300m, 256-dim, via LiteRT's Interpreter
     // API on CPU. Versions pinned to what mofy proved on this device: litert 1.4.0
     // (2.2.0 aborts in Environment.nativeCreate here, and conflicts on namespace),

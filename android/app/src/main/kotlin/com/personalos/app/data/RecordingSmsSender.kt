@@ -24,8 +24,9 @@ class RecordingSmsSender(
     override suspend fun send(
         destination: String,
         body: String,
+        subscriptionId: Int?,
     ): SmsSendResult {
-        val result = sender.send(destination, body)
+        val result = sender.send(destination, body, subscriptionId)
         if (result is SmsSendResult.Sent) {
             runCatching { ingest.recordSent(destination, body, clock()) }
         }

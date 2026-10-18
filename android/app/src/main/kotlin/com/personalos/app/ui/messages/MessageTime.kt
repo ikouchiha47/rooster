@@ -52,3 +52,33 @@ fun formatMessageTime(
         else -> OLDER.format(ts)
     }
 }
+
+/**
+ * "When" for the picker's Unlisted rows: `today 14:05`, `yesterday`, else the same
+ * day-listing rule as [formatMessageTime] (`29 Jun`, `29 Jun 2026`).
+ */
+fun lastInteractionLabel(
+    nowMillis: Long,
+    tsMillis: Long,
+    zone: ZoneId,
+): String {
+    val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
+    val ts = Instant.ofEpochMilli(tsMillis).atZone(zone)
+    return when {
+        now.toLocalDate() == ts.toLocalDate() -> "today ${TIME_ONLY.format(ts)}"
+        now.toLocalDate().minusDays(1) == ts.toLocalDate() -> "yesterday"
+        else -> formatMessageTime(nowMillis, tsMillis, zone)
+    }
+}
+
+/** Date **and** time for an interaction row: `18 Oct · 13:43`, or with the year. */
+fun interactionStamp(
+    nowMillis: Long,
+    tsMillis: Long,
+    zone: ZoneId,
+): String {
+    val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
+    val ts = Instant.ofEpochMilli(tsMillis).atZone(zone)
+    val date = if (now.year == ts.year) SAME_YEAR.format(ts) else OLDER.format(ts)
+    return "$date ${'\u00B7'} ${TIME_ONLY.format(ts)}"
+}

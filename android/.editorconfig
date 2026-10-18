@@ -5,3 +5,8 @@ root = true
 # does not know about @Composable, so exclude annotated functions.
 ktlint_function_naming_ignore_when_annotated_with = Composable
 max_line_length = off
+
+# Generated code (SQLDelight -> build/generated) is not ours to lint or format;
+# its table-derived class names follow SQL convention, not Kotlin's.
+[workflow/build/generated/**/*]
+ktlint = disabled

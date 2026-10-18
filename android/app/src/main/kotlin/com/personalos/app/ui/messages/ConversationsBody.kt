@@ -41,6 +41,8 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.common.groupIntoDays
+import com.personalos.app.ui.common.mergeSparseDays
+import com.personalos.app.ui.common.rangeLabel
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 
@@ -53,7 +55,8 @@ private const val CONVERSATIONS_CAP = 1_000
 /** The flattened shape: an optional day header, then that day's senders. */
 private sealed interface ConversationListRow {
     data class Header(
-        val dayStart: Long,
+        val startDay: Long,
+        val endDay: Long,
     ) : ConversationListRow
 
     data class Item(
@@ -129,8 +132,8 @@ internal fun ConversationsListBody(
         remember(conversations, groupByDay) {
             buildList {
                 if (groupByDay) {
-                    for (group in groupIntoDays(conversations) { it.lastAt }) {
-                        add(ConversationListRow.Header(group.dayStart))
+                    for (group in mergeSparseDays(groupIntoDays(conversations) { it.lastAt })) {
+                        add(ConversationListRow.Header(group.startDay, group.endDay))
                         group.items.forEach { add(ConversationListRow.Item(it)) }
                     }
                 } else {
@@ -181,7 +184,7 @@ internal fun ConversationsListBody(
             items = rows,
             key = { row ->
                 when (row) {
-                    is ConversationListRow.Header -> "h-${row.dayStart}"
+                    is ConversationListRow.Header -> "h-${row.startDay}-${row.endDay}"
                     is ConversationListRow.Item -> "c-${row.conversation.sender}"
                 }
             },
@@ -189,9 +192,13 @@ internal fun ConversationsListBody(
             when (row) {
                 is ConversationListRow.Header -> {
                     val (label, right) =
-                        remember(row.dayStart) {
-                            val l = dayLabel(row.dayStart)
-                            l to dayLabelRight(l, row.dayStart)
+                        remember(row.startDay, row.endDay) {
+                            if (row.startDay == row.endDay) {
+                                val l = dayLabel(row.startDay)
+                                l to dayLabelRight(l, row.startDay)
+                            } else {
+                                rangeLabel(row.startDay, row.endDay) to ""
+                            }
                         }
                     DayMarker(label = label, right = right)
                 }

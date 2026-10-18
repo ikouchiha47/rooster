@@ -7,6 +7,26 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): contacts wheel, multi-SIM, per-day groups, workflow wiring
+
+_2026-10-19_
+
+Contacts is rebuilt as a recipient picker: four tabs (Listed / Messaged /
+Attended / Missed), a 3D rotary A-Z drum with drag and hold-to-type, search,
+per-day date groups, channel dots, two light SIM tints, inset hairlines, and a
+floating + that creates a real local contact in the device address book.
+
+Multi-SIM: Sim/SimDirectory, one shared SimPreference, SmsSender takes a
+subscription id, and the picker appears in Compose and the thread reply bar;
+call rows also show their SIM and the call tabs filter by it.
+
+Also lands the P3 workflow foundation (ADR 0009): the :workflow KMP module, a
+durable SQLDelight RunStore, the enrich->retag workflow, a WorkManager host, and
+a debug RUN_WORKFLOW trigger.
+
+Verified: :workflow:jvmTest, :app:assembleDebug, :app:testDebugUnitTest and
+ktlintCheck green; installed and run on the A142.
+
 ## chore: snapshot of in-flight work in main before integrating sms-send
 
 _2026-10-18_
