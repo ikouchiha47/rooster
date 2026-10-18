@@ -1,5 +1,7 @@
 package com.personalos.app.ui.messages
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -212,6 +214,17 @@ fun ConversationThreadScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    GlyphActionButton(
+                        glyph = Glyph.Phone,
+                        onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(sender)}")),
+                                )
+                            }
+                        },
+                        tint = RadarColors.paper2,
+                    )
                     GlyphActionButton(glyph = Glyph.Search, onClick = onSearchThread, tint = RadarColors.paper2)
                     GlyphActionButton(glyph = Glyph.Bell, onClick = onMute, tint = RadarColors.paper2)
                     GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings, tint = RadarColors.paper2)

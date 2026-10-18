@@ -238,21 +238,6 @@ fun AppMark(modifier: Modifier = Modifier.size(26.dp)) {
 
 // ---------------------------------------------------------------- app bar
 
-@Composable
-fun GlyphActionButton(
-    glyph: Glyph,
-    onClick: () -> Unit,
-    tint: Color = RadarColors.ink,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier.size(30.dp).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        GlyphIcon(glyph, tint, 20.dp)
-    }
-}
-
 /**
  * Top app bar: optional PR mark, serif title + letter-spaced caps sub,
  * right-hand glyph actions, closed by the heavy 3dp ink rule.

@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): Phone glyph + call action; glyph code in one file
+
+_2026-10-19_
+
+Adds a Phone glyph (a filled handset path) and a Call action on the thread header
+that opens the dialer for the contact. Moves GlyphActionButton in beside the
+glyph set, so all glyph code lives in Glyphs.kt (same package, so no caller
+changes).
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(messages): taller composer area, spaced header glyphs
 
 _2026-10-19_
