@@ -25,6 +25,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +43,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -47,12 +54,11 @@ import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.SmsSource
 import com.personalos.app.ui.common.FooterStrip
-import com.personalos.app.ui.common.Glyph
-import com.personalos.app.ui.common.GlyphActionButton
 import com.personalos.app.ui.common.HardRule
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
+import com.personalos.app.ui.common.SearchField
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.groupIntoDays
@@ -96,6 +102,10 @@ fun ConversationThreadScreen(
     val container = LocalAppContainer.current
     val bgStore = remember { ThreadBackgroundStore(context) }
     var background by remember { mutableStateOf(bgStore.get()) }
+    val muteStore = remember { MuteStore(context) }
+    var muted by remember(sender) { mutableStateOf(muteStore.isMuted(sender)) }
+    var searching by remember(sender) { mutableStateOf(false) }
+    var searchQuery by remember(sender) { mutableStateOf("") }
     val repository = container.conversations
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -207,32 +217,55 @@ fun ConversationThreadScreen(
                         style = RadarType.microPlain,
                         color = RadarColors.ink3,
                     )
+                    if (muted) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "MUTED",
+                            style = RadarType.microPlain,
+                            color = RadarColors.paper2,
+                            modifier =
+                                Modifier
+                                    .background(RadarColors.ink)
+                                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                        )
+                    }
                 }
             },
             trailing = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    GlyphActionButton(
-                        glyph = Glyph.Phone,
-                        onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(sender)}")),
-                                )
-                            }
-                        },
-                        tint = RadarColors.paper2,
-                    )
-                    GlyphActionButton(glyph = Glyph.Search, onClick = onSearchThread, tint = RadarColors.paper2)
-                    GlyphActionButton(glyph = Glyph.Bell, onClick = onMute, tint = RadarColors.paper2)
-                    GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings, tint = RadarColors.paper2)
+                    HeaderIcon(Icons.Outlined.Phone, "Call") {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(sender)}")),
+                            )
+                        }
+                    }
+                    HeaderIcon(Icons.Outlined.Search, "Search") { searching = !searching }
+                    HeaderIcon(Icons.Outlined.NotificationsOff, if (muted) "Unmute" else "Mute") {
+                        muted = !muted
+                        muteStore.setMuted(sender, muted)
+                    }
+                    HeaderIcon(Icons.Outlined.Tune, "Settings", onOpenSettings)
                 }
             },
         )
 
-        val ordered = remember(items) { items.asReversed() }
+        if (searching) {
+            SearchField(
+                hint = "Search in thread",
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            )
+        }
+        val ordered =
+            remember(items, searchQuery) {
+                val all = items.asReversed()
+                if (searchQuery.isBlank()) all else all.filter { it.content.contains(searchQuery, ignoreCase = true) }
+            }
         val rows =
             remember(ordered) {
                 buildList {
@@ -452,3 +485,23 @@ private fun bubbleShape(outgoing: Boolean) =
         bottomStart = if (outgoing) 12.dp else 2.dp,
         bottomEnd = if (outgoing) 2.dp else 12.dp,
     )
+
+/** A 32dp hit area with a 22dp Material icon — one consistent optical box. */
+@Composable
+private fun HeaderIcon(
+    image: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier.size(32.dp).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = image,
+            contentDescription = description,
+            tint = RadarColors.paper2,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}

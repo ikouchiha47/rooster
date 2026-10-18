@@ -32,6 +32,22 @@ class ThreadBackgroundStore(
     }
 }
 
+/** Per-conversation mute, keyed by sender. */
+class MuteStore(
+    context: Context,
+) {
+    private val prefs = context.applicationContext.getSharedPreferences("thread_mute", Context.MODE_PRIVATE)
+
+    fun isMuted(sender: String): Boolean = prefs.getBoolean(sender, false)
+
+    fun setMuted(
+        sender: String,
+        muted: Boolean,
+    ) {
+        prefs.edit().putBoolean(sender, muted).apply()
+    }
+}
+
 /** A quiet dot grid: 1.2dp dots, 14dp apart, 5% ink. */
 @Composable
 fun DottedBackground(modifier: Modifier = Modifier) {

@@ -7,6 +7,18 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): wire thread search + mute; Material header icons
+
+_2026-10-19_
+
+The thread header uses the app's Material icon set (Phone, Search,
+NotificationsOff, Tune) in a 32dp hit area / 22dp icon, which fixes the
+hand-drawn phone's size and position and the optical misalignment between icons.
+Search toggles a field that filters the thread by message text; Mute stores a
+per-sender flag and shows a MUTED chip in the header strip.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(ui): Phone glyph + call action; glyph code in one file
 
 _2026-10-19_
