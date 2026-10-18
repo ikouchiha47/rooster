@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): parse and strip the group tag on ingest
+
+_2026-10-19_
+
+A body ending in [g:xxxxxx] is stored with the tail stripped, and the message is
+attached to the known group record (participants + replies). Our own recorded
+sends are stripped too, so the footer no longer shows inside the app. Unknown
+group ids are ignored; untagged messages stay 1:1.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(sms): opt-out group id on multi-recipient SMS
 
 _2026-10-19_

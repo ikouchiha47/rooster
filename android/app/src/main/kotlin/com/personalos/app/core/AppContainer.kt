@@ -492,6 +492,9 @@ class AppContainer(
             syncRecorder,
             categorizer = { categoryStore.categorizer() },
             isContact = { contactNames.nameFor(it) != null },
+            groups =
+                com.personalos.app.data.sms
+                    .GroupStore(context.applicationContext),
         )
 
     /**

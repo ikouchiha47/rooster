@@ -80,6 +80,8 @@ class SmsSource(
     private val categorizer: suspend () -> Categorizer,
     /** Whether a sender is a saved contact: the contact-wins rule's input. */
     private val isContact: (String) -> Boolean = { false },
+    /** Opt-out group ids carried in multi-recipient bodies. */
+    private val groups: com.personalos.app.data.sms.GroupStore? = null,
 ) : LifecycleObserver,
     SmsIngest {
     companion object {
@@ -164,15 +166,20 @@ class SmsSource(
 
                 val address = message.address ?: "Unknown"
                 val body = message.body ?: ""
+                val (cleanBody, groupId) =
+                    com.personalos.app.data.sms.GroupTag
+                        .strip(body)
+                val ulid = Ulid.next()
+                if (groupId != null) groups?.attach(groupId, ulid, address, cleanBody, message.date)
 
                 // Classify once, at ingest, so the category is queryable
                 // (Radar filters on it) instead of recomputed per render. The
                 // categorizer is the one owner of the category id.
-                val category = classifier.categorize(address, body, isContact(address)).id
+                val category = classifier.categorize(address, cleanBody, isContact(address)).id
 
                 events.add(
                     EventEntity(
-                        ulid = Ulid.next(),
+                        ulid = ulid,
                         // Provider row id: re-ingest is idempotent, and two
                         // messages from the same sender never collide.
                         dedupeKey = "sms:${message.id}",
@@ -181,7 +188,7 @@ class SmsSource(
                         category = category,
                         timestamp = message.date,
                         title = address,
-                        content = body,
+                        content = cleanBody,
                         entities = "[]",
                         location = null,
                         url = null,
@@ -189,8 +196,8 @@ class SmsSource(
                         sim = message.sim,
                     ),
                 )
-                tagInputs.add(TagInput(text = body, source = Transport.SMS, sender = address))
-                fieldInputs.add(smsFields(address, body))
+                tagInputs.add(TagInput(text = cleanBody, source = Transport.SMS, sender = address))
+                fieldInputs.add(smsFields(address, cleanBody))
             }
 
             val inserted = land(events, tagInputs, fieldInputs)
@@ -218,17 +225,22 @@ class SmsSource(
     ) {
         withContext(Dispatchers.IO) {
             val address = destination.ifBlank { "Unknown" }
-            val category = categorizer().categorize(address, body, isContact(address)).id
+            val (cleanBody, groupId) =
+                com.personalos.app.data.sms.GroupTag
+                    .strip(body)
+            val ulid = Ulid.next()
+            if (groupId != null) groups?.attach(groupId, ulid, address, cleanBody, timestampMs)
+            val category = categorizer().categorize(address, cleanBody, isContact(address)).id
             val event =
                 EventEntity(
-                    ulid = Ulid.next(),
+                    ulid = ulid,
                     dedupeKey = "sms:sent:$timestampMs",
                     source = SOURCE_ID,
                     type = "sent",
                     category = category,
                     timestamp = timestampMs,
                     title = destination,
-                    content = body,
+                    content = cleanBody,
                     entities = "[]",
                     location = null,
                     url = null,

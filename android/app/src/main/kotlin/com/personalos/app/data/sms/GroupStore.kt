@@ -68,6 +68,30 @@ class GroupStore(
             }.getOrNull()
         }
 
+    /** Adds a tagged reply to a known group; an unknown id is ignored. */
+    fun attach(
+        groupId: String,
+        ulid: String,
+        from: String,
+        body: String,
+        at: Long,
+    ) {
+        val raw = prefs.getString(KEY_PREFIX + groupId, null) ?: return
+        runCatching {
+            val json = JSONObject(raw)
+            val replies = json.optJSONArray("replies") ?: JSONArray()
+            replies.put(
+                JSONObject()
+                    .put("ulid", ulid)
+                    .put("from", from)
+                    .put("body", body)
+                    .put("at", at),
+            )
+            json.put("replies", replies)
+            prefs.edit().putString(KEY_PREFIX + groupId, json.toString()).apply()
+        }
+    }
+
     fun all(): List<GroupRecord> =
         prefs.all
             .filterKeys { it.startsWith(KEY_PREFIX) }
@@ -86,3 +110,13 @@ fun taggedBody(
     body: String,
     groupId: String,
 ): String = "$body\n\n[g:$groupId]"
+
+/** The `[g:xxxxxx]` tail: strip it for display, return it for grouping. */
+object GroupTag {
+    private val TAIL = Regex("\\s*\\[g:([0-9a-f]{6})]\\s*$")
+
+    fun strip(body: String): Pair<String, String?> {
+        val match = TAIL.find(body) ?: return body to null
+        return body.substring(0, match.range.first).trimEnd() to match.groupValues[1]
+    }
+}
