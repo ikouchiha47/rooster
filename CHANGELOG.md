@@ -7,6 +7,15 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): taller composer area, spaced header glyphs
+
+_2026-10-19_
+
+Grows the send area (48dp box and button, 12dp vertical padding) and spaces the
+thread header glyphs 8dp apart so they read as separate actions.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(messages): visible header actions, band strip, sent-time footer
 
 _2026-10-19_

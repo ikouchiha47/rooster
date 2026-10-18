@@ -208,7 +208,10 @@ fun ConversationThreadScreen(
                 }
             },
             trailing = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     GlyphActionButton(glyph = Glyph.Search, onClick = onSearchThread, tint = RadarColors.paper2)
                     GlyphActionButton(glyph = Glyph.Bell, onClick = onMute, tint = RadarColors.paper2)
                     GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings, tint = RadarColors.paper2)
@@ -314,7 +317,7 @@ private fun ThreadComposer(
         HardRule()
         SimSelector(sims = sims, selected = selectedSim, onSelect = onSelectSim, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             BasicTextField(
@@ -324,7 +327,7 @@ private fun ThreadComposer(
                     Modifier
                         .weight(1f)
                         .heightIn(
-                            min = 42.dp,
+                            min = 48.dp,
                             max = (LocalConfiguration.current.screenHeightDp * 0.3f).dp,
                         ).background(RadarColors.paper)
                         .border(1.dp, RadarColors.ink)
@@ -347,7 +350,7 @@ private fun ThreadComposer(
             Box(
                 modifier =
                     Modifier
-                        .size(42.dp)
+                        .size(48.dp)
                         .background(RadarColors.ink, RoundedCornerShape(6.dp))
                         .clickable { if (!sending && draft.isNotBlank()) onSend() },
                 contentAlignment = Alignment.Center,
