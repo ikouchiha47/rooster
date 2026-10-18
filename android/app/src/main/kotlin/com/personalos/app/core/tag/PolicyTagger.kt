@@ -55,7 +55,7 @@ class PolicyTagger(
         // Contextual, plus any curated the model found: the embedder's to give.
         tags += fromEmbedding.tags.filterNot { it in schema.markers }
         // Curated: the lexicon's to give.
-        tags += fromLexicon.tags.filter { it in schema.lexiconOwned }
+        tags += fromLexicon.tags.filter { it in schema.lexiconCovers }
 
         return TagResult(
             tags = tags,

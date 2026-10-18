@@ -21,15 +21,14 @@ class PolicyTaggerTest {
     private fun input(declared: Set<String> = emptySet()) = TagInput(text = "x", source = Transport.SMS, declaredTags = declared)
 
     @Test
-    fun `the embedder owns a contextual tag, so the lexicon's wrong one is dropped`() {
-        // The bank-strike case: the lexicon matched "strike" → travel; the
-        // embedder reads the context → finance + incident.
+    fun `the lexicon may contribute a contextual tag, and the embedder adds its own`() {
+        // The lexicon is rung 0 and covers every inferable leaf, so its hit stands
+        // alongside the embedder's reading rather than being dropped.
         val tagger = PolicyTagger(fake(setOf(Tags.TRAVEL)), fake(setOf(Tags.FINANCE, Tags.INCIDENT)))
 
         val tags = runBlocking { tagger.tag(input()) }.tags
 
-        assertEquals(setOf(Tags.FINANCE, Tags.INCIDENT), tags)
-        assertFalse("the lexicon does not get a vote on a contextual tag", Tags.TRAVEL in tags)
+        assertEquals(setOf(Tags.TRAVEL, Tags.FINANCE, Tags.INCIDENT), tags)
     }
 
     @Test

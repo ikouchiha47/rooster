@@ -7,6 +7,22 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(tag): BoW covers every inferable leaf; paper defined but not emitted
+
+_2026-10-19_
+
+The lexicon rung now emits any inferable leaf (TagSchema.lexiconCovers = subjects +
+natures), not just the four it is the authority for. A curated list is rung 0: cheap
+and precise where it fires, and a leaf with no terms simply never matches. The
+embedder still owns its own leaves and both contribute — PolicyTagger unions the
+rungs instead of dropping the lexicon's hit on a contextual tag.
+
+paper keeps its definition (vocabulary, group, ownership, terms) but is excluded
+from the lexicon rung via TagOwnership.NOT_LEXICON, so it stays declarable and
+filterable without BoW producing it.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green.
+
 ## feat(work): enrich runs as the enrich-retag workflow by default
 
 _2026-10-19_

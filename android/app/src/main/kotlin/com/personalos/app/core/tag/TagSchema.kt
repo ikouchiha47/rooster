@@ -25,6 +25,15 @@ data class TagSchema(
     /** Contextual tags the model owns: subjects+natures, minus lexicon and declared. */
     val embeddingOwned: Set<String> get() = (subjects + natures) - lexiconOwned - declared
 
+    /**
+     * What the lexicon rung may **emit** — every inferable leaf, not just the ones it
+     * owns. The lexicon is rung 0: a curated list is cheap and precise where it fires,
+     * and a leaf with no terms simply never matches. [lexiconOwned] still names the
+     * leaves the lexicon is the *authority* for; this is only what it is allowed to
+     * contribute, so a contextual leaf can be caught by a term as well as by the model.
+     */
+    val lexiconCovers: Set<String> get() = (subjects + natures) - TagOwnership.NOT_LEXICON
+
     companion object {
         /** Every leaf grouped and owned; categories declared. Throws on a malformed taxonomy. */
         fun of(taxonomy: Taxonomy): TagSchema {

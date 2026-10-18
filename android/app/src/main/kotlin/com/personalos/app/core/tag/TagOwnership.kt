@@ -29,4 +29,10 @@ object TagOwnership {
 
     /** Contextual tags: the embedder is the authority, and may correct the lexicon. */
     val EMBEDDING: Set<String> = (TagGroups.SUBJECTS + TagGroups.NATURES) - LEXICON
+
+    /**
+     * Defined, but **never emitted by the lexicon rung**. The tag stays in the
+     * vocabulary (declarable, filterable, owned), it just does not come from BoW.
+     */
+    val NOT_LEXICON: Set<String> = setOf(Tags.PAPER)
 }
