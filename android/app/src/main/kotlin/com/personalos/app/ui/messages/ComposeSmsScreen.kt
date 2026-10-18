@@ -102,7 +102,7 @@ fun ComposeSmsScreen(
                 if (existing != null) {
                     // Existing group: add anyone new, and append our send to its
                     // thread. The id is untouched, so nobody's thread is split.
-                    container.groupStore.addMembers(groupId, targets)
+                    container.groupStore.addMembers(groupId, targets, System.currentTimeMillis())
                     container.groupStore.attach(groupId, UUID.randomUUID().toString(), "me", trimmed, System.currentTimeMillis())
                 } else {
                     container.groupStore.record(groupId, targets, trimmed, System.currentTimeMillis())

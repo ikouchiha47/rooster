@@ -12,6 +12,17 @@ data class GroupRecord(
     val body: String,
     val sentAt: Long,
     val replies: List<GroupReply> = emptyList(),
+    val joins: List<GroupJoin> = emptyList(),
+)
+
+/**
+ * Members added after the first send, and when. History cannot be replayed over
+ * SMS, so *where* someone joined has to be recorded rather than derived — a late
+ * member has none of the earlier messages, and the thread must not imply they do.
+ */
+data class GroupJoin(
+    val people: List<String>,
+    val at: Long,
 )
 
 /** One message on a broadcast: a member's tagged reply, or our own send. */
@@ -83,13 +94,32 @@ class GroupStore(
     fun addMembers(
         id: String,
         people: List<String>,
+        at: Long = System.currentTimeMillis(),
     ) {
         val record = get(id) ?: return
-        val merged = clean(record.participants + people)
-        if (merged.size != record.participants.size) write(record.copy(participants = merged))
+        val added = GroupIdentity.newMembers(record.participants, people)
+        if (added.isEmpty()) return
+        write(
+            record.copy(
+                participants = record.participants + added,
+                joins = record.joins + GroupJoin(added, at),
+            ),
+        )
     }
 
     private fun clean(people: List<String>): List<String> = people.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    private fun joinsOf(json: JSONObject): List<GroupJoin> {
+        val raw = json.optJSONArray("joins") ?: return emptyList()
+        return List(raw.length()) { index ->
+            val join = raw.getJSONObject(index)
+            val people = join.getJSONArray("people")
+            GroupJoin(
+                people = List(people.length()) { people.getString(it) },
+                at = join.getLong("at"),
+            )
+        }.sortedBy { it.at }
+    }
 
     private fun write(record: GroupRecord) {
         val json =
@@ -109,6 +139,17 @@ class GroupStore(
             }
             json.put("replies", replies)
         }
+        if (record.joins.isNotEmpty()) {
+            val joins = JSONArray()
+            record.joins.forEach { join ->
+                joins.put(
+                    JSONObject()
+                        .put("people", JSONArray(join.people))
+                        .put("at", join.at),
+                )
+            }
+            json.put("joins", joins)
+        }
         prefs.edit().putString(KEY_PREFIX + record.id, json.toString()).apply()
     }
 
@@ -123,6 +164,7 @@ class GroupStore(
                     body = json.getString("body"),
                     sentAt = json.getLong("sentAt"),
                     replies = repliesOf(json),
+                    joins = joinsOf(json),
                 )
             }.getOrNull()
         }
@@ -200,6 +242,15 @@ object GroupTag {
  * same group" rule is testable on its own.
  */
 object GroupIdentity {
+    /** Who is genuinely new: in the incoming set, not already a member. */
+    fun newMembers(
+        existing: List<String>,
+        incoming: List<String>,
+    ): List<String> {
+        val have = clean(existing).toSet()
+        return clean(incoming).filterNot { it in have }
+    }
+
     /** Trimmed, de-blanked, de-duplicated, order-preserved. */
     fun clean(people: List<String>): List<String> = people.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 

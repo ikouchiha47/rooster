@@ -7,6 +7,20 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): mark where members joined a group
+
+_2026-10-19_
+
+A group can grow, and history cannot be replayed over SMS, so a member added
+later has none of the earlier messages. addMembers now records a GroupJoin for
+the people actually added (re-sending to the same set records nothing), and the
+group thread merges joins into its timeline by time, so an arrival reads where it
+landed instead of implying everyone was always there.
+
+Verified on device: added a third number to a two-person group, store read back
+people=3 with joins=[9000000000] and the id unchanged; assembleDebug,
+testDebugUnitTest (13 cases) and ktlintCheck green.
+
 ## feat(sms): a group is its member set, with a stable id
 
 _2026-10-19_

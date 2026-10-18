@@ -69,6 +69,16 @@ class GroupIdentityTest {
     }
 
     @Test
+    fun `only genuinely new people count as joiners`() {
+        assertEquals(listOf(c), GroupIdentity.newMembers(listOf(a, b), listOf(a, b, c)))
+    }
+
+    @Test
+    fun `re-sending to the same people adds nobody`() {
+        assertEquals(emptyList<String>(), GroupIdentity.newMembers(listOf(a, b), listOf(b, a)))
+    }
+
+    @Test
     fun `no people is no group`() {
         assertNull(GroupIdentity.bestMatch(emptyList(), listOf(group("x", a, b))))
     }

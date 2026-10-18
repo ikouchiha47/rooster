@@ -48,6 +48,10 @@ class InjectGroupReceiver : BroadcastReceiver() {
         if (to.isNotEmpty() && body.isNotEmpty() && store.get(id) == null) {
             store.record(id, to, body, System.currentTimeMillis())
         }
+        val join = intent.getStringExtra(EXTRA_JOIN)
+        if (!join.isNullOrBlank()) {
+            store.addMembers(id, join.split(",").map { it.trim() }.filter { it.isNotEmpty() })
+        }
         val from = intent.getStringExtra(EXTRA_FROM)
         val reply = intent.getStringExtra(EXTRA_REPLY)
         if (!from.isNullOrBlank() && !reply.isNullOrBlank()) {
@@ -64,5 +68,6 @@ class InjectGroupReceiver : BroadcastReceiver() {
         const val EXTRA_BODY = "body"
         const val EXTRA_FROM = "from"
         const val EXTRA_REPLY = "reply"
+        const val EXTRA_JOIN = "join"
     }
 }

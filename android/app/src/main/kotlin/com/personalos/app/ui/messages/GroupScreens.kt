@@ -34,7 +34,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.personalos.app.data.sms.GroupJoin
 import com.personalos.app.data.sms.GroupRecord
+import com.personalos.app.data.sms.GroupReply
 import com.personalos.app.data.sms.taggedBody
 import com.personalos.app.ui.common.Chip
 import com.personalos.app.ui.common.HardRule
@@ -176,11 +178,18 @@ fun GroupThreadScreen(
 
     val participants = record?.participants.orEmpty()
     val replies = record?.replies.orEmpty()
+    // The opening send is pinned first; everything after it happened in order,
+    // joins included, so a late member's arrival reads where it actually landed.
+    val timeline =
+        remember(record) {
+            (replies.map { GroupEntry.Line(it) } + record?.joins.orEmpty().map { GroupEntry.Joined(it) })
+                .sortedBy { it.at }
+        }
 
     // Following the newest reply, like the 1:1 thread: the send is what you look
     // for, and a reply appended while open is the reason to be here.
-    LaunchedEffect(replies.size) {
-        if (replies.isNotEmpty()) listState.animateScrollToItem(replies.size)
+    LaunchedEffect(timeline.size) {
+        if (timeline.isNotEmpty()) listState.animateScrollToItem(timeline.size + 1)
     }
 
     fun send() {
@@ -247,15 +256,17 @@ fun GroupThreadScreen(
             ) {
                 item { Spacer(Modifier.height(4.dp)) }
                 item { GroupBubble(from = SELF, body = record?.body.orEmpty(), outgoing = true) }
-                items(
-                    items = replies,
-                    key = { reply -> "${reply.from}|${reply.at}|${reply.body.hashCode()}" },
-                ) { reply ->
-                    GroupBubble(
-                        from = reply.from,
-                        body = reply.body,
-                        outgoing = reply.from == SELF,
-                    )
+                items(items = timeline, key = { it.key }) { entry ->
+                    when (entry) {
+                        is GroupEntry.Line ->
+                            GroupBubble(
+                                from = entry.reply.from,
+                                body = entry.reply.body,
+                                outgoing = entry.reply.from == SELF,
+                            )
+
+                        is GroupEntry.Joined -> JoinedMarker(entry.join.people)
+                    }
                 }
                 item { Spacer(Modifier.height(8.dp)) }
             }
@@ -355,6 +366,46 @@ private fun GroupComposer(
                     .background(RadarColors.ink, RoundedCornerShape(6.dp))
                     .clickable(onClick = onSend)
                     .padding(horizontal = 14.dp, vertical = 12.dp),
+        )
+    }
+}
+
+/**
+ * One entry on a group's timeline: a message, or the moment people joined. The
+ * two order together by time, which is the only ordering that is true.
+ */
+private sealed interface GroupEntry {
+    val at: Long
+    val key: String
+
+    data class Line(
+        val reply: GroupReply,
+    ) : GroupEntry {
+        override val at get() = reply.at
+        override val key get() = "${reply.from}|${reply.at}|${reply.body.hashCode()}"
+    }
+
+    data class Joined(
+        val join: GroupJoin,
+    ) : GroupEntry {
+        override val at get() = join.at
+        override val key get() = "join|${join.at}|${join.people.hashCode()}"
+    }
+}
+
+/** A quiet rule of text: these people joined here, and saw nothing before it. */
+@Composable
+private fun JoinedMarker(people: List<String>) {
+    val container = LocalAppContainer.current
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Text(
+            text = "${peopleLabel(people, container.contactNames::nameFor)} joined",
+            style = RadarType.micro,
+            color = RadarColors.ink3,
+            modifier =
+                Modifier
+                    .background(RadarColors.paper3, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
         )
     }
 }
