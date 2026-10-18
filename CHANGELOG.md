@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): chat-style thread with bubbles and day separators
+
+_2026-10-19_
+
+Rewrites the thread as a chat: incoming bubbles on paper, outgoing on ink with
+time and sent state, day separators via the shared day grouper, oldest-first
+with the newest pinned to the bottom, and older pages loading at the top. The
+header shows the number under a contact name, and the composer keeps the SIM
+picker.
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; checked on the
+A142 (Babai thread).
+
 ## feat(sms): parse and strip the group tag on ingest
 
 _2026-10-19_

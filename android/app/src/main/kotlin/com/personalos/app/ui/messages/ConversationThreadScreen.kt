@@ -1,19 +1,23 @@
 package com.personalos.app.ui.messages
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,16 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.EventEntity
 import com.personalos.app.data.SmsSource
-import com.personalos.app.ui.common.Chip
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.HardRule
 import com.personalos.app.ui.common.HeaderMeta
@@ -43,6 +45,8 @@ import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
 import com.personalos.app.ui.common.SearchField
 import com.personalos.app.ui.common.compactNumber
+import com.personalos.app.ui.common.dayLabel
+import com.personalos.app.ui.common.groupIntoDays
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import kotlinx.coroutines.launch
@@ -52,7 +56,7 @@ import java.util.Locale
 
 private const val THREAD_PAGE_SIZE = 200
 
-private val THREAD_TIME_FMT = SimpleDateFormat("dd MMM HH:mm", Locale.getDefault())
+private val THREAD_CLOCK_FMT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
 /** The same ordering the thread query uses: newest publish, then newest id. */
 private val THREAD_NEWEST_FIRST: Comparator<EventEntity> =
@@ -148,12 +152,8 @@ fun ConversationThreadScreen(
     }
 
     LaunchedEffect(listState, sender) {
-        snapshotFlow {
-            listState.layoutInfo.visibleItemsInfo
-                .lastOrNull()
-                ?.index ?: 0
-        }.collect { lastVisible ->
-            if (!loading && !endReached && items.isNotEmpty() && lastVisible >= items.size - 5) {
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { firstVisible ->
+            if (!loading && !endReached && items.isNotEmpty() && firstVisible <= 5) {
                 loading = true
                 val next = repository.thread(sender, cursorTs, cursorId, THREAD_PAGE_SIZE)
                 if (next.isEmpty()) {
@@ -176,6 +176,11 @@ fun ConversationThreadScreen(
             title = title,
             accent = RadarColors.ink,
             onBack = onBack,
+            subtitle = {
+                if (title != sender) {
+                    Text(text = sender, style = RadarType.microPlain, color = RadarColors.paper4)
+                }
+            },
             trailing = {
                 HeaderMeta(
                     "${compactNumber(items.size)} messages ${Chars.MIDDLE_DOT} SMS only",
@@ -183,6 +188,24 @@ fun ConversationThreadScreen(
                 )
             },
         )
+
+        val ordered = remember(items) { items.asReversed() }
+        val rows =
+            remember(ordered) {
+                buildList {
+                    for (group in groupIntoDays(ordered) { it.timestamp }) {
+                        add(ThreadRow.Day(group.dayStart))
+                        group.items.forEach { add(ThreadRow.Message(it)) }
+                    }
+                }
+            }
+        var didInitialScroll by remember(sender) { mutableStateOf(false) }
+        LaunchedEffect(rows.size, didInitialScroll) {
+            if (!didInitialScroll && rows.isNotEmpty()) {
+                listState.scrollToItem(rows.lastIndex)
+                didInitialScroll = true
+            }
+        }
 
         // The list takes the space above the composer, so a long thread still
         // reaches its end while the composer stays pinned below.
@@ -196,8 +219,11 @@ fun ConversationThreadScreen(
                 )
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    items(items = items, key = { "t-${it.id}" }) { message ->
-                        ThreadMessageRow(message)
+                    rows.forEach { row ->
+                        when (row) {
+                            is ThreadRow.Day -> item(key = "d-${row.start}") { DaySeparator(row.start) }
+                            is ThreadRow.Message -> item(key = "m-${row.message.id}") { MessageBubble(row.message) }
+                        }
                     }
                     item { FooterStrip("${items.size} shown ${Chars.MIDDLE_DOT} $title") }
                 }
@@ -278,36 +304,67 @@ private fun ThreadComposer(
     }
 }
 
-/** All messages in a thread share the sender, so the row leads with time and state. */
-@Composable
-private fun ThreadMessageRow(message: EventEntity) {
-    val time = remember(message.timestamp) { THREAD_TIME_FMT.format(Date(message.timestamp)) }
+/** One row in the chat: a day separator or a message bubble. */
+private sealed interface ThreadRow {
+    data class Day(
+        val start: Long,
+    ) : ThreadRow
 
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    data class Message(
+        val message: EventEntity,
+    ) : ThreadRow
+}
+
+/** A day divider, centred and quiet, so it separates without shouting. */
+@Composable
+private fun DaySeparator(start: Long) {
+    Text(
+        text = dayLabel(start).uppercase(),
+        style = RadarType.micro,
+        color = RadarColors.ink3,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+    )
+}
+
+/** One chat bubble: incoming on paper, outgoing on ink, with the time inside. */
+@Composable
+private fun MessageBubble(message: EventEntity) {
+    val outgoing = message.type == "sent" || message.type == "queued" || message.type == "outbox"
+    val time = remember(message.timestamp) { THREAD_CLOCK_FMT.format(Date(message.timestamp)) }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+        horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .widthIn(max = 284.dp)
+                    .background(if (outgoing) RadarColors.ink else RadarColors.paper, bubbleShape(outgoing))
+                    .border(1.dp, if (outgoing) RadarColors.ink else RadarColors.ruleSoft, bubbleShape(outgoing))
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
         ) {
-            Text(text = time, style = RadarType.monoSmall, color = RadarColors.ink3, modifier = Modifier.width(96.dp))
-            Spacer(Modifier.width(6.dp))
-            Chip(text = message.type.uppercase(), color = threadStateColor(message.type))
+            Text(
+                text = message.content,
+                style = RadarType.small,
+                color = if (outgoing) RadarColors.paper2 else RadarColors.ink,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = if (outgoing) "$time ${Chars.MIDDLE_DOT} sent" else time,
+                style = RadarType.microPlain,
+                color = if (outgoing) RadarColors.paper4 else RadarColors.ink3,
+                modifier = Modifier.align(Alignment.End),
+            )
         }
-        Text(
-            text = message.content,
-            style = RadarType.small,
-            color = RadarColors.ink,
-            maxLines = 6,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 6.dp),
-        )
-        HardRule()
     }
 }
 
-/** Box state as a chip colour, mirroring the timeline row's vocabulary. */
-private fun threadStateColor(type: String): Color =
-    when (type) {
-        "inbox" -> CategoryColors.Vermilion
-        "sent", "queued", "outbox" -> CategoryColors.Chartreuse
-        else -> RadarColors.paper4
-    }
+/** A speech-bubble corner: the tail sits on the sender's side. */
+private fun bubbleShape(outgoing: Boolean) =
+    RoundedCornerShape(
+        topStart = 12.dp,
+        topEnd = 12.dp,
+        bottomStart = if (outgoing) 12.dp else 2.dp,
+        bottomEnd = if (outgoing) 2.dp else 12.dp,
+    )
