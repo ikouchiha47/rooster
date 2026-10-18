@@ -30,6 +30,8 @@ sealed interface SmsSendResult {
 data class Contact(
     val name: String,
     val number: String,
+    /** True when this number also exists on a Google raw contact. */
+    val google: Boolean = false,
 )
 
 /**

@@ -21,18 +21,21 @@ class AndroidContactWriter(
     override suspend fun create(
         name: String,
         number: String,
+        google: Boolean,
     ): Boolean =
         withContext(Dispatchers.IO) {
             if (name.isBlank() || number.isBlank()) return@withContext false
             if (!granted()) return@withContext false
             runCatching {
                 val rawIndex = 0
+                val account = if (google) googleAccount() else null
+                if (google && account == null) return@withContext false
                 val ops = ArrayList<ContentProviderOperation>()
                 ops +=
                     ContentProviderOperation
                         .newInsert(ContactsContract.RawContacts.CONTENT_URI)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, account?.first)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, account?.second)
                         .build()
                 ops +=
                     ContentProviderOperation
@@ -56,6 +59,21 @@ class AndroidContactWriter(
                 true
             }.getOrDefault(false)
         }
+
+    /** An existing Google raw contact's account type/name; avoids GET_ACCOUNTS. */
+    private fun googleAccount(): Pair<String, String>? =
+        runCatching {
+            context.contentResolver
+                .query(
+                    ContactsContract.RawContacts.CONTENT_URI,
+                    arrayOf(ContactsContract.RawContacts.ACCOUNT_TYPE, ContactsContract.RawContacts.ACCOUNT_NAME),
+                    "${ContactsContract.RawContacts.ACCOUNT_TYPE} = ?",
+                    arrayOf("com.google"),
+                    null,
+                )?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) to c.getString(1) else null
+                }
+        }.getOrNull()
 
     private fun granted(): Boolean =
         ContextCompat.checkSelfPermission(

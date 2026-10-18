@@ -7,6 +7,17 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(contacts): Google vs local accounts in the picker
+
+_2026-10-19_
+
+Marks saved contacts that also exist on a Google raw contact, labels them in the
+Listed rows, adds an ALL/GOOGLE/LOCAL filter, and lets the new-contact form
+choose Google or local while creating (Google falls back to false when no
+Google account exists).
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; installed.
+
 ## feat(sms): record the subscription each SMS arrived on
 
 _2026-10-19_

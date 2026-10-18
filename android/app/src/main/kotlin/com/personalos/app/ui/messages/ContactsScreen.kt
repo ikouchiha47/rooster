@@ -93,6 +93,8 @@ fun ContactsScreen(
     var creating by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newNumber by remember { mutableStateOf("") }
+    var saveToGoogle by remember { mutableStateOf(false) }
+    var googleOnly by remember { mutableStateOf<Boolean?>(null) }
     var sims by remember { mutableStateOf<List<com.personalos.app.core.sms.Sim>>(emptyList()) }
     val wheelRotation = remember { mutableFloatStateOf(0f) }
     val listedState = rememberLazyListState()
@@ -116,7 +118,11 @@ fun ContactsScreen(
     val savedNumbers = remember(saved) { saved.mapTo(HashSet()) { it.number } }
     val now = remember(senders, calls) { System.currentTimeMillis() }
 
-    val listed = remember(saved, query) { listedItems(filterSaved(saved, query)) }
+    val filteredSaved =
+        remember(saved, query, googleOnly) {
+            filterSaved(saved, query).filter { googleOnly == null || it.google == googleOnly }
+        }
+    val listed = remember(filteredSaved) { listedItems(filteredSaved) }
     // The drum's letters stay the full A..Z set while typing, or filtering to one
     // letter would immediately leave nothing to rotate to.
     val wheelLetters = remember(saved) { letterIndex(listedItems(saved)) }
@@ -211,16 +217,19 @@ fun ContactsScreen(
                     newName = ""
                     newNumber = ""
                 },
+                google = saveToGoogle,
+                onGoogle = { saveToGoogle = it },
                 onSave = {
                     scope.launch {
                         val ok =
-                            runCatching { container.contactWriter.create(newName.trim(), newNumber.trim()) }
+                            runCatching { container.contactWriter.create(newName.trim(), newNumber.trim(), saveToGoogle) }
                                 .getOrDefault(false)
                         if (ok) {
                             saved = runCatching { container.contacts.all() }.getOrDefault(saved)
                             creating = false
                             newName = ""
                             newNumber = ""
+                            saveToGoogle = false
                         }
                     }
                 },
@@ -233,6 +242,10 @@ fun ContactsScreen(
             onQueryChange = { query = it },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
         )
+
+        if (tab == 0) {
+            AccountFilterRow(selected = googleOnly, onSelect = { googleOnly = it })
+        }
 
         if (sims.size > 1 && tab >= 1) {
             SimFilterRow(
@@ -475,19 +488,66 @@ private fun SelectionBar(
 // Light badge tints per SIM slot, so the two SIMs read apart at a glance.
 private val SIM_BADGE_COLORS = listOf(CategoryColors.Indigo, CategoryColors.Rust)
 
+@Composable
+private fun AccountFilterRow(
+    selected: Boolean?,
+    onSelect: (Boolean?) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        listOf(null to "ALL", true to "GOOGLE", false to "LOCAL").forEach { (value, label) ->
+            val on = selected == value
+            Text(
+                text = label,
+                style = RadarType.micro,
+                color = if (on) RadarColors.paper2 else RadarColors.ink2,
+                modifier =
+                    Modifier
+                        .clickable { onSelect(value) }
+                        .background(if (on) RadarColors.ink else RadarColors.paper)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+    }
+}
+
 /** The inline "new contact" form: name + number, saved to the device address book. */
 @Composable
 private fun NewContactForm(
     name: String,
     number: String,
+    google: Boolean,
     onName: (String) -> Unit,
     onNumber: (String) -> Unit,
+    onGoogle: (Boolean) -> Unit,
     onCancel: () -> Unit,
     onSave: () -> Unit,
 ) {
     val ready = name.isNotBlank() && number.isNotBlank()
     Column(Modifier.fillMaxWidth().background(RadarColors.paper).padding(8.dp)) {
         Text(text = "NEW CONTACT", style = RadarType.micro, color = RadarColors.ink3)
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            listOf(true to "GOOGLE", false to "LOCAL").forEach { (value, label) ->
+                val on = google == value
+                Text(
+                    text = label,
+                    style = RadarType.micro,
+                    color = if (on) RadarColors.paper2 else RadarColors.ink2,
+                    modifier =
+                        Modifier
+                            .clickable { onGoogle(value) }
+                            .background(if (on) RadarColors.ink else RadarColors.paper)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+        }
         Spacer(Modifier.height(4.dp))
         SearchField(hint = "Name", query = name, onQueryChange = onName, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(6.dp))

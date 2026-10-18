@@ -86,7 +86,10 @@ fun listedItems(saved: List<Contact>): List<PickerItem> {
         .forEach { (bucket, contacts) ->
             items += PickerItem.Header(bucket)
             orderedContacts(contacts).forEach {
-                items += PickerItem.Entry(PickerEntry(it.name, it.number, it.number, saved = true))
+                items +=
+                    PickerItem.Entry(
+                        PickerEntry(it.name, it.number + if (it.google) " \u00B7 Google" else "", it.number, saved = true),
+                    )
             }
         }
     return items

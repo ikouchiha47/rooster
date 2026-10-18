@@ -31,6 +31,21 @@ class AndroidContactDirectory(
             // One row per phone number, deduped by the number so a contact with
             // the same line stored twice appears once. First name wins, so the
             // order cannot flap between reads.
+            val googleRawIds = HashSet<Long>()
+            context.contentResolver
+                .query(
+                    ContactsContract.RawContacts.CONTENT_URI,
+                    arrayOf(ContactsContract.RawContacts._ID, ContactsContract.RawContacts.ACCOUNT_TYPE),
+                    null,
+                    null,
+                    null,
+                )?.use { rc ->
+                    val idCol = rc.getColumnIndexOrThrow(ContactsContract.RawContacts._ID)
+                    val typeCol = rc.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)
+                    while (rc.moveToNext()) {
+                        if (rc.getString(typeCol) == "com.google") googleRawIds += rc.getLong(idCol)
+                    }
+                }
             val byNumber = LinkedHashMap<String, Contact>()
             context.contentResolver
                 .query(
@@ -38,6 +53,7 @@ class AndroidContactDirectory(
                     arrayOf(
                         ContactsContract.CommonDataKinds.Phone.NUMBER,
                         ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID,
                     ),
                     null,
                     null,
@@ -45,10 +61,17 @@ class AndroidContactDirectory(
                 )?.use { cursor ->
                     val numberCol = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
                     val nameCol = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                    val rawCol = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID)
                     while (cursor.moveToNext()) {
                         val number = normaliseNumber(cursor.getString(numberCol)) ?: continue
                         val name = cursor.getString(nameCol)?.takeIf { it.isNotBlank() } ?: continue
-                        byNumber.putIfAbsent(number, Contact(name = name, number = number))
+                        val google = cursor.getLong(rawCol) in googleRawIds
+                        val existing = byNumber[number]
+                        if (existing == null) {
+                            byNumber[number] = Contact(name, number, google)
+                        } else if (google && !existing.google) {
+                            byNumber[number] = existing.copy(google = true)
+                        }
                     }
                 }
             byNumber.values.sortedWith { a, b ->

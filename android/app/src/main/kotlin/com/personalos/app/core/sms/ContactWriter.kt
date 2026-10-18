@@ -6,5 +6,6 @@ interface ContactWriter {
     suspend fun create(
         name: String,
         number: String,
+        google: Boolean,
     ): Boolean
 }
