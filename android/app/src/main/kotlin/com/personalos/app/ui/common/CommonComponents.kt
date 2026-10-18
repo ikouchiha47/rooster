@@ -242,13 +242,14 @@ fun AppMark(modifier: Modifier = Modifier.size(26.dp)) {
 fun GlyphActionButton(
     glyph: Glyph,
     onClick: () -> Unit,
+    tint: Color = RadarColors.ink,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier.size(30.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        GlyphIcon(glyph, RadarColors.ink, 20.dp)
+        GlyphIcon(glyph, tint, 20.dp)
     }
 }
 
@@ -602,7 +603,7 @@ fun RadarHeader(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .background(RadarColors.paper2)
+                        .background(RadarColors.paper4)
                         .padding(horizontal = 8.dp, vertical = 5.dp),
                 ) {
                     subtitle()

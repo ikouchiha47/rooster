@@ -65,6 +65,8 @@ private const val THREAD_PAGE_SIZE = 200
 
 private val THREAD_CLOCK_FMT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
+private val THREAD_DAYTIME_FMT = SimpleDateFormat("EEE d MMM HH:mm", Locale.getDefault())
+
 /** The same ordering the thread query uses: newest publish, then newest id. */
 private val THREAD_NEWEST_FIRST: Comparator<EventEntity> =
     compareByDescending<EventEntity> { it.timestamp }.thenByDescending { it.id }
@@ -84,6 +86,8 @@ fun ConversationThreadScreen(
     sender: String,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit = {},
+    onSearchThread: () -> Unit = {},
+    onMute: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -193,12 +197,8 @@ fun ConversationThreadScreen(
                             text = sender,
                             style = RadarType.microPlain,
                             color = RadarColors.ink,
-                            modifier =
-                                Modifier
-                                    .background(CategoryColors.Mustard)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
                     }
                     Text(
                         text = "${compactNumber(items.size)} messages",
@@ -208,7 +208,11 @@ fun ConversationThreadScreen(
                 }
             },
             trailing = {
-                GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GlyphActionButton(glyph = Glyph.Search, onClick = onSearchThread, tint = RadarColors.paper2)
+                    GlyphActionButton(glyph = Glyph.Bell, onClick = onMute, tint = RadarColors.paper2)
+                    GlyphActionButton(glyph = Glyph.Tune, onClick = onOpenSettings, tint = RadarColors.paper2)
+                }
             },
         )
 
@@ -251,7 +255,15 @@ fun ConversationThreadScreen(
                             is ThreadRow.Message -> item(key = "m-${row.message.id}") { MessageBubble(row.message) }
                         }
                     }
-                    item { FooterStrip("${items.size} shown ${Chars.MIDDLE_DOT} $title") }
+                    item {
+                        val lastSent = items.firstOrNull { it.type == "sent" }
+                        FooterStrip(
+                            text =
+                                lastSent?.let {
+                                    "sent ${THREAD_DAYTIME_FMT.format(Date(it.timestamp))}"
+                                } ?: "no messages sent",
+                        )
+                    }
                 }
             }
         }
@@ -311,8 +323,10 @@ private fun ThreadComposer(
                 modifier =
                     Modifier
                         .weight(1f)
-                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.3f).dp)
-                        .background(RadarColors.paper)
+                        .heightIn(
+                            min = 42.dp,
+                            max = (LocalConfiguration.current.screenHeightDp * 0.3f).dp,
+                        ).background(RadarColors.paper)
                         .border(1.dp, RadarColors.ink)
                         .padding(horizontal = 10.dp, vertical = 9.dp),
                 textStyle = RadarType.small.copy(color = RadarColors.ink),

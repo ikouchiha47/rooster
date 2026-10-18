@@ -7,6 +7,19 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(messages): visible header actions, band strip, sent-time footer
+
+_2026-10-19_
+
+GlyphActionButton gains a tint, so the thread's search/mute/settings glyphs are
+visible on the ink band (they were ink-on-ink, i.e. invisible). The header strip
+uses the letter-heading paper4 band edge to edge for the number and count, the
+composer box starts at the send button's height and grows to 30% of the screen,
+and the footer reads "sent <day time>" instead of "N shown".
+
+Verified: assembleDebug, testDebugUnitTest and ktlintCheck green; checked on the
+A142.
+
 ## feat(messages): multiline composer, mustard number chip, count by the name
 
 _2026-10-19_
