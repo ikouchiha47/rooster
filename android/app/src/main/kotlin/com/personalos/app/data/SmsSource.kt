@@ -186,6 +186,7 @@ class SmsSource(
                         location = null,
                         url = null,
                         ingestedAt = ingestedAt,
+                        sim = message.sim,
                     ),
                 )
                 tagInputs.add(TagInput(text = body, source = Transport.SMS, sender = address))

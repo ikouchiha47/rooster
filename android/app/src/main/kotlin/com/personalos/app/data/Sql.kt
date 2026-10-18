@@ -594,9 +594,11 @@ object Sql {
      */
     const val CONVERSATIONS_SENDERS =
         """
-        SELECT sender AS sender, last_at AS lastAt FROM conversations
-        WHERE source = 'sms'
-        ORDER BY last_at DESC
+        SELECT c.sender AS sender, c.last_at AS lastAt, e.sim AS sim
+        FROM conversations c
+        LEFT JOIN events e ON e.id = c.last_message_id
+        WHERE c.source = 'sms'
+        ORDER BY c.last_at DESC
         """
 
     /**

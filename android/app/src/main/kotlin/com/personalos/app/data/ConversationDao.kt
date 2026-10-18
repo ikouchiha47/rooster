@@ -53,4 +53,5 @@ interface ConversationDao {
 data class SenderLast(
     val sender: String,
     val lastAt: Long,
+    val sim: String? = null,
 )

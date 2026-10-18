@@ -158,7 +158,7 @@ fun unlistedRows(
     when (channel) {
         UnlistedChannel.MESSAGED ->
             senders.mapNotNull { sender ->
-                normaliseNumber(sender.sender)?.takeIf { it !in saved }?.let { UnlistedRow(it, sender.lastAt) }
+                normaliseNumber(sender.sender)?.takeIf { it !in saved }?.let { UnlistedRow(it, sender.lastAt, sender.sim) }
             }
 
         UnlistedChannel.ATTENDED ->

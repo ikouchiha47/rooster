@@ -900,6 +900,10 @@ val MIGRATION_21_22_STATEMENTS: List<String> =
 internal val DERIVED_OBJECT_STATEMENTS: List<String> =
     FTS_OBJECT_STATEMENTS + CONVERSATION_TRIGGER_STATEMENTS
 
+// v21 -> v22: the SMS subscription (`sub_id`) a message arrived on. Nullable.
+val MIGRATION_21_22_SIM_STATEMENTS: List<String> =
+    listOf("ALTER TABLE events ADD COLUMN sim TEXT")
+
 /**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
@@ -928,6 +932,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         19 to MIGRATION_18_19_STATEMENTS,
         20 to MIGRATION_19_20_STATEMENTS,
         21 to MIGRATION_20_21_STATEMENTS,
+        22 to MIGRATION_21_22_SIM_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

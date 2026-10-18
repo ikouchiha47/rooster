@@ -7,6 +7,18 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(sms): record the subscription each SMS arrived on
+
+_2026-10-19_
+
+Adds a nullable events.sim (migration v21 -> v22) read from the provider's
+sub_id, so the Messaged tab can show and filter by SIM the way calls already
+do. Existing rows stay null (unknown); new messages populate it. The senders
+read joins the latest message to carry its sim to the picker.
+
+Verified: migration applied on-device (user_version 22, sim column present, app
+launches); assembleDebug, testDebugUnitTest and ktlintCheck green.
+
 ## feat(sms): start a new message from the Messages bar
 
 _2026-10-19_

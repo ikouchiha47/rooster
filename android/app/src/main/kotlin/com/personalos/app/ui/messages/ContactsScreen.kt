@@ -126,7 +126,10 @@ fun ContactsScreen(
     val allMessaged = remember(senders, calls, savedNumbers) { unlistedRows(senders, calls, savedNumbers, UnlistedChannel.MESSAGED) }
     val allAttended = remember(senders, calls, savedNumbers) { unlistedRows(senders, calls, savedNumbers, UnlistedChannel.ATTENDED) }
     val allMissed = remember(senders, calls, savedNumbers) { unlistedRows(senders, calls, savedNumbers, UnlistedChannel.MISSED) }
-    val messaged = remember(allMessaged, query) { filterUnlisted(allMessaged, query) }
+    val messaged =
+        remember(allMessaged, query, simFilter, sims) {
+            filterUnlisted(allMessaged, query).filter { simFilter == null || simLabelFor(it.accountId, sims) == simFilter }
+        }
     val attended =
         remember(allAttended, query, simFilter, sims) {
             filterUnlisted(allAttended, query).filter { simFilter == null || simLabelFor(it.accountId, sims) == simFilter }
@@ -231,7 +234,7 @@ fun ContactsScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
         )
 
-        if (sims.size > 1 && tab >= 2) {
+        if (sims.size > 1 && tab >= 1) {
             SimFilterRow(
                 labels = sims.map { it.label },
                 selected = simFilter,

@@ -19,6 +19,8 @@ data class SmsMessage(
     val body: String?,
     val date: Long,
     val type: Int,
+    /** Subscription id the message arrived on, when the provider exposes it. */
+    val sim: String? = null,
 )
 
 /**
@@ -57,6 +59,7 @@ class ContentResolverSmsReader(
                     Telephony.Sms.BODY,
                     Telephony.Sms.DATE,
                     Telephony.Sms.TYPE,
+                    "sub_id",
                 )
 
             val cursor =
@@ -74,6 +77,7 @@ class ContentResolverSmsReader(
                 val bodyIndex = c.getColumnIndexOrThrow(Telephony.Sms.BODY)
                 val dateIndex = c.getColumnIndexOrThrow(Telephony.Sms.DATE)
                 val typeIndex = c.getColumnIndexOrThrow(Telephony.Sms.TYPE)
+                val simIndex = c.getColumnIndex("sub_id")
 
                 val rows = ArrayList<SmsMessage>(c.count.coerceAtLeast(0))
                 while (c.moveToNext()) {
@@ -84,6 +88,7 @@ class ContentResolverSmsReader(
                             body = c.getString(bodyIndex),
                             date = c.getLong(dateIndex),
                             type = c.getInt(typeIndex),
+                            sim = if (simIndex >= 0) c.getString(simIndex) else null,
                         )
                 }
                 rows

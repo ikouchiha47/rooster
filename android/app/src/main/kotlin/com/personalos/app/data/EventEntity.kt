@@ -64,6 +64,8 @@ data class EventEntity(
      * Saved view, and a nullable column needs no backfill.
      */
     @ColumnInfo(name = "bookmarked_at") val bookmarkedAt: Long? = null,
+    /** SMS only: the subscription id the message arrived on; null when unknown. */
+    @ColumnInfo(name = "sim") val sim: String? = null,
 ) {
     fun toDomain(): Event {
         val entitiesList = Json { ignoreUnknownKeys = true }.decodeFromString<List<String>>(entities)
