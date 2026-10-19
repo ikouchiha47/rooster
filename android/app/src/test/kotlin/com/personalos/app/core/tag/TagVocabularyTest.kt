@@ -84,6 +84,29 @@ class TagVocabularyTest {
     }
 
     @Test
+    fun `invalidate picks up a source whose contents changed`() {
+        // What `AppContainer.reloadVocabulary` relies on: the taxonomy source is
+        // read again on rebuild, so a downloaded vocabulary takes effect without a
+        // restart. A source captured at construction would keep answering `ipl`.
+        var terms = "ipl"
+        val live =
+            object : TagVocabularySource {
+                override val id = "live"
+
+                override fun definitions(): List<TagDefinition> = listOf(def(Tags.GAMES, terms, "sports"))
+            }
+
+        val vocabulary = TagVocabulary(listOf(live))
+        assertTrue(vocabulary.lexicon().getValue(Tags.GAMES).containsMatchIn("ipl final"))
+
+        terms = "kabaddi"
+        vocabulary.invalidate()
+
+        assertFalse("the old terms are gone", vocabulary.lexicon().getValue(Tags.GAMES).containsMatchIn("ipl final"))
+        assertTrue("the new terms are in", vocabulary.lexicon().getValue(Tags.GAMES).containsMatchIn("kabaddi league"))
+    }
+
+    @Test
     fun `underscores become spaces and matches are word-bounded`() {
         val vocabulary = TagVocabulary(listOf(source("m", def(Tags.GAMES, "world_cup|f1"))))
         val games = vocabulary.lexicon().getValue(Tags.GAMES)

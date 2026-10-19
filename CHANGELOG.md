@@ -7,6 +7,32 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(tag): a downloaded vocabulary takes effect without a restart
+
+_2026-10-19_
+
+`reloadVocabulary()` only called `invalidate()` on a `TagVocabulary` whose source
+had been built from a taxonomy read once in a `val` initialiser. So after the
+Settings "Vocabulary" download, the cache was rebuilt from the *same stale facts*:
+the terms, the tag groups and the owners all stayed as they were until the app
+restarted.
+
+Two changes, because both were needed. The source is now **live** —
+`TaxonomyVocabularySource` reads the taxonomy (bundled asset + downloaded overlay)
+on every `definitions()` — so a rebuild sees the new file. And `reloadVocabulary`
+now re-reads the schema and rebuilds the active tagger through `SwitchableTagger`,
+keeping the kNN rung if the embedder had already upgraded it, instead of silently
+dropping back to the heuristic.
+
+The groups/owners part matters as much as the words: a vocabulary download can
+add a leaf or move a tag between groups, and the tagger had captured the old
+`TagSchema`.
+
+Verified: `TagVocabularyTest` gains the case the fix depends on — a source whose
+contents change is re-read on `invalidate()` — plus `:app:assembleDebug`,
+`:app:testDebugUnitTest`, `ktlintCheck`, `:mlsdk:testDebugUnitTest`. Still not
+exercised on a device: that needs one real download followed by a retag.
+
 ## feat(mlsdk): an SDK surface — artifacts, references, and a hub
 
 _2026-10-19_

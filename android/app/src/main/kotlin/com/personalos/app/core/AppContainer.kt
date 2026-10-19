@@ -134,7 +134,7 @@ class AppContainer(
      * Everything derives from it — the vocabulary, the tag groups/owners
      * ([schema]) and the feed categories — so one downloaded file updates them all.
      */
-    private val taxonomy: com.personalos.app.core.tag.taxonomy.Taxonomy? =
+    private fun readTaxonomy(): com.personalos.app.core.tag.taxonomy.Taxonomy? =
         com.personalos.app.data.taxonomy.TaxonomyLoader.load(
             context,
             com.personalos.mlsdk.declaredPath(
@@ -146,19 +146,49 @@ class AppContainer(
         )
 
     /** Groups and owners as data; falls back to the bundled defaults when unloaded. */
-    private val schema: com.personalos.app.core.tag.TagSchema =
-        taxonomy?.let {
+    @Volatile
+    private var schema: com.personalos.app.core.tag.TagSchema =
+        readTaxonomy()?.let {
             com.personalos.app.core.tag.TagSchema
                 .of(it)
         }
             ?: com.personalos.app.core.tag.TagSchema.BUNDLED
 
+    /**
+     * A **live** source: it reads the taxonomy again on every rebuild, so
+     * [reloadVocabulary] after a download sees the new file without a restart.
+     */
     private val vocabulary: TagVocabulary =
-        TagVocabulary(listOf(taxonomy?.source() ?: com.personalos.app.core.tag.BundledVocabulary))
+        TagVocabulary(
+            listOf(
+                com.personalos.app.data.taxonomy
+                    .TaxonomyVocabularySource(::readTaxonomy),
+            ),
+        )
 
-    /** Re-read the vocabulary after a taxonomy download; the taggers read it lazily. */
+    /**
+     * Re-read the taxonomy and rebuild the tagger after a vocabulary download.
+     *
+     * Doing more than `invalidate()` matters twice: the source must read the file
+     * again, and the taggers captured the old [schema] — a download can change tag
+     * groups and owners, not only terms.
+     */
+    @Synchronized
     fun reloadVocabulary() {
         vocabulary.invalidate()
+        schema =
+            readTaxonomy()?.let {
+                com.personalos.app.core.tag.TagSchema
+                    .of(it)
+            }
+                ?: com.personalos.app.core.tag.TagSchema.BUNDLED
+        heuristic = HeuristicTagger(vocabulary::lexicon, schema)
+        switchable.use(
+            knn?.let {
+                com.personalos.app.core.tag
+                    .PolicyTagger(heuristic, it, schema)
+            } ?: heuristic,
+        )
     }
 
     /** The feed directory: category → known feeds, so adding a feed is one tap. */
@@ -173,7 +203,7 @@ class AppContainer(
     /** The known feeds suggested for a category. */
     fun suggestedFeeds(category: String): List<com.personalos.app.core.feed.DirectoryFeed> = feedDirectory?.feedsFor(category).orEmpty()
 
-    private val heuristic: Tagger = HeuristicTagger(vocabulary::lexicon, schema)
+    private var heuristic: Tagger = HeuristicTagger(vocabulary::lexicon, schema)
 
     /**
      * The active tagger. Starts as the heuristic; [upgradeTagger] swaps in the
@@ -189,6 +219,14 @@ class AppContainer(
     /** Set once [upgradeTagger] succeeds, so later callers skip the model hash. */
     @Volatile
     private var upgraded = false
+
+    /**
+     * The ML rung once the embedder is loaded, kept so [reloadVocabulary] can
+     * rebuild the policy tagger against a newly downloaded schema instead of
+     * dropping back to the heuristic.
+     */
+    @Volatile
+    private var knn: com.personalos.app.core.tag.KnnTagger? = null
 
     val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger)
 
@@ -220,17 +258,17 @@ class AppContainer(
         // The ML rung is now nearest labelled examples (kNN), not description
         // cosine — measurably better on real data, and it improves as corrections
         // accrue. The lexicon rung is unchanged.
+        val knnTagger =
+            com.personalos.app.core.tag.KnnTagger(
+                embedMany = embedder::embedMany,
+                examples =
+                    com.personalos.app.data.tagging
+                        .AssetExampleSource(context),
+            )
+        knn = knnTagger
         switchable.use(
-            com.personalos.app.core.tag.PolicyTagger(
-                heuristic,
-                com.personalos.app.core.tag.KnnTagger(
-                    embedMany = embedder::embedMany,
-                    examples =
-                        com.personalos.app.data.tagging
-                            .AssetExampleSource(context),
-                ),
-                schema,
-            ),
+            com.personalos.app.core.tag
+                .PolicyTagger(heuristic, knnTagger, schema),
         )
         // Point the `taggers` row at the tagger now running. Only the ingest paths
         // called this, so the store kept reporting the old tagger as active after a
