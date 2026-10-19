@@ -22,10 +22,16 @@ class SmsSyncWorkerTest {
             return 5
         }
 
-        override suspend fun recordSent(
+        override suspend fun enqueueSent(
             destination: String,
             body: String,
+            subscriptionId: Int?,
             timestampMs: Long,
+        ): String = "key"
+
+        override suspend fun markResult(
+            dedupeKey: String,
+            sent: Boolean,
         ) = Unit
     }
 

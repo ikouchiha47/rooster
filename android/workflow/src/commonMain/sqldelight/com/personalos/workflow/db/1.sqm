@@ -1,0 +1,24 @@
+-- v1 -> v2: the run ledger. Additive; `run_nodes` is untouched.
+CREATE TABLE runs (
+    run_id TEXT NOT NULL PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    definition_version INTEGER NOT NULL,
+    owner TEXT,
+    lease_expires_at INTEGER,
+    started_at INTEGER NOT NULL
+);
+
+CREATE TABLE node_attempts (
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    attempt INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    started_at INTEGER,
+    finished_at INTEGER,
+    invoked_by TEXT NOT NULL,
+    correlation_id TEXT NOT NULL,
+    inputs TEXT,
+    outputs TEXT,
+    version INTEGER NOT NULL,
+    PRIMARY KEY (run_id, node_id, attempt)
+);

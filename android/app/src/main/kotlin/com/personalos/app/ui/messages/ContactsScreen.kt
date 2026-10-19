@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.personalos.app.core.Chars
+import com.personalos.app.core.PhoneNumbers
 import com.personalos.app.core.sms.CallInteraction
 import com.personalos.app.core.sms.Contact
 import com.personalos.app.core.time.UserZone
@@ -212,6 +213,8 @@ fun ContactsScreen(
                 number = newNumber,
                 onName = { newName = it },
                 onNumber = { newNumber = it },
+                prefix = "+${PhoneNumbers.dialingCode(container.homeCountry.iso()).orEmpty()}",
+                canonical = PhoneNumbers.canonical(newNumber, container.homeCountry.iso()),
                 onCancel = {
                     creating = false
                     newName = ""
@@ -222,8 +225,15 @@ fun ContactsScreen(
                 onSave = {
                     scope.launch {
                         val ok =
-                            runCatching { container.contactWriter.create(newName.trim(), newNumber.trim(), saveToGoogle) }
-                                .getOrDefault(false)
+                            // Canonical, so the saved contact and the existing thread are
+                            // one identity — not two strings that merely look alike.
+                            runCatching {
+                                container.contactWriter.create(
+                                    newName.trim(),
+                                    PhoneNumbers.canonical(newNumber.trim(), container.homeCountry.iso()),
+                                    saveToGoogle,
+                                )
+                            }.getOrDefault(false)
                         if (ok) {
                             saved = runCatching { container.contacts.all() }.getOrDefault(saved)
                             creating = false
@@ -521,6 +531,8 @@ private fun AccountFilterRow(
 private fun NewContactForm(
     name: String,
     number: String,
+    prefix: String,
+    canonical: String,
     google: Boolean,
     onName: (String) -> Unit,
     onNumber: (String) -> Unit,
@@ -551,7 +563,23 @@ private fun NewContactForm(
         Spacer(Modifier.height(4.dp))
         SearchField(hint = "Name", query = name, onQueryChange = onName, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(6.dp))
-        SearchField(hint = "Phone number", query = number, onQueryChange = onNumber, modifier = Modifier.fillMaxWidth())
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (prefix.isNotBlank() && prefix != "+") {
+                Text(text = prefix, style = RadarType.body, color = RadarColors.ink3)
+                Spacer(Modifier.width(6.dp))
+            }
+            SearchField(hint = "Phone number", query = number, onQueryChange = onNumber, modifier = Modifier.weight(1f))
+        }
+        // Say what will actually be stored: correcting the country corrects the
+        // number by derivation, and this is where the user sees the consequence.
+        if (canonical.isNotBlank() && canonical != number.trim()) {
+            Text(
+                text = "saves as $canonical",
+                style = RadarType.microPlain,
+                color = RadarColors.ink3,
+                modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+            )
+        }
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(

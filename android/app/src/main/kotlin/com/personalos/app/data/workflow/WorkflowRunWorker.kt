@@ -29,7 +29,8 @@ class WorkflowRunWorker(
             Log.i(TAG, "workflow $workflowId ($runId): ${result.status}")
             when (result.status) {
                 RunStatus.SUCCEEDED -> Result.success()
-                RunStatus.PAUSED -> Result.retry()
+                // A run reported as still RUNNING means another host owns it.
+                RunStatus.RUNNING, RunStatus.PAUSED -> Result.retry()
                 RunStatus.FAILED -> if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
             }
         } catch (e: CancellationException) {

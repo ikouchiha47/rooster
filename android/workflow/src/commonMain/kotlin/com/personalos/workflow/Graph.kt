@@ -161,14 +161,20 @@ class WorkflowBuilder {
     fun build(): WorkflowGraph = WorkflowGraph(nodes.toMap(), edges.toList()).validate()
 }
 
-/** A named workflow: an id plus its graph. */
+/** A named workflow: an id, its **definition version**, and its graph. */
 data class Workflow(
     val id: String,
     val graph: WorkflowGraph,
+    /**
+     * The definition's revision, recorded on every run so a stored run names the
+     * shape it executed (ADR 0010 §8). Nodes are not versioned; the workflow is.
+     */
+    val version: Int = 1,
 )
 
 /** The terse constructor: `workflow("ingest") { task("enrich", "enrich") }`. */
 fun workflow(
     id: String,
+    version: Int = 1,
     block: WorkflowBuilder.() -> Unit,
-): Workflow = Workflow(id, WorkflowBuilder().apply(block).build())
+): Workflow = Workflow(id, WorkflowBuilder().apply(block).build(), version)

@@ -4,8 +4,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
-/** The outcome of a whole run. */
-enum class RunStatus { SUCCEEDED, FAILED, PAUSED }
+/** The outcome of a whole run. RUNNING is derived, never stored (ADR 0010 §3). */
+enum class RunStatus { RUNNING, SUCCEEDED, FAILED, PAUSED }
 
 /** A run's terminal (or paused) state, every node's status, and its `Done` payloads. */
 data class RunResult(
@@ -33,23 +33,50 @@ class Engine(
     private val steps: Map<String, WorkflowStep>,
     private val predicates: Map<String, WorkflowPredicate> = emptyMap(),
     private val store: RunStore = InMemoryRunStore(),
+    /**
+     * The record port (ADR 0010). When supplied, the engine writes **intent before
+     * work** and takes a lease; when absent, the run is a bare stage (Model 1) and
+     * nothing is recorded. Optional by design: Model 1 is the n=1 case.
+     */
+    private val ledger: RunLedger? = null,
+    private val owner: String = "local",
+    private val invokedBy: String = "manual",
+    private val now: () -> Long = { 0L },
 ) {
     suspend fun run(
         workflow: Workflow,
         runId: String,
         onProgress: suspend (node: NodeId, done: Int, total: Int) -> Unit = { _, _, _ -> },
     ): RunResult {
+        // One host per run: a lost claim means someone else owns it, so derive the
+        // state and never walk it (ADR 0010 §9).
+        if (ledger != null && !ledger.claim(runId, workflow.id, workflow.version, owner, now(), LEASE_MILLIS)) {
+            return RunResult(runId, ledger.status(runId), store.all(runId).mapValues { it.value.status }, emptyMap())
+        }
+
         val graph = workflow.graph
         val order = graph.topologicalOrder()
         val levels = graph.levels()
 
         val status = LinkedHashMap<NodeId, NodeStatus>()
         val taken = HashMap<NodeId, Branch>()
-        for (id in order) {
-            val saved = store.get(runId, id) ?: continue
-            if (Statuses.isTerminal(saved.status)) {
-                status[id] = saved.status
-                saved.branch?.let { taken[id] = it }
+        // Resume. With a ledger the ledger **is** the checkpoint, so a node's
+        // outcome has exactly one writer (ADR 0010 §3) — never the store too.
+        if (ledger != null) {
+            ledger
+                .attempts(runId)
+                .groupBy { it.node }
+                .forEach { (node, tries) ->
+                    val latest = tries.maxByOrNull { it.attempt } ?: return@forEach
+                    if (Statuses.isTerminal(latest.status)) status[node] = latest.status
+                }
+        } else {
+            for (id in order) {
+                val saved = store.get(runId, id) ?: continue
+                if (Statuses.isTerminal(saved.status)) {
+                    status[id] = saved.status
+                    saved.branch?.let { taken[id] = it }
+                }
             }
         }
 
@@ -66,10 +93,11 @@ class Engine(
                 status[outcome.id] = outcome.status
                 outcome.branch?.let { taken[outcome.id] = it }
                 outcome.result?.let { results[outcome.id] = it }
-                store.put(runId, outcome.id, NodeState(outcome.status, outcome.branch))
+                if (ledger == null) store.put(runId, outcome.id, NodeState(outcome.status, outcome.branch))
             }
         }
 
+        ledger?.release(runId, owner, now())
         return RunResult(runId, runStatus(status), status.toMap(), results.toMap())
     }
 
@@ -118,20 +146,48 @@ class Engine(
                 ?: throw WorkflowGraphException("no step registered: ${node.step}")
         // One context for every attempt, so a retry reports progress the same way.
         val ctx = StepContext(runId, id) { done, total -> onProgress(id, done, total) }
-        var attempt = 1
+        // Continue the numbering: a resumed run must not reuse attempt 1.
+        var attempt = ledger?.nextAttempt(runId, id) ?: 1
         while (true) {
+            // Write-ahead: the attempt exists before the step's side effect runs.
+            ledger?.beginAttempt(
+                Attempt(
+                    runId = runId,
+                    node = id,
+                    attempt = attempt,
+                    status = NodeStatus.RUNNING,
+                    startedAt = now(),
+                    invokedBy = invokedBy,
+                    correlationId = runId,
+                ),
+            )
             when (val outcome = step.run(ctx)) {
-                is StepOutcome.Done -> return NodeOutcome(id, NodeStatus.SUCCEEDED, null, outcome.result)
-                StepOutcome.Skipped -> return NodeOutcome(id, NodeStatus.SKIPPED, null)
-                StepOutcome.Paused -> return NodeOutcome(id, NodeStatus.PAUSED, null)
+                is StepOutcome.Done -> return finish(runId, id, attempt, NodeStatus.SUCCEEDED, outcome.result)
+                StepOutcome.Skipped -> return finish(runId, id, attempt, NodeStatus.SKIPPED, null)
+                StepOutcome.Paused -> return finish(runId, id, attempt, NodeStatus.PAUSED, null)
                 is StepOutcome.Failed ->
                     when {
-                        outcome.failure == Failure.PERMANENT -> return NodeOutcome(id, NodeStatus.FAILED, null)
-                        attempt >= node.attempts -> return NodeOutcome(id, NodeStatus.RETRY_EXHAUSTED, null)
-                        else -> attempt++
+                        outcome.failure == Failure.PERMANENT -> return finish(runId, id, attempt, NodeStatus.FAILED, null)
+                        attempt >= node.attempts -> return finish(runId, id, attempt, NodeStatus.RETRY_EXHAUSTED, null)
+                        else -> {
+                            finish(runId, id, attempt, NodeStatus.FAILED, null)
+                            attempt++
+                        }
                     }
             }
         }
+    }
+
+    /** Record the outcome against the attempt, then hand the node's result back. */
+    private suspend fun finish(
+        runId: String,
+        id: NodeId,
+        attempt: Int,
+        status: NodeStatus,
+        result: String?,
+    ): NodeOutcome {
+        ledger?.finishAttempt(runId, id, attempt, expectedVersion = 1L, status = status, outputs = result, now = now())
+        return NodeOutcome(id, status, null, result)
     }
 
     /** An edge carries liveness only if its source succeeded along *that* edge. */
@@ -153,6 +209,11 @@ class Engine(
             status.values.any { it == NodeStatus.PAUSED } -> RunStatus.PAUSED
             else -> RunStatus.SUCCEEDED
         }
+
+    private companion object {
+        /** Long enough to outlast a step batch, short enough that a dead host frees the run. */
+        const val LEASE_MILLIS = 10 * 60 * 1000L
+    }
 
     private data class NodeOutcome(
         val id: NodeId,

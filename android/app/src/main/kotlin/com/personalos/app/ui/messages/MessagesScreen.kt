@@ -528,7 +528,14 @@ private fun MessagesAppBar(
                 onClick = onToggleSaved,
             )
             GlyphActionButton(Glyph.Search, onClick = onSearch)
-            GlyphActionButton(Glyph.Dots, onClick = onOpenGroups)
+            // Named, not a glyph: the group list was only reachable through an
+            // unlabelled "dots" action, which is why it looked missing.
+            Text(
+                text = "GROUPS",
+                style = RadarType.micro,
+                color = RadarColors.ink,
+                modifier = Modifier.clickable { onOpenGroups() }.padding(horizontal = 8.dp),
+            )
         },
     )
 }

@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -43,10 +46,6 @@ import com.personalos.app.ui.common.SearchField
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
@@ -80,55 +79,61 @@ fun ComposeSmsScreen(
     var body by remember { mutableStateOf("") }
     var numberDraft by remember { mutableStateOf("") }
     var groupTag by remember { mutableStateOf(container.groupStore.enabled()) }
+    // Typing in "Add" searches the address book: by name or by number, loaded once.
+    val contacts by
+        produceState<List<com.personalos.app.core.sms.Contact>>(emptyList()) {
+            value = runCatching { container.contacts.all() }.getOrDefault(emptyList())
+        }
+    val suggestions =
+        remember(numberDraft, contacts, to) {
+            val query = numberDraft.trim().lowercase()
+            if (query.length < 2) {
+                emptyList()
+            } else {
+                contacts
+                    .filter { it.number.contains(query) || it.name.lowercase().contains(query) }
+                    .filterNot { it.number in to }
+                    .take(6)
+            }
+        }
+
     var sending by remember { mutableStateOf(false) }
     var statuses by remember { mutableStateOf<Map<String, SendStatus>>(emptyMap()) }
 
-    val canSend = body.isNotBlank() && to.isNotEmpty() && !sending
+    val canSend = body.isNotBlank() && to.isNotEmpty()
 
     fun send() {
         if (!canSend) return
         val trimmed = body.trim()
         val targets = to
-        // A group is the member set: the same people rejoins its thread, and a
-        // new member is added to it rather than starting a second group.
+        // A group is the member set: the same people rejoins its thread, and a new
+        // member is added to it rather than starting a second group.
         val isGroup = targets.size >= 2 && groupTag
         val existing = if (isGroup) container.groupStore.forMembers(targets) else null
         val groupId = existing?.id ?: if (isGroup) container.groupStore.idFor(targets) else null
         val payload = if (groupId != null) taggedBody(trimmed, groupId) else trimmed
-        sending = true
-        statuses = targets.associateWith { SendStatus.Pending }
-        scope.launch {
-            if (groupId != null) {
-                if (existing != null) {
-                    // Existing group: add anyone new, and append our send to its
-                    // thread. The id is untouched, so nobody's thread is split.
-                    container.groupStore.addMembers(groupId, targets, System.currentTimeMillis())
-                    container.groupStore.attach(groupId, UUID.randomUUID().toString(), "me", trimmed, System.currentTimeMillis())
-                } else {
-                    container.groupStore.record(groupId, targets, trimmed, System.currentTimeMillis())
-                }
+        val now = System.currentTimeMillis()
+        if (groupId != null) {
+            if (existing != null) {
+                container.groupStore.addMembers(groupId, targets, now)
+                container.groupStore.attach(groupId, UUID.randomUUID().toString(), "me", trimmed, now)
+            } else {
+                container.groupStore.record(groupId, targets, trimmed, now)
             }
-            // Fan out concurrently: each send suspends on its own platform result,
-            // so one slow or failed recipient never holds up the rest.
-            coroutineScope {
-                targets
-                    .map { recipient ->
-                        async {
-                            val status =
-                                runCatching { container.smsSender.send(recipient, payload, selectedSim) }
-                                    .fold(
-                                        onSuccess = { SendStatus.of(it) },
-                                        onFailure = { SendStatus.Failed("the send failed") },
-                                    )
-                            statuses = statuses + (recipient to status)
-                        }
-                    }.awaitAll()
-            }
-            sending = false
         }
+        // Outbox: each row is written now and returns immediately. The screen does
+        // not wait on the platform, so a slow report cannot look like a failure.
+        targets.forEach { container.smsOutbox.enqueue(it, payload, selectedSim) }
+        onBack()
     }
 
-    Column(modifier = modifier.fillMaxSize().background(RadarColors.paper2)) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(RadarColors.paper2)
+                .imePadding(),
+    ) {
         RadarHeader(
             title = "New message",
             accent = RadarColors.ink,
@@ -143,6 +148,7 @@ fun ComposeSmsScreen(
 
         Column(
             Modifier
+                .weight(1f)
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 8.dp),
         ) {
@@ -158,7 +164,7 @@ fun ComposeSmsScreen(
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                     to.forEach { number ->
                         RecipientChip(
-                            number = number,
+                            label = container.contactNames.nameFor(number) ?: number,
                             enabled = !sending,
                             onRemove = { to = to - number },
                         )
@@ -170,7 +176,7 @@ fun ComposeSmsScreen(
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SearchField(
-                    hint = "Add a number",
+                    hint = "Add a number or name",
                     query = numberDraft,
                     onQueryChange = { numberDraft = it },
                     modifier = Modifier.weight(1f),
@@ -190,6 +196,33 @@ fun ComposeSmsScreen(
                                 }
                             }.padding(horizontal = 8.dp, vertical = 6.dp),
                 )
+            }
+
+            if (suggestions.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                suggestions.forEach { contact ->
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (contact.number !in to) to = to + contact.number
+                                    numberDraft = ""
+                                }.padding(horizontal = 4.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = contact.name,
+                            style = RadarType.body,
+                            color = RadarColors.ink,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(text = contact.number, style = RadarType.small, color = RadarColors.ink3)
+                    }
+                    HardRule()
+                }
+                Spacer(Modifier.height(4.dp))
             }
 
             if (sims.size > 1) {
@@ -234,7 +267,9 @@ fun ComposeSmsScreen(
             Spacer(Modifier.height(8.dp))
             Text(text = "MESSAGE", style = RadarType.micro, color = RadarColors.ink3)
             Spacer(Modifier.height(3.dp))
-            MessageField(value = body, onChange = { body = it })
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                MessageField(value = body, onChange = { body = it })
+            }
 
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -268,10 +303,15 @@ fun ComposeSmsScreen(
     }
 }
 
-/** One removable recipient: a bordered chip that drops the number when tapped. */
+/**
+ * One recipient. [label] is the contact's name where there is one, the number
+ * otherwise. Only the cross removes — the label is display-only, so a tap near the
+ * number can never drop the recipient by accident, and the cross has its own hit
+ * area instead of borrowing the chip's.
+ */
 @Composable
 private fun RecipientChip(
-    number: String,
+    label: String,
     enabled: Boolean,
     onRemove: () -> Unit,
 ) {
@@ -280,18 +320,24 @@ private fun RecipientChip(
             Modifier
                 .background(RadarColors.paper, RoundedCornerShape(2.dp))
                 .border(1.dp, RadarColors.ink, RoundedCornerShape(2.dp))
-                .clickable(enabled = enabled, onClickLabel = "Remove recipient") { onRemove() }
-                .padding(horizontal = 7.dp, vertical = 5.dp),
+                .padding(start = 7.dp, end = 2.dp, top = 1.dp, bottom = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = number,
-            style = RadarType.microPlain,
+            text = label,
+            style = RadarType.small,
             color = RadarColors.ink,
             maxLines = 1,
         )
-        Spacer(Modifier.width(5.dp))
-        GlyphIcon(Glyph.Close, RadarColors.ink2, 12.dp)
+        Box(
+            modifier =
+                Modifier
+                    .size(26.dp)
+                    .clickable(enabled = enabled, onClickLabel = "Remove recipient") { onRemove() },
+            contentAlignment = Alignment.Center,
+        ) {
+            GlyphIcon(Glyph.Close, RadarColors.ink2, 12.dp)
+        }
     }
 }
 

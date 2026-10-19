@@ -7,6 +7,40 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(work): a run ledger, one number one identity, and a durable outbox
+
+_2026-10-19_
+
+A checkpoint of three pieces that turned out to be interdependent.
+
+**A run ledger (ADR 0010).** The workflow engine recorded a node only after it
+settled, so the store could not say what was attempted, by whom, or when. The
+ledger writes intent *before* the work: one row per attempt in `node_attempts`,
+a thin `runs` row holding identity and ownership, `invoked_by` for provenance,
+and run status *derived* by folding the attempts. `Workflow.version` joins the
+graph so a stored run can say which definition it ran. Verified: 43 tests in the
+module (RunLedgerTest 19, RunLedgerAgreementTest 2, EngineTest 11, GraphTest 6,
+NodeIdTest 1, SqlDelightRunStoreTest 4).
+
+**One number, one identity.** SMS senders arrived in whatever form the phone
+stored them — `9836870428` and `+919836870428` were two conversations for one
+person. `PhoneNumbers.canonical(raw, iso)` normalises to E.164 when it can, and
+never invents a prefix; `HomeCountry` keeps one ISO, seeded once from the SIM.
+Both write paths canonicalise, so the identity is one. The send path also
+carries the subscription it went out on, keys the outbox row by *content* so a
+retry cannot double-send, and queues through `SmsOutbox` rather than sending
+from the UI.
+
+**Contacts and senders (ADR 0011).** A design, not code: give a person an id, an
+address an id, and make "connect this email to that phone" one row — so a merge
+never rewrites a message. A birthday is stored on the contact and *projected*
+into the calendar, because `calendar_dates` is feed-owned and pruned by
+`fetched_at`.
+
+Not verified on device: `HomeCountry` seeds lazily on the first ingested
+message, so it has not materialised yet, and the existing duplicate rows are
+still unmerged — canonicalisation only applies to new writes.
+
 ## feat(tag): BoW covers every inferable leaf; paper defined but not emitted
 
 _2026-10-19_

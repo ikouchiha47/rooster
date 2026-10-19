@@ -1,0 +1,28 @@
+CREATE TABLE runs (
+    run_id TEXT NOT NULL PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    definition_version INTEGER NOT NULL,
+    owner TEXT,
+    lease_expires_at INTEGER,
+    started_at INTEGER NOT NULL
+);
+
+-- Create if absent. INSERT OR IGNORE makes the claim atomic: a second host gets 0 changes.
+claimInsert:
+INSERT OR IGNORE INTO runs(run_id, workflow_id, definition_version, owner, lease_expires_at, started_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- Take over only a free or expired lease (OCC by lease, one statement).
+takeOver:
+UPDATE runs SET owner = ?, lease_expires_at = ?
+WHERE run_id = ? AND (owner IS NULL OR lease_expires_at < ?);
+
+runChanges:
+SELECT changes();
+
+release:
+UPDATE runs SET owner = NULL, lease_expires_at = NULL WHERE run_id = ? AND owner = ?;
+
+selectRun:
+SELECT run_id, workflow_id, definition_version, owner, lease_expires_at, started_at
+FROM runs WHERE run_id = ?;

@@ -61,6 +61,7 @@ import com.personalos.app.data.remote.FeedIngestor
 import com.personalos.app.data.remote.FrankfurterFxProvider
 import com.personalos.app.data.remote.OpenMeteoWeatherProvider
 import com.personalos.app.data.remote.WeatherLocation
+import com.personalos.app.data.resolveSmsSubscription
 import com.personalos.app.data.sample.SampleGlanceProvider
 import com.personalos.app.data.sample.SampleNowPlayingProvider
 import com.personalos.app.data.sample.SamplePinnedProvider
@@ -495,17 +496,40 @@ class AppContainer(
             groups =
                 com.personalos.app.data.sms
                     .GroupStore(context.applicationContext),
+            markType = { key, type -> database.outboxDao().updateTypeByKey(key, type) },
+            countryIso = { homeCountry.iso() },
         )
 
+    /** The raw transport. The outbox records the row itself, so it is never wrapped. */
+    val androidSmsSender: SmsSender = AndroidSmsSender(context.applicationContext)
+
     /**
-     * Real SMS sending behind the [SmsSender] seam. The compose box calls this.
-     * It is wrapped so a successful send is recorded through [smsSource] — the
-     * same store the inbox is written through (one fact, one owner), so the
-     * thread shows its own outgoing side without any screen remembering to.
+     * Real SMS sending behind the [SmsSender] seam, wrapped so a send is also
+     * recorded through [smsSource] — the same store the inbox is written through
+     * (one fact, one owner), so a thread shows its own outgoing side.
      */
     val smsSender: SmsSender =
         com.personalos.app.data
-            .RecordingSmsSender(AndroidSmsSender(context.applicationContext), smsSource)
+            .RecordingSmsSender(
+                androidSmsSender,
+                smsSource,
+                resolve = { id -> resolveSmsSubscription(context.applicationContext, id) },
+            )
+
+    /**
+     * The compose path. Writes the row, returns, and applies the platform's result
+     * to it out of band — so the screen is never blocked on a ~60 s report.
+     */
+    val smsOutbox: com.personalos.app.data.SmsOutbox =
+        com.personalos.app.data.SmsOutbox(
+            sender = androidSmsSender,
+            ingest = smsSource,
+            scope =
+                kotlinx.coroutines.CoroutineScope(
+                    kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+                ),
+            resolve = { id -> resolveSmsSubscription(context.applicationContext, id) },
+        )
 
     /**
      * The send picker's address book. Reads the device contacts behind the
@@ -751,9 +775,18 @@ class AppContainer(
             store =
                 com.personalos.app.data.workflow.WorkflowStore
                     .store(context),
+            ledger =
+                com.personalos.app.data.workflow.WorkflowStore
+                    .ledger(context),
+            now = System::currentTimeMillis,
             prepare = { upgradeTagger() },
         )
     }
+
+    /** The country numbers are read in, stored so an identity never moves. */
+    val homeCountry: com.personalos.app.data.HomeCountry =
+        com.personalos.app.data
+            .HomeCountry(context)
 
     /** The enrichment path as a stored switch; the workflow is the default. */
     val workflowPrefs: com.personalos.app.data.workflow.WorkflowPrefs =

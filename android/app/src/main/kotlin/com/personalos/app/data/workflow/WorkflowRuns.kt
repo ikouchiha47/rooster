@@ -3,10 +3,12 @@ package com.personalos.app.data.workflow
 import android.content.Context
 import com.personalos.workflow.Engine
 import com.personalos.workflow.NodeId
+import com.personalos.workflow.RunLedger
 import com.personalos.workflow.RunResult
 import com.personalos.workflow.RunStore
 import com.personalos.workflow.Workflow
 import com.personalos.workflow.WorkflowStep
+import com.personalos.workflow.db.SqlDelightRunLedger
 import com.personalos.workflow.db.SqlDelightRunStore
 import com.personalos.workflow.db.WorkflowDatabase
 import com.personalos.workflow.db.androidWorkflowDriver
@@ -23,9 +25,21 @@ class WorkflowRuns(
     private val workflows: Map<String, Workflow>,
     steps: Map<String, WorkflowStep>,
     store: RunStore,
+    ledger: RunLedger? = null,
+    owner: String = "android",
+    invokedBy: String = "workflow",
+    now: () -> Long = { 0L },
     private val prepare: suspend () -> Unit = {},
 ) {
-    private val engine = Engine(steps = steps, store = store)
+    private val engine =
+        Engine(
+            steps = steps,
+            store = store,
+            ledger = ledger,
+            owner = owner,
+            invokedBy = invokedBy,
+            now = now,
+        )
 
     fun known(id: String): Boolean = workflows.containsKey(id)
 
@@ -54,4 +68,7 @@ internal object WorkflowStore {
         }
 
     fun store(context: Context): RunStore = SqlDelightRunStore(get(context))
+
+    /** The record port: what was attempted, by whom, when (ADR 0010). */
+    fun ledger(context: Context): RunLedger = SqlDelightRunLedger(get(context))
 }

@@ -297,7 +297,13 @@ fun ConversationThreadScreen(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
                 )
             } else {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                // Bottom-anchored, like every chat: with few messages they sit
+                // against the composer rather than stranded at the top.
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Bottom,
+                ) {
                     rows.forEach { row ->
                         when (row) {
                             is ThreadRow.Day -> item(key = "d-${row.start}") { DaySeparator(row.start) }

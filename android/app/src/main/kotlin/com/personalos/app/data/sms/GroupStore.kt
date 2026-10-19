@@ -25,8 +25,11 @@ data class GroupJoin(
     val at: Long,
 )
 
-/** One message on a broadcast: a member's tagged reply, or our own send. */
+/** One message on a broadcast: a member's tagged reply, or our own send. The
+ *  [ulid] is what makes attaching idempotent — a duplicate row, or a re-ingest,
+ *  cannot add the same reply twice. */
 data class GroupReply(
+    val ulid: String,
     val from: String,
     val body: String,
     val at: Long,
@@ -132,6 +135,7 @@ class GroupStore(
             record.replies.forEach { reply ->
                 replies.put(
                     JSONObject()
+                        .put("ulid", reply.ulid)
                         .put("from", reply.from)
                         .put("body", reply.body)
                         .put("at", reply.at),
@@ -169,7 +173,11 @@ class GroupStore(
             }.getOrNull()
         }
 
-    /** Adds a tagged reply to a known group; an unknown id is ignored. */
+    /**
+     * Adds a tagged reply to a known group; an unknown id is ignored. **Idempotent
+     * by [ulid]** (ADR: one message, one row): the same message re-ingested, or one
+     * of its provider duplicates, attaches once and once only.
+     */
     fun attach(
         groupId: String,
         ulid: String,
@@ -181,6 +189,9 @@ class GroupStore(
         runCatching {
             val json = JSONObject(raw)
             val replies = json.optJSONArray("replies") ?: JSONArray()
+            for (index in 0 until replies.length()) {
+                if (replies.getJSONObject(index).optString("ulid") == ulid) return@runCatching
+            }
             replies.put(
                 JSONObject()
                     .put("ulid", ulid)
@@ -201,6 +212,7 @@ class GroupStore(
         return List(raw.length()) { index ->
             val reply = raw.getJSONObject(index)
             GroupReply(
+                ulid = reply.optString("ulid"),
                 from = reply.getString("from"),
                 body = reply.getString("body"),
                 at = reply.getLong("at"),

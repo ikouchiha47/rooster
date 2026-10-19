@@ -1,0 +1,38 @@
+-- Write-ahead intent (ADR 0010 I1): a row exists before the step runs.
+CREATE TABLE node_attempts (
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    attempt INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    started_at INTEGER,
+    finished_at INTEGER,
+    invoked_by TEXT NOT NULL,
+    correlation_id TEXT NOT NULL,
+    inputs TEXT,
+    outputs TEXT,
+    version INTEGER NOT NULL,
+    PRIMARY KEY (run_id, node_id, attempt)
+);
+
+-- Attempt numbering continues across a resume; this is what makes retry history real.
+nextAttempt:
+SELECT COALESCE(MAX(attempt), 0) + 1 FROM node_attempts WHERE run_id = ? AND node_id = ?;
+
+-- A plain INSERT, deliberately: the number came from `nextAttempt` and the run is
+-- leased, so a collision is a bug (two drivers, or a numbering race) and must be
+-- loud, not swallowed.
+beginAttempt:
+INSERT INTO node_attempts(run_id, node_id, attempt, status, started_at, invoked_by, correlation_id, inputs, version)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1);
+
+attemptChanges:
+SELECT changes();
+
+-- OCC: the outcome lands only if nobody else already moved this attempt.
+finishAttempt:
+UPDATE node_attempts SET status = ?, outputs = ?, finished_at = ?, version = version + 1
+WHERE run_id = ? AND node_id = ? AND attempt = ? AND version = ?;
+
+selectAttempts:
+SELECT run_id, node_id, attempt, status, version, started_at, finished_at, invoked_by, correlation_id, inputs, outputs
+FROM node_attempts WHERE run_id = ? ORDER BY node_id, attempt;

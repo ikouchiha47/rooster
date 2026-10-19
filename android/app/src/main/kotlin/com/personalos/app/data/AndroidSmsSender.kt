@@ -10,6 +10,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.telephony.SmsManager
+import android.telephony.SubscriptionManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.personalos.app.core.sms.SmsSendResult
 import com.personalos.app.core.sms.SmsSender
@@ -18,6 +20,31 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
+
+/**
+ * The subscription a send actually uses: the caller's choice when it names a real
+ * SIM, else the first active one, else the platform default. Shared, so the row
+ * that records a send carries the **same** SIM the send used — otherwise the
+ * thread cannot show which line a message went out on.
+ */
+internal fun resolveSmsSubscription(
+    context: Context,
+    subscriptionId: Int?,
+): Int? {
+    if (subscriptionId != null && subscriptionId > 0) return subscriptionId
+    val fromSims =
+        runCatching {
+            context
+                .getSystemService(SubscriptionManager::class.java)
+                ?.activeSubscriptionInfoList
+                ?.firstOrNull()
+                ?.subscriptionId
+        }.getOrNull()
+    if (fromSims != null && fromSims > 0) return fromSims
+    return runCatching { SubscriptionManager.getDefaultSmsSubscriptionId() }
+        .getOrNull()
+        ?.takeIf { it > 0 }
+}
 
 /**
  * Sends SMS through the platform [SmsManager].
@@ -75,13 +102,19 @@ class AndroidSmsSender(
         val action = "$ACTION_PREFIX${UUID.randomUUID()}"
         val result = CompletableDeferred<SmsSendResult>()
         val receiver = SentResultReceiver(action, parts.size, result)
+        // EXPORTED, deliberately. The SMS_SENT broadcast is delivered by the
+        // telephony system, i.e. from *another* UID, and since Android 14 a
+        // NOT_EXPORTED dynamic receiver never sees it — the send would sit until
+        // the timeout and report a false failure. The exposure is bounded: the
+        // action is unique per send and the PendingIntent is package-scoped.
         ContextCompat.registerReceiver(
             context,
             receiver,
             IntentFilter(action),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
+            ContextCompat.RECEIVER_EXPORTED,
         )
 
+        Log.i(TAG, "send to $destination via sub=$subscriptionId: ${parts.size} part(s), action=$action")
         return try {
             val sentIntents = ArrayList<PendingIntent>(parts.size)
             parts.forEachIndexed { index, _ ->
@@ -106,15 +139,26 @@ class AndroidSmsSender(
      * API 31 moved `getDefault()` behind a typed service lookup; below 31 the
      * static factory is still the only way.
      */
-    private fun smsManager(subscriptionId: Int?): SmsManager =
-        when {
-            subscriptionId != null -> SmsManager.getSmsManagerForSubscriptionId(subscriptionId)
+    private fun smsManager(subscriptionId: Int?): SmsManager {
+        val sub = resolvedSubscription(subscriptionId)
+        return when {
+            sub != null -> SmsManager.getSmsManagerForSubscriptionId(sub)
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> context.getSystemService(SmsManager::class.java)
             else -> {
                 @Suppress("DEPRECATION")
                 SmsManager.getDefault()
             }
         }
+    }
+
+    /**
+     * Never send on the subscription-less manager if a real one can be resolved.
+     * Measured on a dual-SIM device: the default manager reported **no** sent
+     * result at all, so the send sat until the timeout while the SIM-selected path
+     * reported (late, but reported). `subscriptionId > 0` because 0 /
+     * [SubscriptionManager.INVALID_SUBSCRIPTION_ID] are the "no SIM" sentinels.
+     */
+    private fun resolvedSubscription(subscriptionId: Int?): Int? = resolveSmsSubscription(context, subscriptionId)
 
     /**
      * One broadcast per part carries the part's result code. Completion happens on
@@ -133,6 +177,7 @@ class AndroidSmsSender(
             context: Context,
             intent: Intent,
         ) {
+            Log.i(TAG, "sent-result action=${intent.action} match=${intent.action == action} code=$resultCode")
             if (intent.action != action) return
             val complete: SmsSendResult?
             synchronized(this) {
@@ -153,6 +198,8 @@ class AndroidSmsSender(
     }
 
     private companion object {
+        const val TAG = "SmsSender"
+
         /** Not `setPackage`-scoped alone: a distinct action keeps sends separate. */
         const val ACTION_PREFIX = "com.personalos.app.SMS_SENT."
 

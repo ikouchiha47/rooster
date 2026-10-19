@@ -339,6 +339,9 @@ object Sql {
         LIMIT :limit
         """
 
+    /** The outbox transition: a row moves queued -> sent|failed in place. */
+    const val EVENT_UPDATE_TYPE_BY_KEY = "UPDATE events SET type = :newType WHERE dedupe_key = :key"
+
     const val ENRICHMENT_UPDATE_CONTENT =
         "UPDATE events SET content = :content, enriched_at = :enrichedAt WHERE id = :id"
 

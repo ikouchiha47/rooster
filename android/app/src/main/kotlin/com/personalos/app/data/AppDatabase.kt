@@ -18,6 +18,8 @@ import androidx.sqlite.execSQL
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
 
+    abstract fun outboxDao(): OutboxDao
+
     abstract fun itemTagDao(): ItemTagDao
 
     abstract fun placeDao(): PlaceDao

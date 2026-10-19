@@ -19,6 +19,7 @@ import com.personalos.app.core.sms.SmsSender
 class RecordingSmsSender(
     private val sender: SmsSender,
     private val ingest: SmsIngest,
+    private val resolve: (Int?) -> Int? = { it },
     private val clock: () -> Long = System::currentTimeMillis,
 ) : SmsSender {
     override suspend fun send(
@@ -26,9 +27,13 @@ class RecordingSmsSender(
         body: String,
         subscriptionId: Int?,
     ): SmsSendResult {
-        val result = sender.send(destination, body, subscriptionId)
-        if (result is SmsSendResult.Sent) {
-            runCatching { ingest.recordSent(destination, body, clock()) }
+        // Outbox semantics: the row is written before the platform is asked, and the
+        // outcome updates it — so a slow result can never look like a lost message.
+        val sub = resolve(subscriptionId)
+        val key = runCatching { ingest.enqueueSent(destination, body, sub, clock()) }.getOrNull()
+        val result = sender.send(destination, body, sub)
+        if (key != null) {
+            runCatching { ingest.markResult(key, result is SmsSendResult.Sent) }
         }
         return result
     }

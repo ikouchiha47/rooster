@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.OnLifecycleEvent
+import com.personalos.app.core.PhoneNumbers
 import com.personalos.app.core.SmsAmountParser
 import com.personalos.app.core.category.Categorizer
 import com.personalos.app.core.rules.FieldNames
@@ -30,16 +31,40 @@ interface SmsIngest {
     suspend fun ingestNewMessages(): Int
 
     /**
-     * Stores a message this app just sent. Only the default SMS app writes to
-     * `content://sms`, and this app is not it, so nobody else records what we
-     * send — the thread would stay blind to our own outgoing messages unless
-     * this writes them through the same store the inbox is written through.
+     * Stores a message this app just sent, so the thread shows our own outgoing
+     * side. **Not** the only writer: on some devices the platform also lands an
+     * outgoing row in `content://sms`, which the ingest then reads — so both paths
+     * must compute the *same* [sentDedupeKey], or a send becomes two rows.
      */
-    suspend fun recordSent(
+    suspend fun enqueueSent(
         destination: String,
         body: String,
+        subscriptionId: Int?,
         timestampMs: Long,
+    ): String
+
+    /** The send's outcome, applied to the row [enqueueSent] wrote. */
+    suspend fun markResult(
+        dedupeKey: String,
+        sent: Boolean,
     )
+}
+
+/**
+ * The one identity for a message **we sent**, computed identically by our own
+ * record and by the provider ingest (which also records outgoing rows on some
+ * devices). Whichever writes first wins; the other collides in
+ * `unique(dedupe_key)` and is dropped, so a send is one row. The minute bucket
+ * keeps two genuinely identical messages sent at different times apart.
+ */
+internal fun sentDedupeKey(
+    destination: String,
+    body: String,
+    at: Long,
+): String {
+    val who = destination.trim()
+    val content = "$who\u0000${body.trim()}".hashCode()
+    return "sms:sent:$who:$content:${at / 60_000}"
 }
 
 /**
@@ -82,6 +107,16 @@ class SmsSource(
     private val isContact: (String) -> Boolean = { false },
     /** Opt-out group ids carried in multi-recipient bodies. */
     private val groups: com.personalos.app.data.sms.GroupStore? = null,
+    /**
+     * The outbox transition, injected rather than a DAO so this class keeps one
+     * dependency on the store and tests need no fake. No-op by default.
+     */
+    private val markType: suspend (key: String, type: String) -> Unit = { _, _ -> },
+    /**
+     * The device's country, so a number has **one** identity: inbound arrives as
+     * `+91…`, what we write is what the user typed. Empty means "leave alone".
+     */
+    private val countryIso: () -> String = { "" },
 ) : LifecycleObserver,
     SmsIngest {
     companion object {
@@ -170,7 +205,14 @@ class SmsSource(
                     com.personalos.app.data.sms.GroupTag
                         .strip(body)
                 val ulid = Ulid.next()
-                if (groupId != null) groups?.attach(groupId, ulid, address, cleanBody, message.date)
+                val type = typeName(message.type)
+                // Only a **member's** reply joins the group. Our own fan-out copies
+                // also come back through the provider, and attaching those would
+                // record our text as a reply *from the recipient* — the mess where
+                // one send produced eight "replies", all of them ours.
+                if (groupId != null && type == "inbox") {
+                    groups?.attach(groupId, ulid, address, cleanBody, message.date)
+                }
 
                 // Classify once, at ingest, so the category is queryable
                 // (Radar filters on it) instead of recomputed per render. The
@@ -180,14 +222,20 @@ class SmsSource(
                 events.add(
                     EventEntity(
                         ulid = ulid,
-                        // Provider row id: re-ingest is idempotent, and two
-                        // messages from the same sender never collide.
-                        dedupeKey = "sms:${message.id}",
+                        // Inbound: the provider row id *is* the identity, and there is no
+                        // second writer. Outbound: ours and the provider's rows must be one
+                        // fact, so both use the content key.
+                        dedupeKey =
+                            if (type == "sent") {
+                                sentDedupeKey(address, cleanBody, message.date)
+                            } else {
+                                "sms:${message.id}"
+                            },
                         source = SOURCE_ID,
-                        type = typeName(message.type),
+                        type = type,
                         category = category,
                         timestamp = message.date,
-                        title = address,
+                        title = PhoneNumbers.canonical(address, countryIso()),
                         content = cleanBody,
                         entities = "[]",
                         location = null,
@@ -214,43 +262,57 @@ class SmsSource(
      * Writes a just-sent message through the ingest store, so a thread this app
      * started shows its own outgoing side. `type = "sent"`, the destination is
      * the thread identity (`events.title`), and the row carries the same
-     * `sms:`-prefixed dedupe key the ingest path uses — the provider row id is
-     * replaced by the send's own timestamp, which is unique to the send because
-     * no provider row will ever exist for it.
+     * the same [sentDedupeKey] the ingest path computes for an outgoing row, so
+     * whichever writer lands first wins and the other is absorbed by
+     * `unique(dedupe_key)` — a send is one fact, never two.
      */
-    override suspend fun recordSent(
+    override suspend fun enqueueSent(
         destination: String,
         body: String,
+        subscriptionId: Int?,
         timestampMs: Long,
-    ) {
+    ): String =
         withContext(Dispatchers.IO) {
             val address = destination.ifBlank { "Unknown" }
             val (cleanBody, groupId) =
                 com.personalos.app.data.sms.GroupTag
                     .strip(body)
             val ulid = Ulid.next()
-            if (groupId != null) groups?.attach(groupId, ulid, address, cleanBody, timestampMs)
+            // Our own send is attached once, by the compose path, as from = "me" —
+            // never here as if it were the recipient's reply.
             val category = categorizer().categorize(address, cleanBody, isContact(address)).id
             val event =
                 EventEntity(
                     ulid = ulid,
-                    dedupeKey = "sms:sent:$timestampMs",
+                    dedupeKey = sentDedupeKey(address, cleanBody, timestampMs),
                     source = SOURCE_ID,
-                    type = "sent",
+                    // The outbox: the row exists before the platform is asked, so the
+                    // thread shows the message immediately and the UI never waits.
+                    type = "queued",
                     category = category,
                     timestamp = timestampMs,
-                    title = destination,
+                    title = PhoneNumbers.canonical(destination, countryIso()),
                     content = cleanBody,
                     entities = "[]",
                     location = null,
                     url = null,
                     ingestedAt = System.currentTimeMillis(),
+                    sim = subscriptionId?.toString(),
                 )
             land(
                 listOf(event),
                 listOf(TagInput(text = body, source = Transport.SMS, sender = destination)),
                 listOf(smsFields(address, body)),
             )
+            event.dedupeKey
+        }
+
+    override suspend fun markResult(
+        dedupeKey: String,
+        sent: Boolean,
+    ) {
+        withContext(Dispatchers.IO) {
+            markType(dedupeKey, if (sent) "sent" else "failed")
         }
     }
 
