@@ -60,7 +60,17 @@ class HttpDownloader(
                 return@withContext download(spec, destDir, progress)
             }
 
-            val resuming = offset > 0L && connection.responseCode == HttpURLConnection.HTTP_PARTIAL
+            // Anything but 200/206 is a failed fetch — said plainly, because a
+            // 404 would otherwise surface as an IOException from `inputStream`
+            // ("No content provider"), which reads like a device fault.
+            val code = connection.responseCode
+            if (code != HttpURLConnection.HTTP_OK && code != HttpURLConnection.HTTP_PARTIAL) {
+                connection.disconnect()
+                throw IllegalStateException("HTTP $code fetching ${spec.fileName}")
+            }
+            val contentType = connection.contentType
+
+            val resuming = offset > 0L && code == HttpURLConnection.HTTP_PARTIAL
             if (!resuming) {
                 offset = 0L
                 part.delete()
@@ -82,6 +92,14 @@ class HttpDownloader(
                 }
             }
             connection.disconnect()
+
+            // Cheap content check before the expensive hash: a web page or a
+            // truncated runtime file is rejected on its first bytes. Not
+            // resume-worthy, so the `.part` goes and the next attempt is clean.
+            ModelValidation.problem(part, contentType)?.let { reason ->
+                part.delete()
+                throw IllegalStateException("download rejected: $reason (${spec.fileName})")
+            }
 
             val sha = Integrity.sha256(part)
             if (!Integrity.matches(part.length(), sha, spec)) {

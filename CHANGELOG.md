@@ -7,6 +7,42 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(mlsdk): a shared model store with resumable downloads in a foreground service
+
+_2026-10-19_
+
+Finishes the model SDK so two apps can share one copy of a 176 MB embedder.
+
+The shared root moves to `Downloads/ml-models`, where a file manager can see it
+and a hand-built model can be dropped in. Moving it does not strand anything: the
+read path checks the new root, then the old `PersonalOS/ml/models`, then the app's
+private `files/models`, so an existing download still resolves.
+
+Downloads become durable. `ModelDownloadService` is a foreground service that
+starts foreground immediately, holds a CPU wake lock only for the transfer (capped
+at 30 min), throttles its notification to 400 ms — independently of the progress
+stream, because Android sheds `notify()` calls and can drop the final "complete" —
+and reports every tick on `ModelDownloadEvents`. The transfer itself already
+resumed (`.part` + `Range`, and `416` restarts clean); what was missing was a host
+that survives the app being backgrounded.
+
+Ported mofy's content checks and closed the gap I had opened: empty bodies, HTML
+pages (by first byte **and** `Content-Type`), and files without the TFLite `TFL3`
+or ONNX `0x08` magic bytes are rejected before hashing, and a non-200/206 response
+now says `HTTP 404 fetching …` instead of surfacing an `IOException` from
+`inputStream`. Those failures delete the `.part`; network failures keep it, which
+is what makes resume work.
+
+`evictUnlisted` no longer deletes a complete file from the shared folder — only
+abandoned `.part` files. A custom model the user put there is precisely a file it
+cannot recognise, and deleting it would be the SDK destroying the thing the shared
+folder exists for.
+
+Verified: `:mlsdk:testDebugUnitTest` (content checks + resolution order, 12 tests),
+`:mlsdk:ktlintCheck`, and `:app:assembleDebug` + `:app:testDebugUnitTest` against
+the changed paths. Not wired into the app yet: `ModelDownloader` still downloads
+in-process, so the service is exercised only by calling it.
+
 ## feat(work): a run ledger, one number one identity, and a durable outbox
 
 _2026-10-19_
