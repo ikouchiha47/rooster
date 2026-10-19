@@ -4,61 +4,96 @@ import com.personalos.app.core.notify.Notification
 import com.personalos.app.core.notify.NotificationCenter
 import com.personalos.app.core.notify.NotificationKind
 import com.personalos.app.core.notify.Severity
-import com.personalos.mlsdk.ModelSpec
-import com.personalos.mlsdk.ModelStore
+import com.personalos.mlsdk.DownloadEvents
+import com.personalos.mlsdk.Hub
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Fetches a model bundle through the SDK, reporting progress on the **global
- * notification** so it is visible on any screen — the same host a sync uses.
+ * Fetches artifacts through the SDK in the **foreground service**, so a 176 MB
+ * transfer survives the app being backgrounded, and mirrors the service's progress
+ * onto the global notification host — the same host a sync uses.
  *
- * It is deliberately thin: the SDK owns where the file goes and whether it is
- * valid, this only drives the user-facing "downloading… 43%" and turns a failure
- * into a short-lived error. A download that fails leaves nothing behind (the SDK
- * deletes the `.part`), so a retry starts clean.
+ * It is deliberately thin: the SDK owns where the files go, whether they are
+ * valid, and how to resume. This only turns "downloading 43%" into something the
+ * user can see, and a failure into a short-lived error.
  */
 class ModelDownloader(
-    private val store: ModelStore,
+    private val hub: Hub,
     private val notifications: NotificationCenter,
 ) {
-    /** Downloads [specs] in order; true only if every one is present and valid afterwards. */
-    suspend fun download(specs: List<ModelSpec>): Boolean {
-        for (spec in specs) {
-            val id = "model:${spec.fileName}"
-            notifications.post(
-                Notification(
-                    id = id,
-                    kind = NotificationKind.MODEL,
-                    severity = Severity.INFO,
-                    title = "Downloading model",
-                    body = spec.fileName,
-                    progress = true,
-                    at = System.currentTimeMillis(),
-                ),
-            )
-            val ok =
-                runCatching {
-                    store.ensure(spec) { written, total ->
-                        val percent = if (total > 0) (written * 100 / total).toInt() else 0
-                        notifications.update(id, "${spec.fileName} $percent%")
+    /** Starts the fetch for [refs]; true only when every artifact ends up present. */
+    suspend fun download(refs: Collection<String>): Boolean =
+        withContext(Dispatchers.IO) {
+            // The service does the transfer; a refusal to start means the caller
+            // should fall back to an in-process fetch instead of doing nothing.
+            if (!hub.download(refs)) return@withContext false
+
+            val pending = refs.toMutableSet()
+            val started = mutableSetOf<String>()
+            var failed = false
+            coroutineScope {
+                val mirror =
+                    launch {
+                        DownloadEvents.updates.collect { update ->
+                            val id = "artifact:${update.artifactName}"
+                            when {
+                                update.done && update.error == null -> {
+                                    pending.remove(update.artifactName)
+                                    notifications.dismiss(id)
+                                }
+
+                                update.done -> {
+                                    pending.remove(update.artifactName)
+                                    failed = true
+                                    notifications.post(
+                                        Notification(
+                                            id = "artifact-error",
+                                            kind = NotificationKind.ERROR,
+                                            severity = Severity.ERROR,
+                                            title = "Download failed",
+                                            body = "${update.artifactName}: ${update.error}",
+                                            ttlMs = 8_000,
+                                            at = System.currentTimeMillis(),
+                                        ),
+                                    )
+                                }
+
+                                else -> {
+                                    val percent = if (update.total > 0) (update.written * 100 / update.total).toInt() else 0
+                                    if (started.add(update.artifactName)) {
+                                        notifications.post(
+                                            Notification(
+                                                id = id,
+                                                kind = NotificationKind.MODEL,
+                                                severity = Severity.INFO,
+                                                title = "Downloading",
+                                                body = update.fileName,
+                                                progress = true,
+                                                at = System.currentTimeMillis(),
+                                            ),
+                                        )
+                                    } else {
+                                        notifications.update(id, "${update.fileName} $percent%")
+                                    }
+                                }
+                            }
+                        }
                     }
-                }.onFailure { android.util.Log.w("ModelDownloader", "download failed: ${spec.fileName}", it) }
-                    .isSuccess
-            notifications.dismiss(id)
-            if (!ok) {
-                notifications.post(
-                    Notification(
-                        id = "model-error",
-                        kind = NotificationKind.ERROR,
-                        severity = Severity.ERROR,
-                        title = "Model download failed",
-                        body = spec.fileName,
-                        ttlMs = 8_000,
-                        at = System.currentTimeMillis(),
-                    ),
-                )
-                return false
+                // The service emits the last update itself, so this is a safety net
+                // rather than the primary signal.
+                withTimeoutOrNull(TIMEOUT_MS) { while (pending.isNotEmpty()) delay(POLL_MS) }
+                mirror.cancel()
             }
+            !failed
         }
-        return true
+
+    private companion object {
+        const val POLL_MS = 200L
+        const val TIMEOUT_MS = 30L * 60_000L
     }
 }

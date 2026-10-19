@@ -5,9 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ModelStatusTest {
+class StatusTest {
     private val spec =
-        ModelSpec(
+        ArtifactFile(
             name = "embeddinggemma",
             version = 1,
             fileName = "mofy_embedder_seq256.tflite",
@@ -19,24 +19,24 @@ class ModelStatusTest {
 
     @Test
     fun `no file is absent`() {
-        assertEquals(ModelStatus.ABSENT, modelStatus(null, spec))
+        assertEquals(ArtifactStatus.ABSENT, artifactStatus(null, spec))
     }
 
     @Test
     fun `a file of the wrong size is partial`() {
-        assertEquals(ModelStatus.PARTIAL, modelStatus(PresentFile(sizeBytes = 100, sha256 = ""), spec))
+        assertEquals(ArtifactStatus.PARTIAL, artifactStatus(PresentFile(sizeBytes = 100, sha256 = ""), spec))
     }
 
     @Test
     fun `a right-sized file with the wrong hash is stale`() {
-        assertEquals(ModelStatus.STALE, modelStatus(PresentFile(171, "deadbeef"), spec))
+        assertEquals(ArtifactStatus.STALE, artifactStatus(PresentFile(171, "deadbeef"), spec))
     }
 
     @Test
     fun `matching size and hash is ready, case-insensitively`() {
-        assertEquals(ModelStatus.READY, modelStatus(PresentFile(171, "ABC123"), spec))
-        assertTrue(modelStatus(PresentFile(171, "abc123"), spec).usable)
-        assertFalse(ModelStatus.PARTIAL.usable)
+        assertEquals(ArtifactStatus.READY, artifactStatus(PresentFile(171, "ABC123"), spec))
+        assertTrue(artifactStatus(PresentFile(171, "abc123"), spec).usable)
+        assertFalse(ArtifactStatus.PARTIAL.usable)
     }
 
     @Test

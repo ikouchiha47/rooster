@@ -19,7 +19,7 @@ import java.io.File
  *  - A premature EOF leaves a `.tflite`/`.onnx` that passes `exists()` and then
  *    fails at load time with "does not encode a valid model".
  */
-object ModelValidation {
+object Validation {
     /**
      * What is wrong with [file], or null when nothing is. [contentType] is the
      * HTTP `Content-Type` the bytes arrived with, when known — checked as well as

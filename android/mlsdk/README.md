@@ -1,102 +1,149 @@
-# mlsdk — shared on-device models
+# mlsdk — shared on-device artifacts
 
-Locate, fetch, verify and share on-device ML models. A plain Android library with
-no opinion about *what* the models do — it only knows files — so the same module
-works in PersonalOS, Mofy, or a small hub app whose only job is to download once.
+Locate, fetch, verify and share on-device ML files. A plain Android library with
+no opinion about *what* an artifact does — it knows files, hashes, directories and
+references — so the same module works in PersonalOS, Mofy, or a small hub app
+whose only job is to download once.
 
-## Why a module
+**The SDK names no app and no artifact.** What an embedder is, which model to use,
+what this app declares — all of that lives in the app that consumes the SDK. This
+module knows the *shape* every artifact has, and nothing else.
 
-Three apps, one 176 MB embedder. Without a shared SDK each one downloads its own
-copy, each has its own "is this file the model?" check, and a fix to the download
-resume logic has to be made three times. Here the contract is one `ModelSpec`
-(file name, size, SHA-256) and one directory convention.
+## Vocabulary
 
-## The shared directory
+```kotlin
+ArtifactFile(name, version, fileName, url, sizeBytes, sha256, role, dim)
+Artifact    (name, type, version, dir, files)      // dir is "<scope>/<name>"
+ArtifactType{ EMBEDDER, GENERATIVE, CLASSIFIER, DATASET, OTHER }
+FileRole    { GRAPH, WEIGHTS, TOKENIZER, DATA, OTHER }
+Scope       (GLOBAL, of("personalos"))             // apps declare their own
+ref          = "name" | "scope:name"               // Artifact.ref
+```
+
+- `FileRole` exists so a runtime asks for **the graph**, not for
+  `model_q4f16.onnx`. A file name has exactly one owner: `ArtifactFile.fileName`.
+- `ArtifactType` exists so a consumer asks for **the embedder**, not for a name.
+- `DATASET` is how a non-model (a vocabulary, a directory) registers without
+  pretending to be a model.
+
+## The directory
 
 ```
 <external storage>/Downloads/ml-models/
+  manifest.json                 a registry written before scopes existed (read only)
+  global/
+    manifest.json               what every app shares
+    embeddinggemma/
+      model_q4f16.onnx
+      model_q4f16.onnx_data
+      embeddinggemma_onnx_tokenizer.json
+  personalos/
+    manifest.json               what this app registered
+    taxonomy/                   a dataset, not a model
 ```
 
-Readable and writable by every app that holds `MANAGE_EXTERNAL_STORAGE`, and
-visible to the user in a file manager. That is deliberate: a model placed there by
-hand is found and used with no download and no app involvement.
+**A directory per artifact** is not tidiness. ONNX resolves its external weights
+*beside the graph*, so the two cannot be separated; and two artifacts that each
+ship a `tokenizer.json` must not collide.
 
-Resolution order (`ModelPaths.lookup`) — **a model is found wherever it already
-is**, so moving the root never strands an existing download:
+**`global` is the default.** An app that declares nothing app-specific lands in
+`global/<name>`. A retrained copy, or a dataset, takes the app's own scope —
+`personalos/<name>` — and **coexists** with the shared one, because everything is
+keyed by `scope:name`, never by a bare name.
 
-1. the shared dir above (writable);
-2. `<external storage>/PersonalOS/ml/models` — the root this SDK used before, kept
-   as a read path only;
-3. the app's private `files/models` (used as the write path when all-files access
-   is not granted).
+A read checks, in order: the writable root's per-artifact directory, the writable
+root itself (where files used to land flat), the legacy root
+`PersonalOS/ml/models`, then the app's private `files/models`. Moving the root
+never strands an artifact already on disk.
 
-`ModelPaths.dir()` is where new downloads go. `ModelPaths.resolve(name)` finds the
-first existing copy across the three.
-
-### Custom models
-
-A custom model is a file you drop into the shared folder under the name a
-`ModelSpec` (or `manifest.json`) declares. Because the read path checks all three
-roots, it needs no code change and no download.
-
-**Integrity caveat:** verification is exact `size + SHA-256`. A model you built
-yourself needs a spec with its real size and hash, or it will be reported as
-`STALE` and replaced. Publishing a `manifest.json` (see `ModelManifest.write`) is
-the intended way to share one.
-
-`ModelStore.evictUnlisted` never deletes a complete file from the shared folder —
-only abandoned `.part` files. It cannot assume a file it does not recognise is
-garbage, because a custom model is exactly that.
-
-## Three entry points
+## The interface
 
 ```kotlin
-// 1. The fast path: locate, verify, fetch-if-needed, return a ready file.
-val file = ModelStore(context).ensure(spec) { written, total -> /* progress */ }
+val hub = Hub(context, appDeclarations)
 
-// 2. The durable path: a foreground service, so a 176 MB transfer survives the
-//    app being backgrounded. Progress also arrives on ModelDownloadEvents.
-ModelDownloadService.start(context, KnownModels.embeddingGemmaBundle)
+// lookup — never touches the network
+hub.router().artifact("embeddinggemma")             // the shared one
+hub.router().embedder("personalos:embeddinggemma")  // the app's own copy
+hub.router().dataset("personalos:vocabulary")
+hub.list()                                          // everything on this device
+hub.status(ref)                                     // ABSENT | PARTIAL | STALE | READY
+hub.files(ref)                                      // Map<ArtifactFile, File?>
+hub.path(ref)                                       // the directory
 
-// 3. The contract: publish or read what exists, shared between apps.
-val json = ModelManifest.write(specs)          // writer
-val specs = ModelManifest.parse(json)          // reader, null if unreadable
+// plan, then fetch
+hub.plan(refs)                                      // what would download
+hub.ensure(ref)                                     // complete directory, or throws
+hub.ensure(ref, localOnly = true)                   // refuse the network
+hub.download(refs)                                  // via the foreground service
+
+// maintain
+hub.register()                                      // persist per scope, for other apps
+hub.remove(ref)
+hub.prune()                                         // reclaim what the SDK owns
 ```
 
-`ModelStore.ensure` is idempotent and safe to call on every start. It hashes a file
-only when its size already matches, so the common "already downloaded" case is a
-`stat`.
+Three guarantees worth stating:
+
+- **A set is complete or it fails.** `ensure` returns a directory with every file
+  present and verified, or throws — never a partial artifact, which is what leaves
+  a runtime loading a half-downloaded model.
+- **Lookups never fetch.** `status`, `files`, `path` and `plan` read the disk only,
+  so a screen can ask what is here without spending data.
+- **Unprefixed means `global`, and only that.** A miss is `null`, not a fallback to
+  an app's private copy: adding `personalos:embeddinggemma` must not silently
+  change what `artifact("embeddinggemma")` means.
 
 ## Downloads
 
-- **Resumable.** Bytes stream into `<name>.part`; a retry sends `Range:` from the
-  partial length. A `416` (the partial is longer than the file) restarts clean.
-- **Verified before published.** Size and SHA-256 are checked on the `.part`;
-  only then is it renamed into place. A reject deletes the `.part`, so a wedged
-  resume cannot survive.
-- **Content-checked first.** Empty bodies, HTML error pages (GitHub returns `200`
-  with a "not found" page), and files without the TFLite `TFL3` / ONNX `0x08`
-  magic bytes are rejected before hashing.
-- **Foreground, not WorkManager.** The user is watching a progress bar; the work
-  must not be killed when the screen goes dark. See `ModelDownloadService`.
+- **Resumable** — bytes stream into `<name>.part`; a retry sends `Range:` from the
+  partial length, and a `416` restarts clean.
+- **Verified before published** — size and SHA-256 are checked on the `.part`;
+  only then is it renamed into place. A reject deletes the `.part`.
+- **Content-checked first** — empty bodies, HTML error pages (by first byte *and*
+  `Content-Type`), and files without the TFLite `TFL3` / ONNX `0x08` magic bytes
+  are rejected before hashing.
+- **Foreground, not WorkManager** — the user is watching a progress bar, and a
+  176 MB transfer must not be killed when the screen goes dark. `DownloadService`
+  starts foreground immediately, holds a CPU wake lock only for the transfer
+  (capped at 30 minutes), throttles its notification independently of the progress
+  stream — Android sheds `notify()` calls, and will drop the final "complete" — and
+  reports every tick on `DownloadEvents`.
+- **No force flag.** Correctness is size + SHA-256, so a verified file *is* the
+  artifact; there is no stale-but-valid state to re-fetch. A changed source is a
+  new version.
+
+## The registry
+
+`manifest.json`, one per scope, written only by the app that owns that scope. Per
+scope rather than one shared file, so two apps registering at once do not
+read-modify-write over each other: there is no lock to take and no update to lose.
+A reader merges whatever it finds, which is how one app finds another's download
+without being told.
 
 ## Permissions the host app needs
 
 | permission | why |
 |---|---|
-| `INTERNET` | fetch models |
-| `MANAGE_EXTERNAL_STORAGE` | the shared folder. Without it the SDK silently uses the private `files/models` — it still works, just not shared |
-| `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC` | `ModelDownloadService` |
+| `INTERNET` | fetch |
+| `MANAGE_EXTERNAL_STORAGE` | the shared folder. Without it the SDK uses the private `files/models` — it still works, just not shared |
+| `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC` | `DownloadService` |
 | `POST_NOTIFICATIONS` (API 33+) | the download notification |
-| `WAKE_LOCK` | the transfer is held only while it runs, capped at 30 min |
+| `WAKE_LOCK` | held only while a transfer runs, capped |
 
 Declared in this module's manifest; the app still requests the runtime ones.
 
+## Adding an artifact by hand
+
+Drop a file into the right directory under the shared root, and give it a
+`manifest.json` entry (or a declaration in the app) carrying its real size and
+SHA-256 — otherwise it is reported `STALE` and replaced. `prune` never deletes a
+complete file from the shared directory for this reason: it cannot know which
+unrecognised files are yours.
+
 ## What this module does not do
 
-- **Run models.** No ONNX Runtime, no TFLite, no tokenizers. That keeps the
-  dependency surface (and the APK) small, and lets two apps pick different runtimes
-  for the same verified bytes.
-- **Store progress durably.** `ModelDownloadEvents` is in-process. An app that
-  wants a persisted "downloading / failed" state writes it itself.
-- **Delete the user's files.** See `evictUnlisted` above.
+- **Run artifacts.** No ONNX Runtime, no TFLite, no tokenizers — so two apps can
+  pick different runtimes for the same verified bytes.
+- **Store progress durably.** `DownloadEvents` is in-process. An app that wants a
+  persisted "downloading / failed" state keeps it itself.
+- **Delete your files.** See `prune` above.

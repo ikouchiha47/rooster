@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * Progress from [ModelDownloadService] to whoever is watching — the Settings
+ * Progress from [DownloadService] to whoever is watching — the Settings
  * screen, an in-app toast host, a log.
  *
  * In-process on purpose (a `SharedFlow` in a singleton): the service runs in the
@@ -16,12 +16,13 @@ import kotlinx.coroutines.flow.asSharedFlow
  * Every emission is best-effort (`tryEmit`, drop-oldest): progress is a stream of
  * *latest values*, and a slow collector must never stall the download.
  */
-object ModelDownloadEvents {
+object DownloadEvents {
     /**
      * One tick. [done] marks the end of the file — with [error] null on success
      * and a reason on failure. `total` is the spec's size (0 when unknown).
      */
     data class Update(
+        val artifactName: String,
         val fileName: String,
         val written: Long,
         val total: Long,

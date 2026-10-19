@@ -1,6 +1,6 @@
 package com.personalos.app.ui.settings
 
-import com.personalos.mlsdk.ModelStatus
+import com.personalos.mlsdk.ArtifactStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -9,10 +9,10 @@ import org.junit.Test
 class ModelsModelTest {
     @Test
     fun `every status has a plain word`() {
-        assertEquals("installed", modelStatusLabel(ModelStatus.READY))
-        assertEquals("not installed", modelStatusLabel(ModelStatus.ABSENT))
-        assertEquals("incomplete", modelStatusLabel(ModelStatus.PARTIAL))
-        assertEquals("outdated", modelStatusLabel(ModelStatus.STALE))
+        assertEquals("installed", modelStatusLabel(ArtifactStatus.READY))
+        assertEquals("not installed", modelStatusLabel(ArtifactStatus.ABSENT))
+        assertEquals("incomplete", modelStatusLabel(ArtifactStatus.PARTIAL))
+        assertEquals("outdated", modelStatusLabel(ArtifactStatus.STALE))
     }
 
     @Test
@@ -23,9 +23,9 @@ class ModelsModelTest {
 
     @Test
     fun `only an installed model needs no download`() {
-        assertFalse(needsDownload(ModelStatus.READY))
-        assertTrue(needsDownload(ModelStatus.ABSENT))
-        assertTrue(needsDownload(ModelStatus.PARTIAL))
-        assertTrue(needsDownload(ModelStatus.STALE))
+        assertFalse(needsDownload(ArtifactStatus.READY))
+        assertTrue(needsDownload(ArtifactStatus.ABSENT))
+        assertTrue(needsDownload(ArtifactStatus.PARTIAL))
+        assertTrue(needsDownload(ArtifactStatus.STALE))
     }
 }

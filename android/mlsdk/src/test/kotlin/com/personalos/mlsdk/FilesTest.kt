@@ -7,7 +7,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
-class ModelFilesTest {
+class FilesTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
@@ -22,7 +22,7 @@ class ModelFilesTest {
         file("model_q4f16.onnx", 8)
 
         val orphans =
-            ModelFiles.orphans(
+            Files.orphans(
                 tmp.root,
                 keep = listOf("model_q4f16.onnx"),
             )
@@ -34,7 +34,7 @@ class ModelFilesTest {
     fun `an abandoned part file is an orphan even when nothing changed`() {
         file("model_q4f16.onnx_data.part", 3)
 
-        val orphans = ModelFiles.orphans(tmp.root, keep = listOf("model_q4f16.onnx_data"))
+        val orphans = Files.orphans(tmp.root, keep = listOf("model_q4f16.onnx_data"))
 
         assertEquals(listOf("model_q4f16.onnx_data.part"), orphans.map { it.name })
     }
@@ -44,7 +44,7 @@ class ModelFilesTest {
         file("a.onnx")
         file("b.onnx_data")
 
-        val orphans = ModelFiles.orphans(tmp.root, keep = listOf("a.onnx", "b.onnx_data"))
+        val orphans = Files.orphans(tmp.root, keep = listOf("a.onnx", "b.onnx_data"))
 
         assertTrue(orphans.isEmpty())
     }
@@ -54,7 +54,7 @@ class ModelFilesTest {
         tmp.newFolder("nested")
         file("keep.onnx")
 
-        val orphans = ModelFiles.orphans(tmp.root, keep = listOf("keep.onnx"))
+        val orphans = Files.orphans(tmp.root, keep = listOf("keep.onnx"))
 
         assertTrue("a directory is not a model file to delete", orphans.isEmpty())
     }

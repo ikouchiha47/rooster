@@ -32,7 +32,7 @@ import com.personalos.app.core.AppContainer
 import com.personalos.app.core.Chars
 import com.personalos.app.core.theme.RadarTheme
 import com.personalos.app.data.BatteryOptimization
-import com.personalos.app.data.KnownModels
+import com.personalos.app.data.KnownArtifacts
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
@@ -42,8 +42,8 @@ import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarFonts
 import com.personalos.app.ui.theme.RadarType
-import com.personalos.mlsdk.ModelSpec
-import com.personalos.mlsdk.ModelStatus
+import com.personalos.mlsdk.Artifact
+import com.personalos.mlsdk.ArtifactStatus
 import kotlinx.coroutines.launch
 
 /**
@@ -104,7 +104,7 @@ fun SettingsScreen(
                     "The embedding model tags messages by meaning — in any language, and " +
                         "without a keyword list. Downloaded once, shared with your other apps.",
                 footer = "Models are shared on this device",
-                bundle = KnownModels.embeddingGemmaBundle,
+                models = listOf(KnownArtifacts.embeddingGemma),
                 onDownloaded = { it.upgradeTagger() },
             )
 
@@ -115,7 +115,7 @@ fun SettingsScreen(
                     "The tag vocabulary as data — descriptions and terms. Update it " +
                         "without an app release.",
                 footer = "Vocabulary is shared on this device",
-                bundle = KnownModels.vocabularyBundle,
+                models = listOf(KnownArtifacts.vocabulary),
                 onDownloaded = { it.reloadVocabulary() },
             )
 
@@ -228,35 +228,38 @@ private fun ModelsSection(
     title: String,
     blurb: String,
     footer: String,
-    bundle: List<ModelSpec>,
+    models: List<Artifact>,
     onDownloaded: suspend (AppContainer) -> Unit,
 ) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
-    var statuses by remember { mutableStateOf<Map<String, ModelStatus>>(emptyMap()) }
+    var statuses by remember { mutableStateOf<Map<String, ArtifactStatus>>(emptyMap()) }
     var busy by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
-        statuses = bundle.associate { it.fileName to container.models.status(it) }
+        statuses = models.associate { it.ref to container.models.status(it.ref) }
     }
     LaunchedEffect(Unit) { refresh() }
 
-    WidgetHeader(title = title, note = "${bundle.size} files")
+    WidgetHeader(title = title, note = "${models.sumOf { it.files.size }} files")
     Text(
         text = blurb,
         style = RadarType.microPlain,
         color = RadarColors.ink3,
         modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
     )
-    bundle.forEach { spec ->
-        ModelRow(
-            name = spec.fileName,
-            size = modelSizeLabel(spec.sizeBytes),
-            status = modelStatusLabel(statuses[spec.fileName] ?: ModelStatus.ABSENT),
-        )
+    models.forEach { model ->
+        model.files.forEach { spec ->
+            ModelRow(
+                name = spec.fileName,
+                size = modelSizeLabel(spec.sizeBytes),
+                status = modelStatusLabel(statuses[model.ref] ?: ArtifactStatus.ABSENT),
+            )
+        }
     }
-    if (bundle.any { needsDownload(statuses[it.fileName] ?: ModelStatus.ABSENT) }) {
+    val anyMissing = models.any { needsDownload(statuses[it.ref] ?: ArtifactStatus.ABSENT) }
+    if (anyMissing) {
         Text(
             text = if (busy) "DOWNLOADING" else "DOWNLOAD",
             style = RadarType.labelMicro,
@@ -265,10 +268,10 @@ private fun ModelsSection(
                 Modifier
                     .fillMaxWidth()
                     .clickable(enabled = !busy) {
-                        android.util.Log.i("ModelsSection", "download tapped: ${bundle.map { it.fileName }}")
+                        android.util.Log.i("ModelsSection", "download tapped: ${models.map { it.name }}")
                         scope.launch {
                             busy = true
-                            val ok = container.modelDownloader.download(bundle)
+                            val ok = container.modelDownloader.download(models.map { it.ref })
                             android.util.Log.i("ModelsSection", "download finished: ok=$ok")
                             if (ok) onDownloaded(container)
                             refresh()

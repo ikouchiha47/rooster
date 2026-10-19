@@ -7,6 +7,60 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(mlsdk): an SDK surface — artifacts, references, and a hub
+
+_2026-10-19_
+
+The model SDK grew organically into a set of public helpers with no boundary. This
+gives it a designed surface, checked against how `huggingface_hub` and Ollama
+actually read.
+
+**The nouns.** `Model` was a misnomer: a dataset is not a model, and the SDK
+should name no app. So a unit is an **Artifact** (`ArtifactFile` per file,
+`ArtifactType { EMBEDDER, GENERATIVE, CLASSIFIER, DATASET, OTHER }`), owned by a
+**Scope** (`GLOBAL` is the library's only constant — `personalos` is declared by
+the app). `FileRole { GRAPH, WEIGHTS, TOKENIZER, DATA }` replaces the file-name
+constants: a runtime asks for *the graph*, and `ArtifactFile.fileName` stays the
+single owner of a name.
+
+**References.** `"name"` or `"scope:name"` — the directory read backwards.
+Unprefixed resolves to `global` and **only** global, so registering
+`personalos:embeddinggemma` cannot silently change what `artifact("embeddinggemma")`
+means. Both copies coexist because the registry merges by `(dir, name)`.
+
+**One facade.** `Hub` is references in, files out: `router`, `list`, `status`,
+`files`, `path`, `plan`, `ensure`, `download`, `register`, `remove`, `prune`.
+Adopted from prior art: lookups **never fetch**; `plan` is the dry run;
+`localOnly` refuses the network; `ensure` returns a **complete directory or
+throws** — never a partial artifact, which is what leaves ONNX resolving weights
+that are not there. Dropped `force`: correctness is size + SHA-256, so a verified
+file *is* the artifact, and a changed source is a new version, not a re-fetch.
+
+**The boundary.** `Paths`, `Lookup`, `Integrity`, `Validation`, `HttpDownloader`,
+`Files` are `internal` now. That missing boundary was the real reason the API felt
+unspecified.
+
+**On disk.** Root moves to `Downloads/ml-models`, one directory per artifact, and
+a registry **per scope** (`global/manifest.json`, `personalos/manifest.json`) —
+per scope rather than one file so two apps registering at once cannot lose each
+other's update. A v1 flat manifest still reads, as `global/`. Every earlier root is
+still in the read path, so nothing re-downloads.
+
+App side: `KnownModels` becomes `KnownArtifacts` (the vocabulary is a DATASET, at
+`personalos/taxonomy/`; the mofy/TFLite runtime and its 179 MB are gone), and
+`upgradeTagger` now takes the embedder's **directory** and picks the graph and
+tokenizer by role — which is what guarantees the `.onnx_data` sits beside the
+graph. Downloads go through `DownloadService`, mirroring progress onto the app's
+notification host.
+
+Verified: `:mlsdk:testDebugUnitTest` (38 tests — router references, registry merge,
+manifest v2 round trip and v1 read, roles, sources, resolution order, content
+checks), `:app:assembleDebug`, `:app:testDebugUnitTest`, `ktlintCheck`.
+
+Not verified on device: nothing here has run on a phone yet. The root move means an
+existing download is *found* (the legacy root is in the read path) but is not moved
+into the new layout until `ensure` runs for it.
+
 ## feat(mlsdk): a shared model store with resumable downloads in a foreground service
 
 _2026-10-19_

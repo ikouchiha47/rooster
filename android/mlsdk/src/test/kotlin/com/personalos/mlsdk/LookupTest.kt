@@ -11,7 +11,7 @@ import java.io.File
  * Resolution order is the promise that moving the shared root does not strand a
  * model that is already on disk.
  */
-class ModelLookupTest {
+class LookupTest {
     @get:Rule
     val temp = TemporaryFolder()
 
@@ -22,7 +22,7 @@ class ModelLookupTest {
         File(shared, "model.onnx").writeText("new")
         File(legacy, "model.onnx").writeText("old")
 
-        val found = ModelLookup.findExisting(listOf(shared, legacy), "model.onnx")
+        val found = Lookup.findExisting(listOf(shared, legacy), "model.onnx")
 
         assertEquals(shared, found?.parentFile)
     }
@@ -33,7 +33,7 @@ class ModelLookupTest {
         val legacy = temp.newFolder("legacy")
         File(legacy, "model.onnx").writeText("old")
 
-        val found = ModelLookup.findExisting(listOf(shared, legacy), "model.onnx")
+        val found = Lookup.findExisting(listOf(shared, legacy), "model.onnx")
 
         assertEquals(legacy, found?.parentFile)
     }
@@ -41,13 +41,13 @@ class ModelLookupTest {
     @Test
     fun `a missing file is null rather than a guess`() {
         val shared = temp.newFolder("shared")
-        assertNull(ModelLookup.findExisting(listOf(shared), "model.onnx"))
+        assertNull(Lookup.findExisting(listOf(shared), "model.onnx"))
     }
 
     @Test
     fun `a directory with the right name is not a model file`() {
         val root = temp.newFolder("root")
         File(root, "model.onnx").mkdirs()
-        assertNull(ModelLookup.findExisting(listOf(root), "model.onnx"))
+        assertNull(Lookup.findExisting(listOf(root), "model.onnx"))
     }
 }

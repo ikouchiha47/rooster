@@ -29,7 +29,7 @@ import kotlin.math.sqrt
  *
  * The exported graph is a fixed `[1, 256]`, so [Embedder.embedMany] is inherited
  * as a loop — this runtime cannot batch. [OnnxEmbedder] is the batched one; both
- * are shipped, and which is active is a `KnownModels` choice, not an SDK one.
+ * are shipped, and which is active is a `KnownArtifacts` choice, not an SDK one.
  *
  * One `Interpreter` behind a mutex: it is not thread-safe.
  */

@@ -29,7 +29,7 @@ class HttpDownloader(
      * percentage without a HEAD request.
      */
     suspend fun download(
-        spec: ModelSpec,
+        spec: ArtifactFile,
         destDir: File,
         progress: (written: Long, total: Long) -> Unit = { _, _ -> },
     ): File =
@@ -96,7 +96,7 @@ class HttpDownloader(
             // Cheap content check before the expensive hash: a web page or a
             // truncated runtime file is rejected on its first bytes. Not
             // resume-worthy, so the `.part` goes and the next attempt is clean.
-            ModelValidation.problem(part, contentType)?.let { reason ->
+            Validation.problem(part, contentType)?.let { reason ->
                 part.delete()
                 throw IllegalStateException("download rejected: $reason (${spec.fileName})")
             }

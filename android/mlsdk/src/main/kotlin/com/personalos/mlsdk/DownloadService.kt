@@ -27,13 +27,13 @@ import kotlinx.coroutines.launch
  * a CPU wake lock only for the transfer (capped, so a bug cannot hold it for
  * ever), and resumes from the `.part` file on a retry ([HttpDownloader]).
  *
- * Progress goes two ways: [ModelDownloadEvents] for in-app observers, and the
+ * Progress goes two ways: [DownloadEvents] for in-app observers, and the
  * notification for everyone else. The notification is **throttled separately**
  * from the event stream, because Android rate-limits `notify()` per app and will
  * silently shed the final "complete" update if it is spammed — a real device
  * finding, not a precaution.
  */
-class ModelDownloadService : Service() {
+class DownloadService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
@@ -50,9 +50,9 @@ class ModelDownloadService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
-        val specs = intent?.getStringExtra(EXTRA_SPECS)?.let(ModelManifest::parse)
+        val artifacts = intent?.getStringExtra(EXTRA_ARTIFACTS)?.let(Manifest::parse)?.artifacts
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Downloading models"
-        if (specs.isNullOrEmpty()) {
+        if (artifacts.isNullOrEmpty()) {
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -64,7 +64,7 @@ class ModelDownloadService : Service() {
         job =
             scope.launch {
                 try {
-                    runDownload(specs, title)
+                    runDownload(artifacts, title)
                 } finally {
                     releaseWakeLock()
                     stopForegroundCompat()
@@ -81,19 +81,21 @@ class ModelDownloadService : Service() {
     }
 
     private suspend fun runDownload(
-        specs: List<ModelSpec>,
+        artifacts: List<Artifact>,
         title: String,
     ) {
-        val store = ModelStore(this)
+        val hub = Hub(this, artifacts)
         var failed: String? = null
-        for (spec in specs) {
+        for (artifact in artifacts) {
+            var current = artifact.name
             var lastPct = -1
             var lastNotifyAt = 0L
             val ok =
                 runCatching {
-                    store.ensure(spec) { written, total ->
-                        ModelDownloadEvents.emit(
-                            ModelDownloadEvents.Update(spec.fileName, written, total),
+                    hub.ensure(artifact.ref) { file, written, total ->
+                        current = file.fileName
+                        DownloadEvents.emit(
+                            DownloadEvents.Update(artifact.name, file.fileName, written, total),
                         )
                         if (total > 0) {
                             val pct = (written * 100 / total).toInt()
@@ -102,29 +104,36 @@ class ModelDownloadService : Service() {
                                 val now = System.currentTimeMillis()
                                 if (now - lastNotifyAt >= NOTIFY_INTERVAL_MS) {
                                     lastNotifyAt = now
-                                    notifyProgress(title, spec.fileName, pct)
+                                    notifyProgress(title, "${artifact.name}/${file.fileName}", pct)
                                 }
                             }
                         }
                     }
                 }.onFailure { error ->
-                    Log.w(TAG, "download failed: ${spec.fileName}", error)
-                    ModelDownloadEvents.emit(
-                        ModelDownloadEvents.Update(
-                            fileName = spec.fileName,
+                    Log.w(TAG, "download failed: ${artifact.name}/$current", error)
+                    DownloadEvents.emit(
+                        DownloadEvents.Update(
+                            artifactName = artifact.name,
+                            fileName = current,
                             written = 0,
-                            total = spec.sizeBytes,
+                            total = artifact.sizeBytes,
                             done = true,
                             error = error.message ?: error.javaClass.simpleName,
                         ),
                     )
                 }
             if (ok.isSuccess) {
-                ModelDownloadEvents.emit(
-                    ModelDownloadEvents.Update(spec.fileName, spec.sizeBytes, spec.sizeBytes, done = true),
+                DownloadEvents.emit(
+                    DownloadEvents.Update(
+                        artifactName = artifact.name,
+                        fileName = current,
+                        written = artifact.sizeBytes,
+                        total = artifact.sizeBytes,
+                        done = true,
+                    ),
                 )
             } else {
-                failed = spec.fileName
+                failed = "${artifact.name}/$current"
                 break
             }
         }
@@ -137,7 +146,7 @@ class ModelDownloadService : Service() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Model downloads", NotificationManager.IMPORTANCE_LOW),
+                NotificationChannel(CHANNEL_ID, "Artifact downloads", NotificationManager.IMPORTANCE_LOW),
             )
         }
     }
@@ -237,31 +246,35 @@ class ModelDownloadService : Service() {
     }
 
     companion object {
-        private const val TAG = "ModelDownloadService"
+        private const val TAG = "DownloadService"
         private const val CHANNEL_ID = "mlsdk_model_download"
         private const val NOTIFICATION_ID = 9110
         private const val NOTIFY_INTERVAL_MS = 400L
         private const val WAKE_LOCK_CAP_MS = 30L * 60L * 1000L
 
-        /** The specs to fetch, as a `ModelManifest` document (they are not `Parcelable`). */
-        const val EXTRA_SPECS = "specs"
+        /**
+         * The artifacts to fetch, as a registry document — an `Artifact` is not
+         * `Parcelable`, and the registry is the one serialisation we already
+         * guarantee.
+         */
+        const val EXTRA_ARTIFACTS = "artifacts"
         const val EXTRA_TITLE = "title"
 
         /**
-         * Starts the service for [specs]. Returns false when the platform refuses
+         * Starts the service for [artifacts]. Returns false when the platform refuses
          * to start a foreground service (e.g. background-start restrictions), so a
          * caller can fall back to an in-process fetch instead of silently doing
          * nothing.
          */
         fun start(
             context: Context,
-            specs: List<ModelSpec>,
+            artifacts: Collection<Artifact>,
             title: String = "Downloading models",
         ): Boolean =
             runCatching {
                 context.startForegroundService(
-                    Intent(context, ModelDownloadService::class.java)
-                        .putExtra(EXTRA_SPECS, ModelManifest.write(specs))
+                    Intent(context, DownloadService::class.java)
+                        .putExtra(EXTRA_ARTIFACTS, Manifest.write(ArtifactRegistry.of(artifacts)))
                         .putExtra(EXTRA_TITLE, title),
                 )
                 true

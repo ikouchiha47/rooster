@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.personalos.app.core.AppContainer
-import com.personalos.app.data.KnownModels
+import com.personalos.app.data.KnownArtifacts
 
 /**
  * Debug-only forced model fetch: downloads the pinned embedding bundle through
@@ -22,7 +22,7 @@ class ForceModelDownloadWorker(
     override suspend fun doWork(): Result {
         val container = AppContainer(applicationContext)
         val downloaded =
-            runCatching { container.modelDownloader.download(KnownModels.embeddingGemmaBundle) }
+            runCatching { container.modelDownloader.download(KnownArtifacts.enabled.map { it.ref }) }
                 .onFailure { Log.w(TAG, "download failed", it) }
                 .getOrDefault(false)
         val upgraded =

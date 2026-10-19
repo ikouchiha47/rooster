@@ -9,7 +9,7 @@ object Integrity {
     fun matches(
         sizeBytes: Long,
         sha256: String,
-        spec: ModelSpec,
+        spec: ArtifactFile,
     ): Boolean = sizeBytes == spec.sizeBytes && sha256.equals(spec.sha256, ignoreCase = true)
 
     /** Hex SHA-256 of a file, streamed so a 171 MB model never loads into memory. */

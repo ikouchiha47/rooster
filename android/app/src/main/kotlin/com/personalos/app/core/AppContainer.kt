@@ -135,8 +135,15 @@ class AppContainer(
      * ([schema]) and the feed categories — so one downloaded file updates them all.
      */
     private val taxonomy: com.personalos.app.core.tag.taxonomy.Taxonomy? =
-        com.personalos.app.data.taxonomy.TaxonomyLoader
-            .load(context, com.personalos.app.data.KnownModels.taxonomy.fileName)
+        com.personalos.app.data.taxonomy.TaxonomyLoader.load(
+            context,
+            com.personalos.mlsdk.declaredPath(
+                context,
+                com.personalos.app.data.KnownArtifacts.all,
+                com.personalos.app.data.KnownArtifacts.vocabulary.ref,
+                com.personalos.app.data.KnownArtifacts.taxonomy.fileName,
+            ),
+        )
 
     /** Groups and owners as data; falls back to the bundled defaults when unloaded. */
     private val schema: com.personalos.app.core.tag.TagSchema =
@@ -196,17 +203,17 @@ class AppContainer(
         // below sha256-hashes 176 MB — so without this guard each worker re-hashed
         // the model and bogged the device. Once upgraded, it is a free no-op.
         if (upgraded) return true
-        val model = com.personalos.app.data.KnownModels.embeddingGemmaOnnx
-        val data = com.personalos.app.data.KnownModels.embeddingGemmaOnnxData
-        val tokenizer = com.personalos.app.data.KnownModels.embeddingGemmaOnnxTokenizer
-        val ready = com.personalos.mlsdk.ModelStatus.READY
-        // The `.onnx_data` is part of the model: all three must be present, or the
-        // session load would fail on the missing weights.
-        if (models.status(model) != ready || models.status(data) != ready || models.status(tokenizer) != ready) return false
-        val dir = models.dir()
+        val artifact = com.personalos.app.data.KnownArtifacts.embeddingGemma
+        val ready = com.personalos.mlsdk.ArtifactStatus.READY
+        // The whole set must be present: a graph without its weights or its
+        // tokenizer fails at load, so a partial set is refused here, not in ONNX.
+        if (models.status(artifact.ref) != ready) return false
+        val graph = artifact.fileWithRole(com.personalos.mlsdk.FileRole.GRAPH) ?: return false
+        val tokenizer = artifact.fileWithRole(com.personalos.mlsdk.FileRole.TOKENIZER) ?: return false
+        val dir = models.path(artifact.ref)
         val embedder =
             com.personalos.app.data.models.OnnxEmbedder(
-                modelFile = java.io.File(dir, model.fileName),
+                modelFile = java.io.File(dir, graph.fileName),
                 tokenizerFile = java.io.File(dir, tokenizer.fileName),
             )
         if (!embedder.init()) return false
@@ -234,19 +241,12 @@ class AppContainer(
     }
 
     /**
-     * Removes model files the active bundle no longer names — the inactive
-     * runtime's weights, or an abandoned `.part`. Idempotent, and it deletes only
-     * files on disk, never a spec in code, so a runtime swap ([KnownModels]
-     * repointed) leaves no second copy of the model behind. Returns how many went.
+     * Reclaims space the SDK owns: in the private directory, every file no declared
+     * artifact names; in the shared directory, only abandoned `.part` files — a
+     * complete file there may be a dataset or model the user put there on purpose.
+     * Idempotent. Returns how many went.
      */
-    suspend fun pruneModels(): Int =
-        models
-            .evictUnlisted(
-                (
-                    com.personalos.app.data.KnownModels.embeddingGemmaBundle +
-                        com.personalos.app.data.KnownModels.vocabularyBundle
-                ).map { it.fileName },
-            ).size
+    suspend fun pruneModels(): Int = models.prune().size
 
     /**
      * Background-job status: one snapshot per scheduled unique-work name,
@@ -726,8 +726,8 @@ class AppContainer(
      * The model SDK: locate/fetch/verify on-device models. The hub app will be a
      * UI over this same store, so an app works with or without the hub installed.
      */
-    val models: com.personalos.mlsdk.ModelStore =
-        com.personalos.mlsdk.ModelStore(context)
+    val models: com.personalos.mlsdk.Hub =
+        com.personalos.mlsdk.Hub(context, com.personalos.app.data.KnownArtifacts.all)
 
     /**
      * The one owner of in-app notifications — process-wide, so a background

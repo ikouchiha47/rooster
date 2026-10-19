@@ -4,7 +4,6 @@ import android.content.Context
 import com.personalos.app.core.tag.taxonomy.Taxonomy
 import com.personalos.app.core.tag.taxonomy.TaxonomyJson
 import com.personalos.app.core.tag.taxonomy.mergeTaxonomies
-import com.personalos.mlsdk.ModelPaths
 import java.io.File
 
 /**
@@ -21,11 +20,11 @@ object TaxonomyLoader {
 
     fun load(
         context: Context,
-        downloadedFileName: String,
+        overlay: File?,
     ): Taxonomy? {
         val base = readAsset(context) ?: return null
-        val overlay = readFile(ModelPaths.file(context, downloadedFileName))
-        return if (overlay != null) mergeTaxonomies(base, overlay) else base
+        val downloaded = overlay?.let(::readFile)
+        return if (downloaded != null) mergeTaxonomies(base, downloaded) else base
     }
 
     private fun readAsset(context: Context): Taxonomy? =

@@ -6,7 +6,7 @@ data class PresentFile(
     val sha256: String,
 )
 
-enum class ModelStatus {
+enum class ArtifactStatus {
     /** No file. */
     ABSENT,
 
@@ -21,22 +21,22 @@ enum class ModelStatus {
 }
 
 /**
- * The one decision `ModelStore.ensure` acts on, as a **pure function** so it can
+ * The one decision `Hub.ensure` acts on, as a **pure function** so it can
  * be tested without files: is the present file the model, or must it be (re)fetched?
  *
  * Size is checked before the hash because it is free, and it catches the common
  * failure — a download that stopped early — without hashing a 171 MB file.
  */
-fun modelStatus(
+fun artifactStatus(
     present: PresentFile?,
-    spec: ModelSpec,
-): ModelStatus =
+    spec: ArtifactFile,
+): ArtifactStatus =
     when {
-        present == null -> ModelStatus.ABSENT
-        present.sizeBytes != spec.sizeBytes -> ModelStatus.PARTIAL
-        !present.sha256.equals(spec.sha256, ignoreCase = true) -> ModelStatus.STALE
-        else -> ModelStatus.READY
+        present == null -> ArtifactStatus.ABSENT
+        present.sizeBytes != spec.sizeBytes -> ArtifactStatus.PARTIAL
+        !present.sha256.equals(spec.sha256, ignoreCase = true) -> ArtifactStatus.STALE
+        else -> ArtifactStatus.READY
     }
 
 /** True when [status] means the file is present and trustworthy. */
-val ModelStatus.usable: Boolean get() = this == ModelStatus.READY
+val ArtifactStatus.usable: Boolean get() = this == ArtifactStatus.READY
