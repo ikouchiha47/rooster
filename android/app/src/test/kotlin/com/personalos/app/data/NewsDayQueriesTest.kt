@@ -212,6 +212,16 @@ class NewsDayQueriesTest {
                 )
                 """.trimIndent(),
             )
+            db.createStatement().executeUpdate(
+                """
+                CREATE TABLE tagged_items (
+                    item_id TEXT NOT NULL,
+                    tagger_id TEXT NOT NULL,
+                    tagged_at INTEGER NOT NULL,
+                    PRIMARY KEY(item_id, tagger_id)
+                )
+                """.trimIndent(),
+            )
             db.createStatement().executeUpdate("CREATE VIEW `item_tags_current` AS ${Sql.ITEM_TAGS_CURRENT.trim()}")
             db.createStatement().executeUpdate(
                 "INSERT INTO taggers (id, kind, version, active, created_at) VALUES ('heuristic-v2', 'HEURISTIC', 2, 1, 1)",
@@ -256,6 +266,13 @@ class NewsDayQueriesTest {
             ).use { ps ->
                 ps.setString(1, ulid)
                 ps.setString(2, tag)
+                ps.executeUpdate()
+            }
+        db
+            .prepareStatement(
+                "INSERT INTO tagged_items (item_id, tagger_id, tagged_at) VALUES (?, 'heuristic-v2', 1)",
+            ).use { ps ->
+                ps.setString(1, ulid)
                 ps.executeUpdate()
             }
     }

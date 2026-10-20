@@ -148,6 +148,7 @@ data class RuleDraft(
                 is Condition.Source -> PredicateDraft.Source(condition.sourceId)
                 is Condition.Field -> PredicateDraft.Field(condition.name, condition.op, condition.value)
                 is Condition.Text -> PredicateDraft.Text(condition.matcher.pattern, condition.matcher.target)
+                is Condition.Semantic -> PredicateDraft.Meaning(condition.text, condition.threshold, condition.vector.toList())
                 else -> PredicateDraft.Unsupported
             }
     }
@@ -262,6 +263,29 @@ sealed interface PredicateDraft {
             }
 
         override fun summary(): String = "text(${target.serialName}) ~ \"$pattern\""
+    }
+
+    data class Meaning(
+        val text: String,
+        val threshold: Float = 0.6f,
+        /** Filled at save time by the embedder; empty while the user is typing. */
+        val vector: List<Float> = emptyList(),
+    ) : PredicateDraft {
+        override fun isValid(): Boolean = text.isNotBlank()
+
+        override fun toJson(): JsonObject =
+            buildJsonObject {
+                put(
+                    "meaning",
+                    buildJsonObject {
+                        put("text", JsonPrimitive(text))
+                        put("threshold", JsonPrimitive(threshold))
+                        put("vector", JsonArray(vector.map { JsonPrimitive(it) }))
+                    },
+                )
+            }
+
+        override fun summary(): String = "meaning ~ \"$text\""
     }
 
     data object Unsupported : PredicateDraft {

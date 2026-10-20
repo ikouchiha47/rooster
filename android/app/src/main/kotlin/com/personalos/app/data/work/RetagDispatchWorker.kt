@@ -1,46 +1,22 @@
 package com.personalos.app.data.work
 
 import android.content.Context
-import android.util.Log
-import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.personalos.app.core.AppContainer
-import kotlinx.coroutines.CancellationException
 
 /**
- * Runs the **retag dispatcher**: one bounded tick that re-tags several chunks,
- * weighted by family priority. Replaces the six per-family workers, which competed
- * for the model and starved SMS.
+ * The fast re-tag drain, as a thin [DrainWorker] host.
  *
- * Bounded, so one run fits an OS scheduling window; if work remains it retries, and
- * the per-family cursors mean nothing is lost between runs.
+ * It is the **single processor** for retagging (ADR 0010 §5): the periodic recon
+ * only nudges this unique job, and the host chains another batch while the
+ * derived backlog remains.
  */
 class RetagDispatchWorker(
     appContext: Context,
     params: WorkerParameters,
-) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result {
-        val version = inputData.getLong(BackfillVersion.KEY, 0L)
-        if (!BackfillVersion.isCurrent(applicationContext, version)) {
-            Log.i(TAG, "retag dispatch superseded (v$version)")
-            return Result.success()
-        }
-        val container = AppContainer.get(applicationContext)
-        return try {
-            container.upgradeTagger()
-            if (!BackfillVersion.isCurrent(applicationContext, version)) return Result.success()
-            val more = container.retagDispatcher.tick()
-            Log.i(TAG, "retag tick: more=$more")
-            if (more) Result.retry() else Result.success()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.w(TAG, "retag dispatch failed", e)
-            Result.retry()
-        }
-    }
+) : DrainWorker(appContext, params) {
+    override fun specFor(key: String): DrainSpec = Drains.RETAG
 
     companion object {
-        const val TAG = "RetagDispatch"
+        const val KEY_TAGGED = "tagged"
     }
 }

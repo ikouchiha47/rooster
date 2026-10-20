@@ -53,6 +53,30 @@ class PolicyTaggerTest {
     }
 
     @Test
+    fun `a promo sender suppresses the embedder's subjects but keeps its natures`() {
+        val tagger = PolicyTagger(fake(emptySet()), fake(setOf(Tags.FINANCE, Tags.TRAVEL, Tags.PROMO)))
+
+        val tags =
+            runBlocking {
+                tagger.tag(TagInput(text = "x", source = Transport.SMS, sender = "BG-UNIONB-P"))
+            }.tags
+
+        assertEquals(setOf(Tags.PROMO), tags)
+    }
+
+    @Test
+    fun `a service sender keeps the embedder's subjects`() {
+        val tagger = PolicyTagger(fake(emptySet()), fake(setOf(Tags.FINANCE, Tags.INCIDENT)))
+
+        val tags =
+            runBlocking {
+                tagger.tag(TagInput(text = "x", source = Transport.SMS, sender = "VA-WBGBNK-S"))
+            }.tags
+
+        assertEquals(setOf(Tags.FINANCE, Tags.INCIDENT), tags)
+    }
+
+    @Test
     fun `confidence is the higher of the two`() {
         val tagger = PolicyTagger(fake(setOf(Tags.FESTIVAL), confidence = 0.3f), fake(setOf(), confidence = 0.8f))
         assertEquals(0.8f, runBlocking { tagger.tag(input()) }.confidence, 0.0001f)

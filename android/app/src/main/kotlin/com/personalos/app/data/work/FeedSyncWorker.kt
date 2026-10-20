@@ -25,6 +25,10 @@ class FeedSyncWorker(
             .fold(
                 onSuccess = { added ->
                     Log.i(TAG, "scheduled sync: +$added items")
+                    if (added > 0) {
+                        runCatching { SyncScheduler.enqueueEnrichment(applicationContext) }
+                            .onFailure { Log.w(TAG, "enrichment schedule failed", it) }
+                    }
                     Result.success(workDataOf(KEY_ADDED to added))
                 },
                 onFailure = { error ->

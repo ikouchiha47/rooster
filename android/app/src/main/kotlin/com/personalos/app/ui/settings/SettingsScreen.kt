@@ -1,10 +1,6 @@
 package com.personalos.app.ui.settings
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,7 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,9 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.personalos.app.core.AppContainer
 import com.personalos.app.core.Chars
 import com.personalos.app.core.theme.RadarTheme
@@ -70,6 +62,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val container = LocalAppContainer.current
+    val context = LocalContext.current
     // Reads the single theme state, so this screen recomposes on every change.
     val current = RadarFonts.theme
 
@@ -119,17 +112,34 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(12.dp))
             ModelsSection(
+                title = "Tag model",
+                blurb =
+                    "The trained classifier over the embedding — one logistic head per topic. " +
+                        "Without it, the tagger falls back to labelled examples.",
+                footer = "Tag model is shared on this device",
+                models = listOf(KnownArtifacts.heads),
+                onDownloaded = {
+                    it.upgradeTagger(force = true)
+                    // The active tagger changed, so replay the store instead of
+                    // leaving old items on the previous cascade version.
+                    com.personalos.app.data.work.SyncScheduler
+                        .enqueueBackfill(context, force = true)
+                },
+            )
+
+            Spacer(Modifier.height(12.dp))
+            ModelsSection(
                 title = "Vocabulary",
                 blurb =
                     "The tag vocabulary as data — descriptions and terms. Update it " +
                         "without an app release.",
                 footer = "Vocabulary is shared on this device",
-                models = listOf(KnownArtifacts.vocabulary),
+                models = listOf(KnownArtifacts.vocabulary, KnownArtifacts.examples),
                 onDownloaded = { it.reloadVocabulary() },
             )
 
             Spacer(Modifier.height(12.dp))
-            StorageSection()
+            DiagnosticsSection()
 
             Spacer(Modifier.height(12.dp))
             BatterySection()
@@ -181,7 +191,7 @@ private fun BatterySection() {
 }
 
 /**
- * Which enrichment path is live. The workflow (enrich → re-tag) is the default;
+ * Which enrichment path is live. The workflow (enrich only) is the default;
  * this row is the kill switch, so a bad release returns to the direct call without
  * a new build. It takes effect on the next run, not retroactively.
  */
@@ -194,8 +204,8 @@ private fun EnrichmentSection() {
     Text(
         text =
             if (viaWorkflow) {
-                "Enrichment runs as a workflow — fetch, then re-tag — so a run is " +
-                    "tracked and resumable."
+                "Enrichment runs as its own tracked workflow; retag runs separately " +
+                    "from the store's backlog."
             } else {
                 "Enrichment calls the enricher directly and records no run."
             },
@@ -229,66 +239,296 @@ private fun EnrichmentSection() {
 }
 
 /**
- * Where models live, and the one grant that makes them shared.
- *
- * The SDK decides the directory; this only reports it. Without all-files access
- * the SDK falls back to app-private storage, so a 187 MB model downloads fine but
- * is invisible to every other app — worth saying before it is discovered.
+ * Opt-in telemetry: node timings, failures and power samples, kept as three daily
+ * partitions. Off by default, because sampling costs a binder call per batch and
+ * the log is only useful while it is answering a question.
  */
 @Composable
-private fun StorageSection() {
+private fun DiagnosticsSection() {
     val context = LocalContext.current
-    val hub = LocalAppContainer.current.models
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var shared by remember { mutableStateOf(hub.sharedStorageUsable()) }
+    val container = LocalAppContainer.current
+    val journal = container.journal
+    val scope = rememberCoroutineScope()
+    var enabled by remember { mutableStateOf(journal.enabled) }
+    var days by remember { mutableStateOf<List<com.personalos.app.core.metrics.DaySummary>>(emptyList()) }
 
-    // The grant happens in system Settings, so re-read it when this screen returns.
-    DisposableEffect(lifecycleOwner) {
-        val observer =
-            LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) shared = hub.sharedStorageUsable()
+    LaunchedEffect(enabled) {
+        days =
+            if (enabled) {
+                runCatching { journal.summaries() }.getOrDefault(emptyList())
+            } else {
+                emptyList()
             }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    WidgetHeader(title = "Model storage", note = if (shared) "shared" else "app-only")
+    WidgetHeader(title = "Diagnostics", note = if (enabled) "on" else "off")
+    val level = container.power.levelPercent()
+    val charging = container.power.isCharging()
+    BatteryMeter(
+        level = level,
+        charging = charging == true,
+        floor = container.powerGuard.minPercent,
+    )
+    val meter =
+        remember {
+            com.personalos.app.core.metrics
+                .SystemMeter(context)
+        }
+    var system by remember { mutableStateOf(meter.sample()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            system = meter.sample()
+            kotlinx.coroutines.delay(2_000)
+        }
+    }
+    SystemMeters(system)
     Text(
         text =
-            if (shared) {
-                "Models live in Downloads/ml-models — your other apps can use the same copy."
+            if (enabled) {
+                "Node timings, failures and power samples are kept for three days."
             } else {
-                "Models are private to this app. Grant all-files access to share one copy with your other apps."
+                "Off. Turning this on keeps node timings, failures and power samples for three days."
             },
         style = RadarType.microPlain,
         color = RadarColors.ink3,
         modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
     )
-    if (!shared && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+    Text(
+        text = if (enabled) "TURN OFF" else "TURN ON",
+        style = RadarType.labelMicro,
+        color = if (enabled) RadarColors.ink3 else CategoryColors.Teal,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable {
+                    enabled = !enabled
+                    journal.enabled = enabled
+                }.padding(horizontal = 8.dp, vertical = 8.dp),
+    )
+    val busiest = days.maxOfOrNull { it.events }?.coerceAtLeast(1) ?: 1
+    days.forEach { day -> DayBar(day = day, busiest = busiest) }
+    if (enabled && days.isNotEmpty()) {
         Text(
-            text = "GRANT ALL-FILES ACCESS",
+            text = "COPY CSV",
             style = RadarType.labelMicro,
             color = CategoryColors.Teal,
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clickable { openAllFilesAccess(context) }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .clickable {
+                        scope.launch {
+                            runCatching {
+                                val clipboard =
+                                    context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("telemetry.csv", journal.csv()))
+                            }
+                        }
+                    }.padding(horizontal = 8.dp, vertical = 8.dp),
         )
     }
-    FooterStrip(if (shared) hub.storageDir().absolutePath else "Private storage")
+    FooterStrip("Three days, then dropped whole")
 }
 
-/** Opens the per-app all-files screen, falling back to the global one. */
-private fun openAllFilesAccess(context: Context) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-    val perApp =
-        Intent(
-            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-            Uri.parse("package:${context.packageName}"),
+@Composable
+private fun BatteryMeter(
+    level: Int?,
+    charging: Boolean,
+    floor: Int,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "BATTERY", style = RadarType.labelMicro, color = RadarColors.ink3, modifier = Modifier.width(60.dp))
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(8.dp)
+                .border(1.dp, RadarColors.ink3),
+        ) {
+            if (level != null) {
+                Box(
+                    Modifier
+                        .fillMaxWidth((level / 100f).coerceIn(0f, 1f))
+                        .height(6.dp)
+                        .background(if (level <= floor) CategoryColors.Vermilion else CategoryColors.Teal),
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth((floor / 100f).coerceIn(0f, 1f))
+                        .height(8.dp),
+                    contentAlignment = Alignment.CenterEnd,
+                ) {
+                    Box(Modifier.width(1.dp).height(8.dp).background(RadarColors.ink3))
+                }
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = level?.let { "$it%" } ?: "--",
+            style = RadarType.micro,
+            color = if (level != null && level <= floor) CategoryColors.Vermilion else RadarColors.ink2,
         )
-    runCatching { context.startActivity(perApp) }.onFailure {
-        runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
+        if (charging) {
+            Spacer(Modifier.width(6.dp))
+            Text(text = "CHARGING", style = RadarType.labelMicro, color = CategoryColors.Teal)
+        }
+    }
+}
+
+@Composable
+private fun SystemMeters(sample: com.personalos.app.core.metrics.SystemSample) {
+    val context = LocalContext.current
+    val ramFraction = if (sample.ramTotalBytes > 0) sample.ramUsedBytes.toFloat() / sample.ramTotalBytes else null
+    val storageFraction =
+        if (sample.storageTotalBytes > 0) sample.storageUsedBytes.toFloat() / sample.storageTotalBytes else null
+    val appFraction =
+        if (sample.ramTotalBytes > 0 && sample.appPssBytes != null) {
+            sample.appPssBytes.toFloat() / sample.ramTotalBytes
+        } else {
+            null
+        }
+    MeterRow(
+        label = "CPU",
+        fraction = sample.appCpuPercent?.let { it / 100f },
+        value = sample.appCpuPercent?.let { "%.0f%%".format(it) } ?: "--",
+    )
+    MeterRow(
+        label = "MEM",
+        fraction = ramFraction,
+        value =
+            "${android.text.format.Formatter.formatShortFileSize(context, sample.ramUsedBytes)}" +
+                "/${android.text.format.Formatter.formatShortFileSize(context, sample.ramTotalBytes)}",
+    )
+    MeterRow(
+        label = "DISK",
+        fraction = storageFraction,
+        value =
+            "${android.text.format.Formatter.formatShortFileSize(context, sample.storageUsedBytes)}" +
+                "/${android.text.format.Formatter.formatShortFileSize(context, sample.storageTotalBytes)}",
+    )
+    MeterRow(
+        label = "APP",
+        fraction = appFraction,
+        value =
+            sample.appPssBytes?.let {
+                android.text.format.Formatter
+                    .formatShortFileSize(context, it)
+            }
+                ?: "--",
+    )
+    Text(
+        text =
+            "${sample.cores} cores ${Chars.MIDDLE_DOT} ${sample.threads} threads " +
+                "${Chars.MIDDLE_DOT} up ${uptimeLabel(sample.uptimeMs)}",
+        style = RadarType.microPlain,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+private fun MeterRow(
+    label: String,
+    fraction: Float?,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, style = RadarType.labelMicro, color = RadarColors.ink3, modifier = Modifier.width(60.dp))
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(6.dp)
+                .background(RadarColors.paper4),
+        ) {
+            if (fraction != null) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                        .height(6.dp)
+                        .background(CategoryColors.Teal),
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = value,
+            style = RadarType.micro,
+            color = RadarColors.ink2,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.width(94.dp),
+        )
+    }
+}
+
+private fun uptimeLabel(ms: Long): String {
+    val hours = ms / 3_600_000
+    val minutes = (ms / 60_000) % 60
+    return "${hours}h ${minutes}m"
+}
+
+@Composable
+private fun DayBar(
+    day: com.personalos.app.core.metrics.DaySummary,
+    busiest: Int,
+) {
+    val events = day.events.coerceAtLeast(0)
+    val errors = day.errors.coerceAtLeast(0)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "${day.day.month.name.take(3)} ${day.day.dayOfMonth}",
+                style = RadarType.micro,
+                color = RadarColors.ink,
+                modifier = Modifier.width(52.dp),
+            )
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(6.dp)
+                    .background(RadarColors.paper4),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth((events.toFloat() / busiest).coerceIn(0f, 1f))
+                        .height(6.dp)
+                        .background(CategoryColors.Teal),
+                )
+                if (errors > 0) {
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxWidth((errors.toFloat() / busiest).coerceIn(0f, 1f))
+                            .height(6.dp)
+                            .background(CategoryColors.Vermilion),
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "$events",
+                style = RadarType.micro,
+                color = RadarColors.ink2,
+            )
+        }
+        Text(
+            text =
+                "$errors errors ${Chars.MIDDLE_DOT} ${day.unfinished} unfinished ${Chars.MIDDLE_DOT} " +
+                    "${"%.1f".format(day.workMs / 1000.0)} s" +
+                    (
+                        day.energyNwh?.let { " ${Chars.MIDDLE_DOT} " + "%.2f".format(it / 1_000_000.0) + " mWh" }
+                            ?: day.chargeUah?.let { " ${Chars.MIDDLE_DOT} " + "%.2f".format(it / 1_000.0) + " mAh" }
+                            ?: ""
+                    ),
+            style = RadarType.microPlain,
+            color = if (errors > 0) CategoryColors.Vermilion else RadarColors.ink3,
+            modifier = Modifier.padding(start = 52.dp, top = 2.dp),
+        )
     }
 }
 
@@ -318,7 +558,8 @@ private fun ModelsSection(
     }
     LaunchedEffect(Unit) { refresh() }
 
-    WidgetHeader(title = title, note = "${models.sumOf { it.files.size }} files")
+    val bytes = models.sumOf { model -> model.files.sumOf { it.sizeBytes } }
+    WidgetHeader(title = title, note = "${models.sumOf { it.files.size }} files · ${modelSizeLabel(bytes)}")
     Text(
         text = blurb,
         style = RadarType.microPlain,
@@ -334,28 +575,43 @@ private fun ModelsSection(
             )
         }
     }
+    Text(
+        text = container.models.storageDir().absolutePath,
+        style = RadarType.microPlain,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+    )
     val anyMissing = models.any { needsDownload(statuses[it.ref] ?: ArtifactStatus.ABSENT) }
-    if (anyMissing) {
-        Text(
-            text = if (busy) "DOWNLOADING" else "DOWNLOAD",
-            style = RadarType.labelMicro,
-            color = if (busy) RadarColors.ink3 else CategoryColors.Teal,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !busy) {
-                        android.util.Log.i("ModelsSection", "download tapped: ${models.map { it.name }}")
-                        scope.launch {
-                            busy = true
+    Text(
+        text =
+            when {
+                busy -> "DOWNLOADING"
+                anyMissing -> "DOWNLOAD"
+                else -> "RE-DOWNLOAD"
+            },
+        style = RadarType.labelMicro,
+        color = if (busy) RadarColors.ink3 else CategoryColors.Teal,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !busy) {
+                    android.util.Log.i("ModelsSection", "download tapped: ${models.map { it.name }}")
+                    scope.launch {
+                        busy = true
+                        try {
+                            // A ready artifact is deleted first: `ensure` skips verified
+                            // files, so a re-download would otherwise be a no-op.
+                            if (!anyMissing) models.forEach { container.models.remove(it.ref) }
                             val ok = container.modelDownloader.download(models.map { it.ref })
                             android.util.Log.i("ModelsSection", "download finished: ok=$ok")
                             if (ok) onDownloaded(container)
                             refresh()
+                        } finally {
                             busy = false
                         }
-                    }.padding(horizontal = 8.dp, vertical = 8.dp),
-        )
-    }
+                    }
+                }.padding(horizontal = 8.dp, vertical = 8.dp),
+    )
     FooterStrip(footer)
 }
 

@@ -59,6 +59,17 @@ object ConditionStringify {
                         },
                     )
                 }
+            is Condition.Semantic ->
+                buildJsonObject {
+                    put(
+                        "meaning",
+                        buildJsonObject {
+                            put("text", JsonPrimitive(condition.text))
+                            put("threshold", JsonPrimitive(condition.threshold))
+                            put("vector", JsonArray(condition.vector.map { JsonPrimitive(it) }))
+                        },
+                    )
+                }
             is Condition.Crossing ->
                 buildJsonObject {
                     put(

@@ -23,7 +23,6 @@ import com.personalos.app.data.MentionDao
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.PlaceEntity
-import com.personalos.app.data.RetagCandidate
 import com.personalos.app.data.RuleDao
 import com.personalos.app.data.RuleEntity
 import com.personalos.app.data.RulePreviewCandidate
@@ -101,11 +100,6 @@ class FeedIngestorSourcesTest {
 
         override fun observeSourceCounts(): Flow<List<SourceCount>> = flowOf(emptyList())
 
-        override suspend fun itemsAfter(
-            afterId: Long,
-            limit: Int,
-        ): List<RetagCandidate> = emptyList()
-
         override suspend fun radarPage(
             category: String?,
             cursorTs: Long?,
@@ -152,6 +146,8 @@ class FeedIngestorSourcesTest {
         override suspend fun eventById(id: Long): TaggedEvent? = null
 
         override suspend fun enrichmentCandidates(limit: Int): List<EnrichmentCandidate> = emptyList()
+
+        override suspend fun enrichmentBacklogCount(): Int = 0
 
         override suspend fun markEnrichmentAttempted(
             id: Long,

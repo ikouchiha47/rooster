@@ -89,7 +89,7 @@ class ArticleEnricher(
 
     private companion object {
         const val TAG = "Enricher"
-        const val DEFAULT_BATCH = 20
+        const val DEFAULT_BATCH = 40
         const val DEFAULT_PAUSE_MS = 400L
         const val REQUEST_TIMEOUT_MS = 15_000
 

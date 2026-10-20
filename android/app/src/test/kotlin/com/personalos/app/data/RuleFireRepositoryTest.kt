@@ -76,7 +76,7 @@ class RuleFireRepositoryTest {
             fires
                 .values
                 .flatten()
-                .filter { events.containsKey(it.itemId) }
+                .filter { events[it.itemId]?.source == "sms" }
                 .groupBy { it.itemId }
                 .mapNotNull { (itemId, rows) ->
                     val event = events[itemId] ?: return@mapNotNull null
@@ -100,6 +100,7 @@ class RuleFireRepositoryTest {
             flowOf(
                 fires.values
                     .flatten()
+                    .filter { events[it.itemId]?.source == "sms" }
                     .map { it.itemId }
                     .distinct()
                     .size,
@@ -418,8 +419,8 @@ class RuleFireRepositoryTest {
                         ),
                     events =
                         mapOf(
-                            "obs-1" to event("obs-1").copy(id = 1, timestamp = 100L),
-                            "obs-2" to event("obs-2").copy(id = 2, timestamp = 200L),
+                            "obs-1" to event("obs-1", source = "sms").copy(id = 1, timestamp = 100L, type = "inbox"),
+                            "obs-2" to event("obs-2", source = "sms").copy(id = 2, timestamp = 200L, type = "inbox"),
                         ),
                     fields =
                         mapOf(
@@ -448,7 +449,12 @@ class RuleFireRepositoryTest {
     @Test
     fun `alerts walks by cursor without skipping or duplicating`() =
         runBlocking {
-            val events = (1..5).associate { "obs-$it" to event("obs-$it").copy(id = it.toLong(), timestamp = it.toLong()) }
+            val events =
+                (1..5).associate {
+                    "obs-$it" to
+                        event("obs-$it", source = "sms")
+                            .copy(id = it.toLong(), timestamp = it.toLong(), type = "inbox")
+                }
             val fires = mapOf("hot" to (1..5).map { ItemRuleEntity("obs-$it", "hot", 500L + it) })
             val (repo, _) = repository(rules = listOf(rule("hot", "Hot day")), fires = fires, events = events)
 
@@ -478,8 +484,8 @@ class RuleFireRepositoryTest {
                         ),
                     events =
                         mapOf(
-                            "obs-1" to event("obs-1").copy(id = 1),
-                            "obs-2" to event("obs-2").copy(id = 2),
+                            "obs-1" to event("obs-1", source = "sms").copy(id = 1, type = "inbox"),
+                            "obs-2" to event("obs-2", source = "sms").copy(id = 2, type = "inbox"),
                         ),
                 )
             assertEquals("two events, three fires", 2, repo.observeAlertCount().first())

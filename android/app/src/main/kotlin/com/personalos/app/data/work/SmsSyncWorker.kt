@@ -33,6 +33,13 @@ class SmsSyncWorker(
             .fold(
                 onSuccess = { added ->
                     Log.i(TAG, "scheduled sms sync: +$added messages")
+                    // Enrichment candidates need a URL, so SMS rarely adds any; the
+                    // trigger is here because the user asked for "after any source
+                    // sync" and it is cheap when there is nothing to do.
+                    if (added > 0) {
+                        runCatching { SyncScheduler.enqueueEnrichment(applicationContext) }
+                            .onFailure { Log.w(TAG, "enrichment schedule failed", it) }
+                    }
                     Result.success(workDataOf(KEY_ADDED to added))
                 },
                 onFailure = { error ->

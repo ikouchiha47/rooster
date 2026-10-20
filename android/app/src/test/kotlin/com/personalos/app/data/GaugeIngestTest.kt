@@ -68,11 +68,6 @@ class GaugeIngestTest {
 
         override fun observeSourceCounts(): Flow<List<SourceCount>> = flowOf(emptyList())
 
-        override suspend fun itemsAfter(
-            afterId: Long,
-            limit: Int,
-        ): List<RetagCandidate> = emptyList()
-
         override suspend fun radarPage(
             category: String?,
             cursorTs: Long?,
@@ -119,6 +114,8 @@ class GaugeIngestTest {
         override suspend fun eventById(id: Long): TaggedEvent? = null
 
         override suspend fun enrichmentCandidates(limit: Int): List<EnrichmentCandidate> = emptyList()
+
+        override suspend fun enrichmentBacklogCount(): Int = 0
 
         override suspend fun markEnrichmentAttempted(
             id: Long,
@@ -391,8 +388,8 @@ class GaugeIngestTest {
     }
 
     @Test
-    fun `tag timelines exclude observations`() {
-        assertTrue(Sql.EVENTS_BY_TAG_PAGE_ITEMS.contains("e.type != 'observation'"))
+    fun `tag timelines show feed items only`() {
+        assertTrue(Sql.EVENTS_BY_TAG_PAGE_ITEMS.contains("e.type = 'feed'"))
         assertTrue(Sql.EVENTS_BY_TAG_PAGE_ITEMS.contains("t.tag = :tag"))
     }
 

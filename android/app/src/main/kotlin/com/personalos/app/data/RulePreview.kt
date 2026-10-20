@@ -148,6 +148,7 @@ internal fun Condition.coarseFilters(): Set<CoarseFilter> =
         is Condition.Subject -> setOf(CoarseFilter.Tag(tag))
         is Condition.Nature -> setOf(CoarseFilter.Tag(tag))
         is Condition.Marker -> TagGroups.MARKERS.mapTo(linkedSetOf()) { CoarseFilter.Tag(it) }
+        is Condition.Semantic -> emptySet()
         is Condition.Mention -> setOf(CoarseFilter.Mention(kind, value))
         is Condition.Source -> setOf(CoarseFilter.Source(sourceId))
         // Not indexable, so left to the evaluator (ADR §12). Series predicates

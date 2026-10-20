@@ -4,8 +4,10 @@ import com.personalos.app.core.notify.Notification
 import com.personalos.app.core.notify.NotificationCenter
 import com.personalos.app.core.notify.NotificationKind
 import com.personalos.app.core.notify.Severity
+import com.personalos.mlsdk.ArtifactStatus
 import com.personalos.mlsdk.DownloadEvents
 import com.personalos.mlsdk.Hub
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -29,27 +31,22 @@ class ModelDownloader(
     /** Starts the fetch for [refs]; true only when every artifact ends up present. */
     suspend fun download(refs: Collection<String>): Boolean =
         withContext(Dispatchers.IO) {
-            // The service does the transfer; a refusal to start means the caller
-            // should fall back to an in-process fetch instead of doing nothing.
-            if (!hub.download(refs)) return@withContext false
-
-            val pending = refs.toMutableSet()
             val started = mutableSetOf<String>()
-            var failed = false
             coroutineScope {
+                // Subscribe *before* the service starts. The event flow has no replay,
+                // and a 404 fails in milliseconds — a `done` emitted before the
+                // collector attached was lost, leaving the caller waiting the full
+                // timeout with the button stuck on "DOWNLOADING".
                 val mirror =
-                    launch {
+                    launch(start = CoroutineStart.UNDISPATCHED) {
                         DownloadEvents.updates.collect { update ->
                             val id = "artifact:${update.artifactName}"
                             when {
                                 update.done && update.error == null -> {
-                                    pending.remove(update.artifactName)
                                     notifications.dismiss(id)
                                 }
 
                                 update.done -> {
-                                    pending.remove(update.artifactName)
-                                    failed = true
                                     notifications.post(
                                         Notification(
                                             id = "artifact-error",
@@ -84,12 +81,20 @@ class ModelDownloader(
                             }
                         }
                     }
-                // The service emits the last update itself, so this is a safety net
-                // rather than the primary signal.
-                withTimeoutOrNull(TIMEOUT_MS) { while (pending.isNotEmpty()) delay(POLL_MS) }
+                // The service does the transfer; a refusal to start means the caller
+                // should fall back to an in-process fetch instead of doing nothing.
+                val accepted = hub.download(refs)
+                // Completion is the files' state, not an event: `ensure` skips files
+                // that are already READY without emitting anything, so an event-only
+                // wait would never end for a partially complete artifact.
+                if (accepted) {
+                    withTimeoutOrNull(TIMEOUT_MS) {
+                        while (refs.any { hub.status(it) != ArtifactStatus.READY }) delay(POLL_MS)
+                    }
+                }
                 mirror.cancel()
+                accepted && refs.all { hub.status(it) == ArtifactStatus.READY }
             }
-            !failed
         }
 
     private companion object {

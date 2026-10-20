@@ -72,13 +72,6 @@ interface EventDao {
     @Query(Sql.EVENTS_COUNT_BY_SOURCE)
     fun observeSourceCounts(): Flow<List<SourceCount>>
 
-    /** One batch of the re-tag walk, in insertion order. */
-    @Query(Sql.EVENTS_AFTER_ID)
-    suspend fun itemsAfter(
-        afterId: Long,
-        limit: Int,
-    ): List<RetagCandidate>
-
     @Query(Sql.EVENTS_RADAR_PAGE)
     suspend fun radarPage(
         category: String?,
@@ -159,9 +152,13 @@ interface EventDao {
 
     // ----------------------------------------------------------- enrichment
 
-    /** Candidates for enrichment: has URL, short/blank content, never attempted, oldest first. */
+    /** Candidates for enrichment: has URL, short/blank content, never attempted, newest first. */
     @Query(Sql.ENRICHMENT_CANDIDATES)
     suspend fun enrichmentCandidates(limit: Int): List<EnrichmentCandidate>
+
+    /** Depth of the enrichment backlog, for progress and Watchers. */
+    @Query(Sql.ENRICHMENT_BACKLOG_COUNT)
+    suspend fun enrichmentBacklogCount(): Int
 
     /** Mark an item as enrichment-attempted (success or failure). */
     @Query(Sql.ENRICHMENT_MARK_ATTEMPTED)

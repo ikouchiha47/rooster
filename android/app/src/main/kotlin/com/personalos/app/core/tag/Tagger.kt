@@ -82,6 +82,12 @@ data class TagResult(
     val places: List<String> = emptyList(),
     val confidence: Float = 1f,
     val taggerId: String = "",
+    /**
+     * The normalized embedding the ML rung used, when it has one. Persisted so a
+     * natural-language rule can compare against the same geometry later; a
+     * lexicon-only result leaves it null.
+     */
+    val vector: FloatArray? = null,
 )
 
 /**
@@ -105,4 +111,16 @@ interface Tagger {
      * results as calling [tag] per item; only the cost changes.
      */
     suspend fun tagAll(inputs: List<TagInput>): List<TagResult> = inputs.map { tag(it) }
+}
+
+/**
+ * A DLT promotional header ends in `-P`; the suffix is a reliable fact, unlike
+ * the copy. Shared by the lexicon and the embedder rungs so marketing copy is
+ * not evidence of subject matter for either.
+ */
+internal fun isPromotionalSender(sender: String?): Boolean = sender?.trim()?.endsWith("-P", ignoreCase = true) == true
+
+/** The prompt every embedding rung and semantic query uses, so vectors match. */
+object EmbeddingPrompt {
+    const val QUERY = "task: classification | query: "
 }

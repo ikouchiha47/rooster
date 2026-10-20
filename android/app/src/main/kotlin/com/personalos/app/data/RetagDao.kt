@@ -4,29 +4,29 @@ import androidx.room.Dao
 import androidx.room.Query
 
 /**
- * The re-tag walk's two reads, **per source family**: the family's newest id, and a
- * page below a cursor, newest first.
+ * The re-tag backlog's two reads, **per source family**: up to a bounded batch,
+ * and its depth.
  *
- * Its own interface, like [RuleBackfillDao] and [ConversationDao]: walking the
- * store to re-tag is a separate reason to change, and [EventDao]'s six test fakes
- * stay untouched.
+ * The backlog is derived from the store (ADR 0010 §3): no marker for the active
+ * tagger, or an enrichment newer than the marker. That makes enrichment visible
+ * to retag without a queue, an edge, or a second write from the enricher.
  *
- * Newest-first and per-family are both deliberate: a new tagger should reach
- * today's items before last year's, and a small family (SMS) should not wait
- * behind a large one (feeds) for the same walk. `prefix` is a `LIKE` prefix
- * (`"sms"`, `"rss:"`), or null for every source.
+ * `prefix` is a `LIKE` prefix (`"sms"`, `"rss:"`), or null for every source.
  */
 @Dao
 interface RetagDao {
-    /** The top of one source family; a fresh walk of it starts here. */
-    @Query(Sql.EVENTS_MAX_ID_FOR_PREFIX)
-    suspend fun maxId(prefix: String?): Long?
-
-    /** Up to [limit] rows of one family strictly below [beforeId], newest first. */
-    @Query(Sql.EVENTS_BEFORE_ID)
-    suspend fun itemsBefore(
+    /** Up to [limit] items needing a re-tag, newest first, within [prefix]. */
+    @Query(Sql.RETAG_BACKLOG)
+    suspend fun itemsNeedingRetag(
+        taggerId: String?,
         prefix: String?,
-        beforeId: Long,
         limit: Int,
     ): List<RetagCandidate>
+
+    /** The same predicate without a limit, for depth and adaptive batches. */
+    @Query(Sql.RETAG_BACKLOG_COUNT)
+    suspend fun countNeedingRetag(
+        taggerId: String?,
+        prefix: String?,
+    ): Int
 }

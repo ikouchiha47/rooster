@@ -85,6 +85,17 @@ object RuleEvaluator {
         }
     }
 
+    private fun semanticHolds(
+        item: RuleItem,
+        condition: Condition.Semantic,
+    ): Boolean {
+        val vector = item.embedding ?: return false
+        if (vector.size != condition.vector.size) return false
+        var dot = 0f
+        for (i in vector.indices) dot += vector[i] * condition.vector[i]
+        return dot >= condition.threshold
+    }
+
     private fun series(
         field: String,
         window: Window,
@@ -110,6 +121,7 @@ object RuleEvaluator {
             is Condition.Source -> item.sourceId == condition.sourceId
             is Condition.Field -> fieldHolds(item.fields[condition.name], condition.op, condition.value)
             is Condition.Text -> textHolds(item, condition.matcher)
+            is Condition.Semantic -> semanticHolds(item, condition)
             // Unreachable: rejectSeriesPredicates ran first. Kept so the `when`
             // stays exhaustive and a future call path cannot fall through to false.
             is Condition.Crossing -> throw series(condition.field, condition.window, "crossing")

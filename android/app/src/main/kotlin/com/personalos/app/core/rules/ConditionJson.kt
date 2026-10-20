@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import java.util.regex.PatternSyntaxException
 
 /**
@@ -46,6 +47,7 @@ object ConditionJson {
             "source",
             "field",
             "text",
+            "meaning",
             "crossing",
             "delta",
             "min",
@@ -76,6 +78,7 @@ object ConditionJson {
             "source" -> Condition.Source(nonBlank(value, "source"))
             "field" -> field(value)
             "text" -> text(value)
+            "meaning" -> meaning(value)
             "crossing" -> crossing(value)
             "delta" -> delta(value)
             "min" -> aggregate(value, "min")
@@ -160,6 +163,25 @@ object ConditionJson {
                 throw IllegalArgumentException("text: invalid pattern '$pattern': ${e.description}", e)
             }
         return Condition.Text(matcher)
+    }
+
+    private fun meaning(value: JsonElement): Condition {
+        val obj = asObject(value, "meaning")
+        obj.rejectUnknown(setOf("text", "vector", "threshold"), "meaning")
+        val text = obj.requireNonBlankString("text", "meaning")
+        val raw = obj["vector"] as? JsonArray ?: throw IllegalArgumentException("meaning: vector must be an array of numbers")
+        val vector =
+            raw
+                .map { element ->
+                    val number =
+                        (element as? JsonPrimitive)?.doubleOrNull
+                            ?: throw IllegalArgumentException("meaning: vector entries must be numbers")
+                    number.toFloat()
+                }.toFloatArray()
+        require(vector.size in 8..4096) { "meaning: vector must have 8..4096 values, had ${vector.size}" }
+        val threshold = obj.requireDouble("threshold", "meaning")
+        require(threshold in 0.0..1.0) { "meaning: threshold must be between 0 and 1, was $threshold" }
+        return Condition.Semantic(text = text, vector = vector, threshold = threshold.toFloat())
     }
 
     private fun crossing(value: JsonElement): Condition {

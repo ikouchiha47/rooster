@@ -16,9 +16,18 @@ import com.personalos.app.core.tag.TaggerKind
 class TagWriter(
     private val dao: ItemTagDao,
     private val tagger: Tagger,
+    /**
+     * The "processed" marker sink. Production always passes the DAO; a unit test
+     * that only inspects tag rows may omit it, and then no view is rendered.
+     */
+    private val taggedItems: TaggedItemDao? = null,
+    /** Stores the ML rung's vector for the semantic-rule predicate. */
+    private val embeddings: ItemEmbeddingDao? = null,
 ) {
     /**
      * Makes this tagger the active one, registering it if new — **promote only**.
+     * Returns whether the active row changed, so a caller (the backfill) can
+     * enqueue an immediate retag on a genuine version bump.
      *
      * Each worker builds its own `AppContainer`, so a sync whose container never
      * ran the model upgrade carries the heuristic, and its ingest-time
@@ -27,9 +36,9 @@ class TagWriter(
      * loses the flag to a weaker one. (Model removal, a genuine demotion, needs an
      * explicit deactivate, not this path.)
      */
-    suspend fun ensureActive(now: Long = System.currentTimeMillis()) {
+    suspend fun ensureActive(now: Long = System.currentTimeMillis()): Boolean {
         val active = dao.activeTagger()
-        if (active?.id == tagger.id) return
+        if (active?.id == tagger.id) return false
         val activeRank = active?.let { rankOf(it.kind) } ?: -1
         val myRank = rankOf(tagger.kind.name)
         val activeVersion = active?.version ?: -1
@@ -37,12 +46,16 @@ class TagWriter(
         // (cascade-v1 -> cascade-v2 is a real change and must win). A weaker rung
         // never overrides a stronger one, and no version regresses.
         val wins = myRank > activeRank || (myRank == activeRank && tagger.version > activeVersion)
-        if (!wins) return
+        if (!wins) return false
         dao.deactivateAll()
         dao.register(tagger.toEntity(now))
+        return true
     }
 
     private fun rankOf(kindName: String): Int = runCatching { TaggerKind.valueOf(kindName).rank }.getOrDefault(-1)
+
+    /** Whether this writer's tagger is the one the read views resolve against. */
+    suspend fun isActive(): Boolean = dao.activeTagger()?.id == tagger.id
 
     /** Tags one item. Returns the tags written (empty when nothing matched). */
     suspend fun write(
@@ -55,9 +68,13 @@ class TagWriter(
                 .getOrNull()
                 ?: return emptySet()
 
+        val now = System.currentTimeMillis()
+        taggedItems?.markAll(listOf(TaggedItemEntity(itemId, tagger.id, now)))
+        result.vector?.let { vector ->
+            embeddings?.putAll(listOf(ItemEmbeddingEntity(itemId, tagger.id, vector.size, EmbeddingBlob.encode(vector), now)))
+        }
         if (result.tags.isEmpty()) return emptySet()
 
-        val now = System.currentTimeMillis()
         dao.insertAll(
             result.tags.map { tag ->
                 ItemTagEntity(
@@ -85,9 +102,15 @@ class TagWriter(
                 ?: return 0
 
         val rows = ArrayList<ItemTagEntity>()
+        val markers = ArrayList<TaggedItemEntity>(entries.size)
+        val vectors = ArrayList<ItemEmbeddingEntity>(entries.size)
         var tagged = 0
         entries.forEachIndexed { index, (itemId, _) ->
             val result = results.getOrNull(index) ?: return@forEachIndexed
+            markers += TaggedItemEntity(itemId, tagger.id, now)
+            result.vector?.let { vector ->
+                vectors += ItemEmbeddingEntity(itemId, tagger.id, vector.size, EmbeddingBlob.encode(vector), now)
+            }
             if (result.tags.isEmpty()) return@forEachIndexed
             tagged++
             result.tags.forEach { tag ->
@@ -102,6 +125,8 @@ class TagWriter(
             }
         }
 
+        if (markers.isNotEmpty()) taggedItems?.markAll(markers)
+        if (vectors.isNotEmpty()) embeddings?.putAll(vectors)
         if (rows.isNotEmpty()) dao.insertAll(rows)
         return tagged
     }

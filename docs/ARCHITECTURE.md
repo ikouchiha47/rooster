@@ -568,6 +568,32 @@ transposition like `airtle`; the FTS index is not yet used by any other screen.
 
 ---
 
+### 11.8 Observability: the telemetry journal
+
+The workflow ledger records **state** — what may resume, who owns a run — and is mutated in
+place. Telemetry is a separate **append-only** log for reading later: node timings,
+failures, unfinished work, and a device power sample across the same window.
+
+- `Journal` (workflow module) is a port with a `Noop` default. The engine emits `START`
+  before each TASK attempt and `END` after, with the real attempt number; control nodes get
+  a pair too, and a node that never ran gets a single `END SKIPPED`. **A `START` with no
+  `END` is how a crash looks.**
+- `StepOutcome.Failed` carries the step's own reason, persisted to the ledger's `outputs`
+  and the journal's `error`; previously a failure was only `TRANSIENT | PERMANENT`.
+- `JournalStore` (app) is SQLite, **one table per day** (`events_YYYYMMDD`), and retention is
+  a `DROP TABLE` after three days. WAL + `synchronous=NORMAL`; the log is disposable by
+  design. A schema change bumps the DB version and starts clean, because a day table cannot
+  gain a column via `CREATE TABLE IF NOT EXISTS`.
+- Off by default. Every call site guards the write, so a failing sink can never fail the
+  work it observes (the first version did — a schema mismatch aborted a retag batch).
+- `PowerMeter` samples the battery counters (energy where the device exposes it, charge
+  otherwise). `PowerGuard` pauses ML work below 20% while on battery — a policy, not
+  telemetry, so it reads the level even when the log is off.
+
+Measured on the test device: a retag batch of the EmbeddingGemma cascade takes **100–290 s**
+and ~50 mAh. The lexicon rung is **48 ms per 1000 items** on the JVM. That gap is the
+argument for training a BoW rung rather than making the embedder the default.
+
 ## 12. Parked
 
 Deliberately deferred, recorded so the reasoning and the sources outlive the session.

@@ -23,10 +23,10 @@ class DirectEnrichment(
 }
 
 /**
- * Enrich, then re-tag, as one tracked and resumable run.
+ * Enrichment as one tracked and resumable run.
  *
- * The enriched count is the enrich node's step result; progress is forwarded from
- * that node **only**, so the retag stage can never move the bar.
+ * The run is the **enrich** workflow only (ADR 0010). It never invokes retag:
+ * retagging is a separate drain and discovers enriched rows through the store.
  */
 class WorkflowEnrichment(
     private val runs: WorkflowRuns,
@@ -34,7 +34,7 @@ class WorkflowEnrichment(
     override suspend fun run(onProgress: suspend (done: Int, total: Int) -> Unit): Int {
         val result =
             runs.run(
-                id = AppWorkflows.ENRICH_RETAG,
+                id = AppWorkflows.ENRICH,
                 runId = "enrich-${System.currentTimeMillis()}",
                 onProgress = { node, done, total ->
                     if (node == NodeId(AppWorkflows.ENRICH_NODE)) onProgress(done, total)

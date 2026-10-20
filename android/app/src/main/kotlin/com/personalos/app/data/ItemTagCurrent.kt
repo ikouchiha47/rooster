@@ -4,7 +4,11 @@ import androidx.room.ColumnInfo
 import androidx.room.DatabaseView
 
 /**
- * Read-only projection over `item_tags` limited to the active tagger.
+ * Read-only projection over `item_tags`: the best available tagger per item.
+ *
+ * The active tagger wins; an item it has not produced tags for yet falls back to
+ * the most recent previous tagger, so a version switch never blanks a tile for the
+ * length of the backfill.
  *
  * Because tag rows are append-only, the underlying table accumulates output
  * from every tagger version side by side (that is what makes a rollback or a

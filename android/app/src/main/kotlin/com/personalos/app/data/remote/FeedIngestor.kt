@@ -85,6 +85,11 @@ class FeedIngestor(
      * the RSS list shows. Same client, same User-Agent. Injectable in tests.
      */
     private val fetchRaw: (String) -> Http.RawResponse = { url -> Http.getRaw(url) },
+    /**
+     * Called after a refresh that landed items, so the caller can start
+     * enrichment promptly instead of waiting for its periodic slot.
+     */
+    private val onLanded: suspend (Int) -> Unit = {},
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -203,6 +208,10 @@ class FeedIngestor(
 
             _lastSyncAt.value = System.currentTimeMillis()
             Log.i(TAG, "refresh: +$added items from ${feeds.size} feeds")
+            if (added > 0) {
+                runCatching { onLanded(added) }
+                    .onFailure { Log.w(TAG, "enrichment schedule failed", it) }
+            }
             added
         }
 

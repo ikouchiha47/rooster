@@ -23,6 +23,8 @@ sealed interface StepOutcome {
 
     data class Failed(
         val failure: Failure,
+        /** Why, in the step's words — persisted so a reader can see the error. */
+        val reason: String? = null,
     ) : StepOutcome
 }
 

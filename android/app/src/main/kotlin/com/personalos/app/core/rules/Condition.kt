@@ -56,6 +56,20 @@ sealed interface Condition {
         val matcher: TextMatcher,
     ) : Condition
 
+    /**
+     * A natural-language meaning: [text] is what the user wrote (for display),
+     * [vector] is its embedding, and the condition holds when the item's stored
+     * vector has cosine at least [threshold] with it.
+     *
+     * The vector is computed at rule-save time, so evaluation stays pure and does
+     * not load the model. A dimension mismatch is a non-match, never a crash.
+     */
+    data class Semantic(
+        val text: String,
+        val vector: FloatArray,
+        val threshold: Float,
+    ) : Condition
+
     // ------------------------------------------------------- series predicates
     // These read a window of a series source (ADR §8), not one item. Nothing
     // evaluates them yet; the language must carry them faithfully.
@@ -161,5 +175,6 @@ fun Condition.isEnrichmentSensitive(): Boolean =
         is Condition.All -> conditions.any { it.isEnrichmentSensitive() }
         is Condition.Any -> conditions.any { it.isEnrichmentSensitive() }
         is Condition.Text -> true
+        is Condition.Semantic -> true
         else -> false
     }

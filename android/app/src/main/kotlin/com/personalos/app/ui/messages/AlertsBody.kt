@@ -53,12 +53,10 @@ private val ALERT_ORDER: Comparator<AlertMatch> =
  * The **Alerts** list: one row per matched event, newest first, across every
  * source and every rule.
  *
- * Distinct from the category tabs in two ways, both deliberate:
- *  - it is not SMS-scoped — a rule can match a weather reading or a feed item, so
- *    filtering to `sms` would hide exactly the cross-source alerts a rule exists
- *    for;
- *  - it is not a conversation list — a row is one matched event with the rule(s)
- *    that matched it, so the reason is visible on the row itself.
+ * Scoped to SMS, like every other Messages tab: a rule can also match a feed or
+ * weather item, but those matches live in Watchers/Radar. The tab is not a
+ * conversation list — a row is one matched SMS with the rule(s) that matched it,
+ * so the reason is visible on the row itself.
  *
  * Reads through [RuleFireRepository.alerts], the same stored matches Watchers
  * shows, so a fire's "what matched" here cannot disagree with ingest. A page is

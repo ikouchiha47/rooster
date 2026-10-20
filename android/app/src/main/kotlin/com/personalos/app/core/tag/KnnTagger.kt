@@ -21,14 +21,28 @@ class KnnTagger(
 
     override val kind: TaggerKind = TaggerKind.ML
 
-    @Volatile
-    private var pool: List<LabelledExample>? = null
+    /**
+     * The embedded pool plus the fingerprint of the example set it came from.
+     *
+     * A downloaded dataset can change under a running tagger, so the pool is not
+     * built once for the process: each batch loads the examples, hashes them, and
+     * only re-embeds when the hash differs. The swap is a compare-and-set, so two
+     * concurrent batches cannot install a pool built from different data.
+     */
+    private data class Pool(
+        val fingerprint: Int,
+        val examples: List<LabelledExample>,
+    )
+
+    private val pool =
+        java.util.concurrent.atomic
+            .AtomicReference<Pool?>(null)
 
     override suspend fun tag(input: TagInput): TagResult = tagAll(listOf(input)).first()
 
     override suspend fun tagAll(inputs: List<TagInput>): List<TagResult> {
         if (inputs.isEmpty()) return emptyList()
-        val labelled = pool ?: buildPool().also { pool = it }
+        val labelled = poolFor(examples.load())
         val embedded =
             runCatching { embedMany(inputs.map { PROMPT + it.text }) }
                 .getOrElse { List(inputs.size) { null } }
@@ -41,13 +55,25 @@ class KnnTagger(
                 tags = input.declaredTags + inferred,
                 confidence = if (inferred.isEmpty()) NO_CONFIDENCE else WORD_CONFIDENCE,
                 taggerId = id,
+                vector = vector,
             )
         }
     }
 
-    private suspend fun buildPool(): List<LabelledExample> {
-        val items = examples.load()
-        if (items.isEmpty()) return emptyList()
+    private suspend fun poolFor(items: List<ExampleText>): List<LabelledExample> {
+        val fingerprint = items.hashCode()
+        val current = pool.get()
+        if (current?.fingerprint == fingerprint) return current.examples
+        if (items.isEmpty()) {
+            pool.compareAndSet(current, Pool(fingerprint, emptyList()))
+            return pool.get()?.examples ?: emptyList()
+        }
+        val built = buildPool(items)
+        pool.compareAndSet(current, Pool(fingerprint, built))
+        return pool.get()?.examples ?: built
+    }
+
+    private suspend fun buildPool(items: List<ExampleText>): List<LabelledExample> {
         val vectors =
             runCatching { embedMany(items.map { PROMPT + it.text }) }
                 .getOrElse { List(items.size) { null } }
@@ -57,7 +83,7 @@ class KnnTagger(
     }
 
     private companion object {
-        const val PROMPT = "task: classification | query: "
+        const val PROMPT = EmbeddingPrompt.QUERY
         const val WORD_CONFIDENCE = 0.7f
         const val NO_CONFIDENCE = 0.2f
     }

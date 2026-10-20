@@ -4,7 +4,6 @@ import com.personalos.app.data.DayHeader
 import com.personalos.app.data.EnrichmentCandidate
 import com.personalos.app.data.EventDao
 import com.personalos.app.data.EventEntity
-import com.personalos.app.data.RetagCandidate
 import com.personalos.app.data.RuleItemSeed
 import com.personalos.app.data.RulePreviewCandidate
 import com.personalos.app.data.SourceCount
@@ -63,11 +62,6 @@ class ArticleEnricherTest {
 
         override fun observeSourceCounts(): Flow<List<SourceCount>> = flowOf(emptyList())
 
-        override suspend fun itemsAfter(
-            afterId: Long,
-            limit: Int,
-        ): List<RetagCandidate> = emptyList()
-
         override suspend fun radarPage(
             category: String?,
             cursorTs: Long?,
@@ -114,6 +108,8 @@ class ArticleEnricherTest {
         override suspend fun eventById(id: Long): TaggedEvent? = null
 
         override suspend fun enrichmentCandidates(limit: Int): List<EnrichmentCandidate> = candidates
+
+        override suspend fun enrichmentBacklogCount(): Int = candidates.size
 
         override suspend fun markEnrichmentAttempted(
             id: Long,

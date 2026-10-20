@@ -96,14 +96,13 @@ object KnownArtifacts {
             version = 1,
             fileName = "taxonomy.v1.json",
             url =
-                Sources.githubRaw(
-                    "ikouchiha47",
-                    "rooster",
-                    "main",
-                    "android/app/src/main/assets/taxonomy/taxonomy.v1.json",
+                Sources.githubRelease(
+                    "ikouchiha47/rooster",
+                    "datasets-v1",
+                    "taxonomy.v1.json",
                 ),
-            sizeBytes = 5_846L,
-            sha256 = "dfe511cde7aadbf4b2529114f21755e3fb59de69991d4997de570fca4592d04f",
+            sizeBytes = 6_277L,
+            sha256 = "3485b3ccc4e3dcbcd023c4e165326b9b4c26c3c2146c21f5b9d394755fd9e091",
             role = FileRole.DATA,
         )
 
@@ -118,6 +117,57 @@ object KnownArtifacts {
         )
 
     /**
+     * The labelled examples the ML rung votes over. Bundled at
+     * `assets/tagging/examples.v1.json`; a downloaded copy extends it, so a tag
+     * that no bundled example covers can be taught without an app release.
+     */
+    val examplesFile =
+        ArtifactFile(
+            name = "examples",
+            version = 1,
+            fileName = "examples.v1.json",
+            url = Sources.githubRelease("ikouchiha47/rooster", "datasets-v1", "examples.v1.json"),
+            sizeBytes = 4_642L,
+            sha256 = "a50f0c4f648be4815a9721272db717ec74528da8875bceda0ce45d06d2769659",
+            role = FileRole.DATA,
+        )
+
+    /** This app's labelled-example dataset, at `personalos/examples/`. */
+    val examples: Artifact =
+        Artifact.of(
+            name = "examples",
+            version = 1,
+            files = listOf(examplesFile),
+            scope = personalos,
+            type = ArtifactType.DATASET,
+        )
+
+    /**
+     * The trained classifier over the frozen embedder: one logistic head per coarse
+     * class, with the taxonomy tags each may emit. Absent, the ML rung falls back to
+     * kNN over labelled examples; both sit behind the same `Tagger`.
+     */
+    val headsFile =
+        ArtifactFile(
+            name = "heads",
+            version = 1,
+            fileName = "heads.v1.json",
+            url = Sources.githubRelease("ikouchiha47/rooster", "models-v1", "heads.v1.json"),
+            sizeBytes = 35_731L,
+            sha256 = "aa1dde748c71026b33af301691241ababd7cc9dde178bd9a388c5f85b92b9e64",
+            role = FileRole.OTHER,
+        )
+
+    val heads: Artifact =
+        Artifact.of(
+            name = "heads",
+            version = 1,
+            files = listOf(headsFile),
+            scope = personalos,
+            type = ArtifactType.CLASSIFIER,
+        )
+
+    /**
      * The artifacts that **must** be on disk. The app fetches any that are missing,
      * so an enabled artifact absent from the device is a bug to fix, not a state to
      * live in. The dataset is deliberately *not* here: the app works fully on the
@@ -126,5 +176,5 @@ object KnownArtifacts {
     val enabled: List<Artifact> = listOf(embeddingGemma)
 
     /** Everything this app declares, and registers, so another app can find it. */
-    val all: List<Artifact> = enabled + vocabulary
+    val all: List<Artifact> = enabled + listOf(vocabulary, examples, heads)
 }

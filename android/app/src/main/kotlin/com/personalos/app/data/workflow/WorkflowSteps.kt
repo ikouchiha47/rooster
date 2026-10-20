@@ -30,14 +30,19 @@ class EnrichStep(
 }
 
 /**
- * Stage 2: one bounded re-tag walk over the store. The walk's cursor lives in the
- * `StringCache` and is keyed by tagger id, so this is safe to run repeatedly.
+ * One bounded re-tag pass over the store's derived backlog. A successful batch
+ * writes markers, so the same call is safe to repeat; no cursor lives here.
  */
 class RetagStep(
     private val retagger: Retagger,
+    /** Optional battery policy: pause instead of draining the phone. */
+    private val powerGuard: com.personalos.app.core.metrics.PowerGuard? = null,
 ) : WorkflowStep {
-    override suspend fun run(ctx: StepContext): StepOutcome =
-        try {
+    override suspend fun run(ctx: StepContext): StepOutcome {
+        // A policy pause is not a failure: the run stops resumably and the next
+        // attempt re-reads the same backlog.
+        if (powerGuard?.shouldPause() == true) return StepOutcome.Paused
+        return try {
             retagger.run()
             StepOutcome.Done()
         } catch (e: CancellationException) {
@@ -45,4 +50,5 @@ class RetagStep(
         } catch (_: Exception) {
             StepOutcome.Failed(Failure.TRANSIENT)
         }
+    }
 }

@@ -42,6 +42,7 @@ private fun Condition.describe(item: RuleItem): String =
             "$name $stored ${op.symbol()} ${value.render()}"
         }
         is Condition.Text -> "text ~ \"${matcher.pattern}\""
+        is Condition.Semantic -> "meaning ~ \"${text}\""
         is Condition.Subject -> "subject $tag"
         is Condition.Nature -> "nature $tag"
         is Condition.Marker -> "marker news"

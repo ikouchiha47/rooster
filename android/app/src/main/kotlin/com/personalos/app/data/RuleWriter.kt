@@ -63,6 +63,8 @@ class RuleWriter(
     private val mentionDao: MentionDao,
     /** Typed extras are read from the store, like tags and mentions (ADR §13). */
     private val fieldDao: ItemFieldDao,
+    /** Item vectors for [com.personalos.app.core.rules.Condition.Semantic]. */
+    private val embeddingDao: ItemEmbeddingDao? = null,
 ) {
     /** Evaluates every enabled rule against newly landed items; appends matches. */
     suspend fun writeAll(
@@ -352,6 +354,15 @@ class RuleWriter(
                 .getOrNull()
                 .orEmpty()
                 .groupBy { it.itemId }
+        val vectors =
+            embeddingDao
+                ?.let { dao ->
+                    runCatching { dao.forItems(ids) }
+                        .onFailure { Log.w(TAG, "embedding load failed for ${ids.size} items", it) }
+                        .getOrNull()
+                        .orEmpty()
+                }.orEmpty()
+                .associate { it.itemId to EmbeddingBlob.decode(it.vector) }
         return seeds.map { seed ->
             RuleItem(
                 id = seed.itemId,
@@ -365,6 +376,7 @@ class RuleWriter(
                         .orEmpty()
                         .mapNotNull { row -> row.toFieldValue()?.let { row.name to it } }
                         .toMap(),
+                embedding = vectors[seed.itemId],
             )
         }
     }

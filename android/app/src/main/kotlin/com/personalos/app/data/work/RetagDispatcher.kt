@@ -35,11 +35,19 @@ class RetagDispatcher(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /** Runs up to [budget] chunks. Returns true while some family is not exhausted. */
-    suspend fun tick(): Boolean {
+    suspend fun tick(): Boolean = tickOutcome().more
+
+    /**
+     * Runs up to [budget] chunks and reports both the take and whether work
+     * remains. The drain host needs the take for Watchers/progress; the old
+     * foreground task still uses [tick].
+     */
+    suspend fun tickOutcome(): RetagTick {
         val deficits = store.load()
         var states = families.map { it.copy(deficit = deficits[it.family] ?: it.deficit) }
 
         var spent = 0
+        var tagged = 0
         while (spent < budget) {
             states = policy.credit(states)
             var ranThisRound = false
@@ -54,6 +62,7 @@ class RetagDispatcher(
                 val run = attempt(family)
                 states = states.map { if (it.family == family) it.copy(exhausted = run.exhausted) else it }
                 states = policy.charge(states, family)
+                tagged += run.tagged
                 spent++
                 ranThisRound = true
                 if (run.tagged > 0) Log.i(TAG, "retag $family: +${run.tagged}")
@@ -63,7 +72,7 @@ class RetagDispatcher(
         }
 
         store.save(states.associate { it.family to it.deficit })
-        return states.any { !it.exhausted }
+        return RetagTick(tagged = tagged, more = states.any { !it.exhausted })
     }
 
     /**
@@ -86,7 +95,8 @@ class RetagDispatcher(
                 val delayMs = retry.delayFor(attempt, kind)
                 Log.w(TAG, "retag $family failed ($kind) attempt=$attempt paused=${after.paused(now())}", e)
                 if (delayMs == null || after.paused(now())) {
-                    // Give up this tick. The cursor is unchanged, so a later run retries.
+                    // Give up this tick. Markers were not written for the failed
+                    // batch, so the backlog still contains it for a later run.
                     return RetagRun(tagged = 0, exhausted = true)
                 }
                 delay(delayMs)
@@ -102,3 +112,9 @@ class RetagDispatcher(
         const val DEFAULT_BUDGET = 12
     }
 }
+
+/** What one dispatcher tick did: items tagged, and whether any family has more. */
+data class RetagTick(
+    val tagged: Int,
+    val more: Boolean,
+)

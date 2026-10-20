@@ -132,6 +132,7 @@ object SeriesEvaluator {
             is Condition.Source -> "source"
             is Condition.Field -> "field"
             is Condition.Text -> "text"
+            is Condition.Semantic -> "meaning"
             is Condition.Crossing -> "crossing"
             is Condition.Delta -> "delta"
             is Condition.Min -> "min"

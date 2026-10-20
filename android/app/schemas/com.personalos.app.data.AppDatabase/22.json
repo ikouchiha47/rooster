@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 22,
-    "identityHash": "1ce373d39b6b22c4d654762398a88559",
+    "identityHash": "f110ed0ede070a35316a5b12ae1e2a09",
     "entities": [
       {
         "tableName": "events",
@@ -1191,12 +1191,12 @@
     "views": [
       {
         "viewName": "item_tags_current",
-        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT item_id, tag, tagger_id, confidence, entity, tagged_at\n        FROM item_tags\n        WHERE tagger_id = (SELECT id FROM taggers WHERE active = 1)"
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT item_id, tag, tagger_id, confidence, entity, tagged_at\n        FROM item_tags\n        WHERE tagger_id = (\n            SELECT latest.tagger_id\n            FROM item_tags latest\n            LEFT JOIN taggers g ON g.id = latest.tagger_id\n            WHERE latest.item_id = item_tags.item_id\n            ORDER BY CASE WHEN g.active = 1 THEN 0 ELSE 1 END, latest.tagged_at DESC\n            LIMIT 1\n        )"
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1ce373d39b6b22c4d654762398a88559')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f110ed0ede070a35316a5b12ae1e2a09')"
     ]
   }
 }

@@ -39,6 +39,8 @@ class Engine(
      * nothing is recorded. Optional by design: Model 1 is the n=1 case.
      */
     private val ledger: RunLedger? = null,
+    /** The observability log. Never state: [Journal.Noop] is a valid host. */
+    private val journal: Journal = Journal.Noop,
     private val owner: String = "local",
     private val invokedBy: String = "manual",
     private val now: () -> Long = { 0L },
@@ -119,18 +121,37 @@ class Engine(
                     s == NodeStatus.FAILED || s == NodeStatus.RETRY_EXHAUSTED
                 }
             val live = predecessors.any { p -> isActive(graph, p, id, status, taken) }
-            if (upstreamFailed || !live) return NodeOutcome(id, NodeStatus.SKIPPED, null)
+            if (upstreamFailed || !live) {
+                // Never live, so it never started: one END explains the skip
+                // without pretending a START happened.
+                note(
+                    JournalEvent(
+                        at = now(),
+                        host = HOST,
+                        runId = runId,
+                        node = id.value,
+                        attempt = 1,
+                        phase = JournalPhase.END,
+                        status = NodeStatus.SKIPPED,
+                    ),
+                )
+                return NodeOutcome(id, NodeStatus.SKIPPED, null)
+            }
         }
 
         return when (node.kind) {
-            NodeKind.FORK, NodeKind.JOIN -> NodeOutcome(id, NodeStatus.SUCCEEDED, null)
-            NodeKind.BRANCH -> {
-                val predicate =
-                    predicates[node.predicate]
-                        ?: throw WorkflowGraphException("no predicate registered: ${node.predicate}")
-                val branch = if (predicate.test(StepContext(runId, id))) Branch.THEN else Branch.ELSE
-                NodeOutcome(id, NodeStatus.SUCCEEDED, branch)
-            }
+            NodeKind.FORK, NodeKind.JOIN ->
+                journaled(runId, id) { NodeOutcome(id, NodeStatus.SUCCEEDED, null) }
+
+            NodeKind.BRANCH ->
+                journaled(runId, id) {
+                    val predicate =
+                        predicates[node.predicate]
+                            ?: throw WorkflowGraphException("no predicate registered: ${node.predicate}")
+                    val branch = if (predicate.test(StepContext(runId, id))) Branch.THEN else Branch.ELSE
+                    NodeOutcome(id, NodeStatus.SUCCEEDED, branch)
+                }
+
             NodeKind.TASK -> runTask(id, node, runId, onProgress)
         }
     }
@@ -149,6 +170,17 @@ class Engine(
         // Continue the numbering: a resumed run must not reuse attempt 1.
         var attempt = ledger?.nextAttempt(runId, id) ?: 1
         while (true) {
+            val startedAt = now()
+            note(
+                JournalEvent(
+                    at = startedAt,
+                    host = HOST,
+                    runId = runId,
+                    node = id.value,
+                    attempt = attempt,
+                    phase = JournalPhase.START,
+                ),
+            )
             // Write-ahead: the attempt exists before the step's side effect runs.
             ledger?.beginAttempt(
                 Attempt(
@@ -162,15 +194,19 @@ class Engine(
                 ),
             )
             when (val outcome = step.run(ctx)) {
-                is StepOutcome.Done -> return finish(runId, id, attempt, NodeStatus.SUCCEEDED, outcome.result)
-                StepOutcome.Skipped -> return finish(runId, id, attempt, NodeStatus.SKIPPED, null)
-                StepOutcome.Paused -> return finish(runId, id, attempt, NodeStatus.PAUSED, null)
+                is StepOutcome.Done -> return finish(runId, id, attempt, startedAt, NodeStatus.SUCCEEDED, outcome.result)
+                StepOutcome.Skipped -> return finish(runId, id, attempt, startedAt, NodeStatus.SKIPPED, null)
+                StepOutcome.Paused -> return finish(runId, id, attempt, startedAt, NodeStatus.PAUSED, null)
                 is StepOutcome.Failed ->
                     when {
-                        outcome.failure == Failure.PERMANENT -> return finish(runId, id, attempt, NodeStatus.FAILED, null)
-                        attempt >= node.attempts -> return finish(runId, id, attempt, NodeStatus.RETRY_EXHAUSTED, null)
+                        outcome.failure == Failure.PERMANENT ->
+                            return finish(runId, id, attempt, startedAt, NodeStatus.FAILED, outcome.reason)
+
+                        attempt >= node.attempts ->
+                            return finish(runId, id, attempt, startedAt, NodeStatus.RETRY_EXHAUSTED, outcome.reason)
+
                         else -> {
-                            finish(runId, id, attempt, NodeStatus.FAILED, null)
+                            finish(runId, id, attempt, startedAt, NodeStatus.FAILED, outcome.reason)
                             attempt++
                         }
                     }
@@ -183,11 +219,68 @@ class Engine(
         runId: String,
         id: NodeId,
         attempt: Int,
+        startedAt: Long,
         status: NodeStatus,
         result: String?,
     ): NodeOutcome {
-        ledger?.finishAttempt(runId, id, attempt, expectedVersion = 1L, status = status, outputs = result, now = now())
+        val at = now()
+        note(
+            JournalEvent(
+                at = at,
+                host = HOST,
+                runId = runId,
+                node = id.value,
+                attempt = attempt,
+                phase = JournalPhase.END,
+                status = status,
+                durationMs = (at - startedAt).coerceAtLeast(0L),
+                // A success has no error: the step's result is a payload, not a
+                // diagnosis, and putting it here would fill the log with false errors.
+                error = result.takeIf { status == NodeStatus.FAILED || status == NodeStatus.RETRY_EXHAUSTED },
+            ),
+        )
+        ledger?.finishAttempt(runId, id, attempt, expectedVersion = 1L, status = status, outputs = result, now = at)
         return NodeOutcome(id, status, null, result)
+    }
+
+    /**
+     * Telemetry is observability, so it may never fail the work it observes: a
+     * sink that throws (a full disk, a schema mismatch) is ignored, and only
+     * cancellation is allowed through.
+     */
+    private suspend fun note(event: JournalEvent) {
+        try {
+            journal.record(event)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+            // Deliberately swallowed: losing a line beats losing the run.
+        }
+    }
+
+    /** Journalled control nodes: they run but leave no attempt row. */
+    private suspend fun journaled(
+        runId: String,
+        id: NodeId,
+        block: suspend () -> NodeOutcome,
+    ): NodeOutcome {
+        val startedAt = now()
+        note(JournalEvent(startedAt, HOST, runId, id.value, 1, JournalPhase.START))
+        val outcome = block()
+        val at = now()
+        journal.record(
+            JournalEvent(
+                at = at,
+                host = HOST,
+                runId = runId,
+                node = id.value,
+                attempt = 1,
+                phase = JournalPhase.END,
+                status = outcome.status,
+                durationMs = (at - startedAt).coerceAtLeast(0L),
+            ),
+        )
+        return outcome
     }
 
     /** An edge carries liveness only if its source succeeded along *that* edge. */
@@ -213,6 +306,9 @@ class Engine(
     private companion object {
         /** Long enough to outlast a step batch, short enough that a dead host frees the run. */
         const val LEASE_MILLIS = 10 * 60 * 1000L
+
+        /** The host name this engine writes to the journal. */
+        const val HOST = "workflow"
     }
 
     private data class NodeOutcome(

@@ -16,8 +16,8 @@ import com.personalos.app.data.workflow.AppWorkflows
  * ```
  *
  * Optional string extra `workflow` picks the workflow id; the default is the
- * enrich→retag pipeline. Debug-only, so a release APK has neither the class nor
- * the action.
+ * single-node enrichment workflow. Debug-only, so a release APK has neither the
+ * class nor the action.
  */
 class RunWorkflowReceiver : BroadcastReceiver() {
     override fun onReceive(
@@ -25,7 +25,7 @@ class RunWorkflowReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         if (intent.action != ACTION) return
-        val workflow = intent.getStringExtra(EXTRA_WORKFLOW) ?: AppWorkflows.ENRICH_RETAG
+        val workflow = intent.getStringExtra(EXTRA_WORKFLOW) ?: AppWorkflows.ENRICH
         Log.i(TAG, "workflow run requested: $workflow")
         SyncScheduler.enqueueWorkflow(context.applicationContext, workflow)
     }

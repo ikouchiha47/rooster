@@ -63,11 +63,6 @@ object GaugeFakes {
 
         override fun observeSourceCounts(): Flow<List<SourceCount>> = flowOf(emptyList())
 
-        override suspend fun itemsAfter(
-            afterId: Long,
-            limit: Int,
-        ): List<RetagCandidate> = emptyList()
-
         override suspend fun radarPage(
             category: String?,
             cursorTs: Long?,
@@ -114,6 +109,8 @@ object GaugeFakes {
         override suspend fun eventById(id: Long): TaggedEvent? = null
 
         override suspend fun enrichmentCandidates(limit: Int): List<EnrichmentCandidate> = emptyList()
+
+        override suspend fun enrichmentBacklogCount(): Int = 0
 
         override suspend fun markEnrichmentAttempted(
             id: Long,

@@ -60,21 +60,26 @@ class RulePreviewSqlTest {
     }
 
     @Test
-    fun `a tag filter reads the active tagger's view`() {
+    fun `a tag filter reads the best available tagger per item`() {
         withDatabase { db ->
             db.createStatement().executeUpdate("INSERT INTO taggers (id, active) VALUES ('t1', 1), ('t2', 0)")
             insertEvent(db, "tagged", "src", 1_000)
             insertEvent(db, "newer-untagged", "src", 5_000)
-            // The older tagger's row must not narrow the query: the view is the
-            // active tagger's only, or a stale tag would leak in.
+            // The active tagger wins where it has rows; an item it has not reached
+            // falls back to the previous tagger, so a tagger switch never blanks the
+            // item for the length of the backfill.
             db.createStatement().executeUpdate(
                 "INSERT INTO item_tags (item_id, tag, tagger_id, confidence, entity, tagged_at) VALUES " +
                     "('tagged', 'travel', 't1', 0.9, NULL, 1), " +
                     "('tagged', 'travel', 't2', 0.9, NULL, 2), " +
                     "('newer-untagged', 'travel', 't2', 0.9, NULL, 2)",
             )
+            db.createStatement().executeUpdate(
+                "INSERT INTO tagged_items (item_id, tagger_id, tagged_at) VALUES " +
+                    "('tagged', 't1', 1), ('tagged', 't2', 2), ('newer-untagged', 't2', 2)",
+            )
 
-            assertEquals(listOf("tagged"), candidates(db, since = 0, tag = "travel", limit = 10))
+            assertEquals(listOf("newer-untagged", "tagged"), candidates(db, since = 0, tag = "travel", limit = 10))
         }
     }
 
@@ -181,6 +186,16 @@ class RulePreviewSqlTest {
                     confidence REAL NOT NULL,
                     entity TEXT,
                     tagged_at INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+            db.createStatement().executeUpdate(
+                """
+                CREATE TABLE tagged_items (
+                    item_id TEXT NOT NULL,
+                    tagger_id TEXT NOT NULL,
+                    tagged_at INTEGER NOT NULL,
+                    PRIMARY KEY(item_id, tagger_id)
                 )
                 """.trimIndent(),
             )

@@ -65,6 +65,11 @@ import com.personalos.app.data.resolveSmsSubscription
 import com.personalos.app.data.sample.SampleGlanceProvider
 import com.personalos.app.data.sample.SampleNowPlayingProvider
 import com.personalos.app.data.sample.SamplePinnedProvider
+import com.personalos.app.data.work.DrainTask
+import com.personalos.app.data.work.Drains
+import com.personalos.app.data.work.EnrichmentDrainTask
+import com.personalos.app.data.work.RetagDrainTask
+import com.personalos.app.data.work.SyncScheduler
 
 /**
  * Composition root - the single place where provider implementations are chosen.
@@ -184,7 +189,7 @@ class AppContainer(
                 ?: com.personalos.app.core.tag.TagSchema.BUNDLED
         heuristic = HeuristicTagger(vocabulary::lexicon, schema)
         switchable.use(
-            knn?.let {
+            ml?.let {
                 com.personalos.app.core.tag
                     .PolicyTagger(heuristic, it, schema)
             } ?: heuristic,
@@ -221,14 +226,18 @@ class AppContainer(
     private var upgraded = false
 
     /**
-     * The ML rung once the embedder is loaded, kept so [reloadVocabulary] can
-     * rebuild the policy tagger against a newly downloaded schema instead of
-     * dropping back to the heuristic.
+     * The ML rung once the embedder is loaded (trained heads when present, else
+     * kNN), kept so [reloadVocabulary] can rebuild the policy tagger against a
+     * newly downloaded schema instead of dropping back to the heuristic.
      */
     @Volatile
-    private var knn: com.personalos.app.core.tag.KnnTagger? = null
+    private var ml: Tagger? = null
 
-    val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger)
+    /** The loaded embedder, kept so a rule's natural-language query can use it. */
+    @Volatile
+    private var embedder: com.personalos.app.data.models.Embedder? = null
+
+    val tagWriter: TagWriter = TagWriter(database.itemTagDao(), tagger, database.taggedItemDao(), database.itemEmbeddingDao())
 
     /**
      * Upgrades to [com.personalos.app.core.tag.PolicyTagger] — lexicon for curated
@@ -236,11 +245,13 @@ class AppContainer(
      * load. Returns whether it upgraded. A no-op (never a failure) when the model
      * is absent, so it is safe on every launch and after a download.
      */
-    suspend fun upgradeTagger(): Boolean {
+    suspend fun upgradeTagger(force: Boolean = false): Boolean {
         // One-time. Several workers call this (core + one per family), and the check
         // below sha256-hashes 176 MB — so without this guard each worker re-hashed
         // the model and bogged the device. Once upgraded, it is a free no-op.
-        if (upgraded) return true
+        // `force` is for a download callback: the artifact set changed, so the ML
+        // rung must be rebuilt even though the model already loaded.
+        if (upgraded && !force) return true
         val artifact = com.personalos.app.data.KnownArtifacts.embeddingGemma
         val ready = com.personalos.mlsdk.ArtifactStatus.READY
         // The whole set must be present: a graph without its weights or its
@@ -255,26 +266,62 @@ class AppContainer(
                 tokenizerFile = java.io.File(dir, tokenizer.fileName),
             )
         if (!embedder.init()) return false
-        // The ML rung is now nearest labelled examples (kNN), not description
-        // cosine — measurably better on real data, and it improves as corrections
-        // accrue. The lexicon rung is unchanged.
-        val knnTagger =
-            com.personalos.app.core.tag.KnnTagger(
-                embedMany = embedder::embedMany,
-                examples =
-                    com.personalos.app.data.tagging
-                        .AssetExampleSource(context),
-            )
-        knn = knnTagger
+        this.embedder = embedder
+        // Prefer the trained heads: frozen EmbeddingGemma + logistic weights, the
+        // best measured rung. Without them, kNN over labelled examples is the
+        // cold-start fallback; the lexicon rung is unchanged either way.
+        val headsDir = models.path(com.personalos.app.data.KnownArtifacts.heads.ref)
+        val headSet =
+            if (models.status(com.personalos.app.data.KnownArtifacts.heads.ref) == ready) {
+                com.personalos.app.data.tagging
+                    .HeadsJson(
+                        java.io.File(headsDir, com.personalos.app.data.KnownArtifacts.headsFile.fileName),
+                    ).load()
+            } else {
+                null
+            }
+        val mlTagger: Tagger =
+            if (headSet != null) {
+                com.personalos.app.core.tag.HeadTagger(
+                    embedMany = embedder::embedMany,
+                    heads = headSet,
+                )
+            } else {
+                val examplesDir = models.path(com.personalos.app.data.KnownArtifacts.examples.ref)
+                com.personalos.app.core.tag.KnnTagger(
+                    embedMany = embedder::embedMany,
+                    examples =
+                        com.personalos.app.core.tag.CombinedExampleSource(
+                            listOf(
+                                com.personalos.app.data.tagging
+                                    .AssetExampleSource(context),
+                                com.personalos.app.data.tagging.FileExampleSource(
+                                    java.io.File(
+                                        examplesDir,
+                                        com.personalos.app.data.KnownArtifacts.examplesFile.fileName,
+                                    ),
+                                ),
+                            ),
+                        ),
+                )
+            }
+        ml = mlTagger
         switchable.use(
             com.personalos.app.core.tag
-                .PolicyTagger(heuristic, knnTagger, schema),
+                .PolicyTagger(heuristic, mlTagger, schema),
         )
         // Point the `taggers` row at the tagger now running. Only the ingest paths
         // called this, so the store kept reporting the old tagger as active after a
         // swap and a retag — `item_tags_current` never showed the new tags.
-        tagWriter.ensureActive()
+        val activated = tagWriter.ensureActive()
         upgraded = true
+        if (activated) {
+            // A real tagger-version change is its own retag trigger (ADR 0010 §7):
+            // immediate, id-less, and still the single fast drain. If a retag worker
+            // is already running, its enqueue policy keeps that run rather than
+            // cancelling it.
+            SyncScheduler.enqueueRetagNow(context)
+        }
         return true
     }
 
@@ -377,6 +424,7 @@ class AppContainer(
             database.itemTagDao(),
             database.mentionDao(),
             database.itemFieldDao(),
+            database.itemEmbeddingDao(),
         )
 
     /**
@@ -615,13 +663,32 @@ class AppContainer(
                 Manifest.permission.SEND_SMS,
             ) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * Append-only telemetry: node timings, failures and power samples, kept as
+     * three daily partitions. Off unless enabled in diagnostics.
+     */
+    val journal: com.personalos.app.core.metrics.JournalStore =
+        com.personalos.app.core.metrics
+            .JournalStore(context)
+
+    /** Whole-device energy samples, read only while [journal] is enabled. */
+    val power: com.personalos.app.core.metrics.PowerMeter =
+        com.personalos.app.core.metrics
+            .PowerMeter(context) { journal.enabled }
+
+    /** The battery threshold below which long ML work pauses. */
+    val powerGuard: com.personalos.app.core.metrics.PowerGuard =
+        com.personalos.app.core.metrics
+            .PowerGuard(power)
+
     /** Backfills tags for items that predate the active tagger (docs §11.5). */
     val retagger: Retagger =
         Retagger(
             database.retagDao(),
             tagWriter,
-            cache,
             tagger,
+            journal = journal,
+            power = power,
             sourceTags = {
                 runCatching {
                     database
@@ -668,7 +735,7 @@ class AppContainer(
             store =
                 com.personalos.app.data.work
                     .PrefsScheduleStore(context),
-            runFamily = { retagger.run(it) },
+            runFamily = { retagger.run(it, batchSize = Drains.RETAG.batch) },
             health =
                 com.personalos.app.data.work
                     .PrefsHealthStore(context),
@@ -746,18 +813,40 @@ class AppContainer(
                             .CalendarKindAdapter(database.calendarDao(), cachedBody),
                     ),
                 ),
+            onLanded = { added ->
+                if (added > 0) {
+                    com.personalos.app.data.work.SyncScheduler
+                        .enqueueEnrichment(context)
+                }
+            },
         )
+
+    /**
+     * The vector for a natural-language rule, in the same space as stored item
+     * vectors. Null when the model is absent, so the builder can refuse to save
+     * a semantic condition rather than storing one that can never match.
+     */
+    suspend fun embedSemanticQuery(text: String): FloatArray? {
+        if (!upgraded && !upgradeTagger()) return null
+        return embedder?.embed(com.personalos.app.core.tag.EmbeddingPrompt.QUERY + text)
+    }
+
+    /** Depth of the enrichment backlog, for the drain's progress and Watchers. */
+    suspend fun enrichmentBacklogCount(): Int = database.eventDao().enrichmentBacklogCount()
 
     /**
      * Fills in summaries for items whose feed shipped none - notably Indian
      * Express, whose `<description>` is empty for every item. Bounded batches;
-     * see [ArticleEnricher]. Items whose text grows are handed to the rule
-     * writer, which re-evaluates only text-predicate rules (ADR §10, R3).
+     * see [ArticleEnricher]. Enrichment owns **content + `enriched_at` only**
+     * (ADR 0010 §6): retag is the single writer of tags and vectors, and sees
+     * the newer timestamp through its derived backlog.
      */
     val enricher: ArticleEnricher =
         ArticleEnricher(
             database.eventDao(),
-            onEnriched = { seeds -> ruleWriter.reevaluateEnriched(seeds) },
+            onEnriched = { seeds ->
+                ruleWriter.reevaluateEnriched(seeds)
+            },
         )
 
     /**
@@ -797,9 +886,12 @@ class AppContainer(
         com.personalos.app.data.workflow.WorkflowRuns(
             workflows =
                 mapOf(
-                    com.personalos.app.data.workflow.AppWorkflows.ENRICH_RETAG to
+                    com.personalos.app.data.workflow.AppWorkflows.ENRICH to
                         com.personalos.app.data.workflow.AppWorkflows
-                            .enrichRetag(),
+                            .enrich(),
+                    com.personalos.app.data.workflow.AppWorkflows.RETAG to
+                        com.personalos.app.data.workflow.AppWorkflows
+                            .retag(),
                 ),
             steps =
                 mapOf(
@@ -808,7 +900,7 @@ class AppContainer(
                             .EnrichStep(enricher),
                     com.personalos.app.data.workflow.AppWorkflows.RETAG to
                         com.personalos.app.data.workflow
-                            .RetagStep(retagger),
+                            .RetagStep(retagger, powerGuard),
                 ),
             store =
                 com.personalos.app.data.workflow.WorkflowStore
@@ -816,6 +908,7 @@ class AppContainer(
             ledger =
                 com.personalos.app.data.workflow.WorkflowStore
                     .ledger(context),
+            journal = journal,
             now = System::currentTimeMillis,
             prepare = { upgradeTagger() },
         )
@@ -844,6 +937,31 @@ class AppContainer(
             com.personalos.app.data.workflow
                 .DirectEnrichment(enricher)
         }
+    }
+
+    /**
+     * The stage implementations behind the shared drain hosts (ADR 0010 §5).
+     * One map, keyed by the spec's unique name, so a worker resolves its stage
+     * without a branch and a new drain is a new entry.
+     */
+    val drainTasks: Map<String, DrainTask> by lazy {
+        mapOf(
+            Drains.ENRICHMENT.uniqueName to
+                EnrichmentDrainTask(enrichment) { enrichmentBacklogCount() },
+            Drains.RETAG.uniqueName to
+                RetagDrainTask(
+                    prepare = {
+                        upgradeTagger()
+                        tagWriter.ensureActive()
+                    },
+                    dispatcher = retagDispatcher,
+                    backlogCount = {
+                        database
+                            .retagDao()
+                            .countNeedingRetag(database.itemTagDao().activeTagger()?.id, null)
+                    },
+                ),
+        )
     }
 
     companion object {

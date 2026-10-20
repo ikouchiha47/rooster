@@ -53,7 +53,14 @@ class PolicyTagger(
         // Declared and structural: the ingest path's, never inferred here.
         tags += input.declaredTags
         // Contextual, plus any curated the model found: the embedder's to give.
-        tags += fromEmbedding.tags.filterNot { it in schema.markers }
+        // Marketing copy is not evidence of subject matter, so a `-P` sender
+        // suppresses the embedder's subjects just as it does the lexicon's;
+        // natures (promo, expense, official) still describe the message.
+        val fromAdvert = input.source == Transport.SMS && isPromotionalSender(input.sender)
+        tags +=
+            fromEmbedding.tags.filterNot {
+                it in schema.markers || (fromAdvert && it in schema.subjects)
+            }
         // Curated: the lexicon's to give.
         tags += fromLexicon.tags.filter { it in schema.lexiconCovers }
 
@@ -61,6 +68,9 @@ class PolicyTagger(
             tags = tags,
             confidence = maxOf(fromLexicon.confidence, fromEmbedding.confidence),
             taggerId = id,
+            // The embedding rung's vector is what a semantic rule compares
+            // against; the policy layer must pass it through, not drop it.
+            vector = fromEmbedding.vector,
         )
     }
 

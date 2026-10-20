@@ -976,7 +976,7 @@ fun FooterStrip(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .background(RadarColors.paper3)
+                    .background(RadarColors.paper2)
                     .padding(horizontal = 8.dp, vertical = 6.dp),
         )
     }

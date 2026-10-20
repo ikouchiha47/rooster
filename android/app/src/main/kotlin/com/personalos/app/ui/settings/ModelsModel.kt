@@ -14,8 +14,13 @@ fun modelStatusLabel(status: ArtifactStatus): String =
         ArtifactStatus.STALE -> "outdated"
     }
 
-/** An artifact's size in megabytes, e.g. `171 MB`. */
-fun modelSizeLabel(bytes: Long): String = "${bytes / (1024 * 1024)} MB"
+/** A human size: `171 MB`, `6 KB`, or `0 B` for an empty file. */
+fun modelSizeLabel(bytes: Long): String =
+    when {
+        bytes >= 1024L * 1024L -> "${bytes / (1024L * 1024L)} MB"
+        bytes >= 1024L -> "${bytes / 1024L} KB"
+        else -> "$bytes B"
+    }
 
 /** Whether the section should offer a download (anything that is not already valid). */
 fun needsDownload(status: ArtifactStatus): Boolean = status != ArtifactStatus.READY

@@ -7,6 +7,33 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(tag): trained heads, semantic rules, and drain workflows
+
+_2026-10-20_
+
+Replaces the description/kNN-only ML rung with the trained frozen-EmbeddingGemma
+logistic heads (published as a classifier artifact), keeping kNN as the fallback.
+Cascade is now v5; the promo guard suppresses embedding subjects on `-P` senders.
+Item vectors are persisted for a new natural-language `meaning` rule predicate,
+with enriched bodies re-embedded before rule re-evaluation.
+
+Moves background work onto two one-node workflows (`enrich`, `retag`) with a
+common drain host: LIMIT + count backlogs, chain-while-more, and a 30-minute
+recon that only nudges the fast job. Retag discovers enriched items from
+`enriched_at > tagged_items.tagged_at` (no new stage table); the legacy id
+cursor and the combined `enrich-retag` edge are gone. Enrichment is newest-first,
+batch 40, three attempts, triggered by source sync. Also fixes the workflow
+driver's WAL pragma and the stale-backoff recon case.
+
+Surfaces: Messages Alerts is now SMS-only (1 alert on device vs ~1.9k matches);
+Travel/Money/Weather tag timelines read feed items only; Settings gets tag-model
+downloads, re-download, system metrics, and the separate model path. Adds ADR
+0010 and the schema through v26 (`tagged_items`, `item_embeddings`,
+`enrich_attempts`).
+
+Verified: 919 unit tests, ktlint, and device checks — the named IE/Hindu stories
+enriched with new vectors, cascade-v5 retag progressing, SMS Alerts = 1.
+
 ## fix(models): download, load and retag on device — two bugs and a cache
 
 _2026-10-20_

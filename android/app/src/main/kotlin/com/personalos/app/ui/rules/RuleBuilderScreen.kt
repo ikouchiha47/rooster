@@ -96,15 +96,47 @@ fun RuleBuilderScreen(
 
     var preview by remember { mutableStateOf<RulePreview?>(null) }
     var previewLoading by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
     val canSave = draft.isValid() && draft.name.isNotBlank()
+
+    /**
+     * A meaning predicate stores the query vector, not the sentence: compute it
+     * once before preview/save so evaluation stays pure. Null means the model is
+     * absent or failed to load, and saving must be refused rather than storing a
+     * condition that can never match.
+     */
+    suspend fun prepared(input: RuleDraft): RuleDraft? {
+        val predicates = ArrayList<PredicateDraft>(input.predicates.size)
+        for (predicate in input.predicates) {
+            if (predicate is PredicateDraft.Meaning && predicate.vector.isEmpty()) {
+                val vector = container.embedSemanticQuery(predicate.text)
+                if (vector == null) {
+                    saveError = "The tag model is needed for a meaning condition."
+                    return null
+                }
+                predicates += predicate.copy(vector = vector.toList())
+            } else {
+                predicates += predicate
+            }
+        }
+        saveError = null
+        return input.copy(predicates = predicates)
+    }
 
     LaunchedEffect(draft) {
         delay(300)
         if (draft.isValid()) {
             previewLoading = true
+            val ready = prepared(draft)
+            if (ready == null) {
+                preview = null
+                previewLoading = false
+                return@LaunchedEffect
+            }
+            if (ready != draft) draft = ready
             preview =
                 runCatching {
-                    container.rulePreview.preview(draft.toConditionJson())
+                    container.rulePreview.preview(ready.toConditionJson())
                 }.getOrElse {
                     RulePreview.Unavailable(UnavailableReason.UNKNOWN, it.message)
                 }
@@ -143,19 +175,20 @@ fun RuleBuilderScreen(
                 onClick = {
                     if (!canSave) return@GlyphActionButton
                     scope.launch {
+                        val ready = prepared(draft) ?: return@launch
                         runCatching {
                             if (rule == null) {
                                 container.ruleRepository.create(
-                                    name = draft.name,
-                                    conditionJson = draft.toConditionJson(),
-                                    actionJson = draft.toActionJson(),
+                                    name = ready.name,
+                                    conditionJson = ready.toConditionJson(),
+                                    actionJson = ready.toActionJson(),
                                 )
                             } else {
                                 container.ruleRepository.update(
                                     id = rule.id,
-                                    name = draft.name,
-                                    conditionJson = draft.toConditionJson(),
-                                    actionJson = draft.toActionJson(),
+                                    name = ready.name,
+                                    conditionJson = ready.toConditionJson(),
+                                    actionJson = ready.toActionJson(),
                                 )
                             }
                         }.onSuccess { onSaved() }
@@ -238,6 +271,14 @@ fun RuleBuilderScreen(
                 loading = previewLoading,
                 draftValid = draft.isValid(),
             )
+            saveError?.let { message ->
+                Text(
+                    text = message,
+                    style = RadarType.microPlain,
+                    color = CategoryColors.Vermilion,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
             Row(
@@ -248,19 +289,20 @@ fun RuleBuilderScreen(
                     text = if (rule == null) "Save rule" else "Update rule",
                     onClick = {
                         scope.launch {
+                            val ready = prepared(draft) ?: return@launch
                             runCatching {
                                 if (rule == null) {
                                     container.ruleRepository.create(
-                                        name = draft.name,
-                                        conditionJson = draft.toConditionJson(),
-                                        actionJson = draft.toActionJson(),
+                                        name = ready.name,
+                                        conditionJson = ready.toConditionJson(),
+                                        actionJson = ready.toActionJson(),
                                     )
                                 } else {
                                     container.ruleRepository.update(
                                         id = rule.id,
-                                        name = draft.name,
-                                        conditionJson = draft.toConditionJson(),
-                                        actionJson = draft.toActionJson(),
+                                        name = ready.name,
+                                        conditionJson = ready.toConditionJson(),
+                                        actionJson = ready.toActionJson(),
                                     )
                                 }
                             }.onSuccess { onSaved() }
@@ -553,6 +595,25 @@ private fun PredicateRow(
                     TargetDropdown(
                         current = predicate.target,
                         onSelect = { onChange(predicate.copy(target = it)) },
+                    )
+                }
+
+                is PredicateDraft.Meaning -> {
+                    SmallTextField(
+                        value = predicate.text,
+                        hint = "meaning, e.g. a strike by workers",
+                        onChange = { onChange(predicate.copy(text = it, vector = emptyList())) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    SmallTextField(
+                        value = "%.2f".format(predicate.threshold),
+                        hint = "threshold",
+                        onChange = {
+                            val threshold = it.toFloatOrNull()?.coerceIn(0f, 1f) ?: predicate.threshold
+                            onChange(predicate.copy(threshold = threshold))
+                        },
+                        modifier = Modifier.width(64.dp),
                     )
                 }
 
@@ -1110,10 +1171,11 @@ private fun PredicateDraft.typeLabel(): String =
         is PredicateDraft.Source -> "source"
         is PredicateDraft.Field -> "field"
         is PredicateDraft.Text -> "text"
+        is PredicateDraft.Meaning -> "meaning"
         is PredicateDraft.Unsupported -> "unsupported"
     }
 
-private fun predicateTypeOptions(): List<String> = listOf("subject", "nature", "marker", "mention", "source", "field", "text")
+private fun predicateTypeOptions(): List<String> = listOf("subject", "nature", "marker", "mention", "source", "field", "text", "meaning")
 
 private fun createDefaultPredicate(
     type: String,
@@ -1127,6 +1189,7 @@ private fun createDefaultPredicate(
         "source" -> PredicateDraft.Source(defaultSource)
         "field" -> PredicateDraft.Field(FieldNames.SUPPLIED.firstOrNull() ?: "", FieldOp.EQ, FieldValue.Str(""))
         "text" -> PredicateDraft.Text("", TextTarget.ANY)
+        "meaning" -> PredicateDraft.Meaning("")
         else -> PredicateDraft.Unsupported
     }
 

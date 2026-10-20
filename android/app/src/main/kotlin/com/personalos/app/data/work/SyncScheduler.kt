@@ -21,8 +21,8 @@ import java.util.concurrent.TimeUnit
  * **force-stop** cancels them until the next launch, and Doze defers them, so
  * timings are best-effort rather than exact.
  *
- * Two jobs, deliberately separate: ingest is cheap and frequent, enrichment
- * fetches whole article pages and is neither.
+ * Background jobs, deliberately separate: ingest is cheap and frequent, enrichment
+ * fetches whole article pages and is neither, and retagging burns CPU on one model.
  */
 object SyncScheduler {
     /**
@@ -39,29 +39,22 @@ object SyncScheduler {
     /** Default feed cadence: the bucket width that groups Today's News. */
     const val DEFAULT_INTERVAL_MINUTES = SYNC_GROUP_MINUTES
 
-    /** Enrichment is far slower per item and not time-critical. */
-    const val DEFAULT_ENRICH_INTERVAL_HOURS = 6L
-
     private const val FEED_UNIQUE_NAME = "feed-sync"
-    private const val ENRICH_UNIQUE_NAME = "article-enrich"
+    private const val TAG = "SyncScheduler"
+
     private const val PARTY_UNIQUE_NAME = "party-sync"
     private const val SMS_UNIQUE_NAME = "sms-sync"
     private const val PARTY_MANUAL_NAME = "party-resync-now"
     const val BACKFILL_UNIQUE_NAME = "launch-backfill"
 
-    /** Tags every backfill unit (core + one per family) so status can list them all. */
+    /** Tags the backfill job so status can find it. */
     internal const val BACKFILL_TAG = "backfill"
 
-    /** The single retag dispatcher job (replaces one worker per family). */
-    private const val RETAG_DISPATCH_NAME = "retag-dispatch"
     const val RULE_BACKFILL_PREFIX = "rule-backfill:"
 
     /** The group every per-rule backfill row collapses into on the status screen. */
     const val RULE_BACKFILL_GROUP = "rule-backfill"
     private const val BACKOFF_MINUTES = 15L
-
-    /** Between chained re-tag runs: short, so a family keeps advancing chunk by chunk. */
-    private const val RETAG_BACKOFF_SECONDS = 30L
 
     /** Party lists change per election cycle, not per hour: yearly is plenty. */
     const val PARTY_INTERVAL_DAYS = 365L
@@ -70,16 +63,17 @@ object SyncScheduler {
      * Every statically scheduled job, as status-screen specs. The single
      * owner of "which background workers exist": the status screen renders
      * this list, so scheduling a new worker surfaces it with no screen edit.
+     *
+     * Drains contribute both their fast job and their recon job, derived from
+     * [DrainSpec] so names, groups and count keys cannot drift.
      */
     fun scheduledJobs(): List<WorkerJobSpec> =
         listOf(
             WorkerJobSpec(FEED_UNIQUE_NAME, "Feed sync", countKey = FeedSyncWorker.KEY_ADDED, singular = "item", plural = "items"),
             WorkerJobSpec(SMS_UNIQUE_NAME, "SMS sync", countKey = SmsSyncWorker.KEY_ADDED, singular = "message", plural = "messages"),
-            WorkerJobSpec(ENRICH_UNIQUE_NAME, "Enrichment", countKey = EnrichWorker.KEY_ENRICHED, singular = "summary", plural = "summaries"),
             WorkerJobSpec(PARTY_UNIQUE_NAME, "Party lists", countKey = PartySyncWorker.KEY_COUNTRIES, singular = "country", plural = "countries"),
             WorkerJobSpec(BACKFILL_UNIQUE_NAME, "Launch backfill"),
-            WorkerJobSpec(RETAG_DISPATCH_NAME, "Retag"),
-        )
+        ) + Drains.ALL.flatMap { listOf(it.workerSpec(), it.reconSpec()) }
 
     /** The unique-work name for one rule's backfill. */
     fun ruleBackfillName(ruleId: String): String = "$RULE_BACKFILL_PREFIX$ruleId"
@@ -101,7 +95,6 @@ object SyncScheduler {
     fun schedule(
         context: Context,
         intervalMinutes: Long = DEFAULT_INTERVAL_MINUTES,
-        enrichIntervalHours: Long = DEFAULT_ENRICH_INTERVAL_HOURS,
     ) {
         val feedRequest =
             PeriodicWorkRequestBuilder<FeedSyncWorker>(
@@ -126,28 +119,14 @@ object SyncScheduler {
                 feedRequest,
             )
 
-        val enrichRequest =
-            PeriodicWorkRequestBuilder<EnrichWorker>(
-                enrichIntervalHours.coerceAtLeast(1L),
-                TimeUnit.HOURS,
-            ).setConstraints(
-                Constraints
-                    .Builder()
-                    .setRequiredNetworkType(NetworkType.UNMETERED)
-                    .build(),
-            ).setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
-                BACKOFF_MINUTES,
-                TimeUnit.MINUTES,
-            ).build()
+        // Remove the pre-ADR 6h periodic enrichment job. The new fast drain has
+        // its own name, so that legacy writer must not stay queued (it would make
+        // the recon see an ENQUEUED job forever).
+        WorkManager.getInstance(context).cancelUniqueWork("article-enrich")
 
-        WorkManager
-            .getInstance(context)
-            .enqueueUniquePeriodicWork(
-                ENRICH_UNIQUE_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                enrichRequest,
-            )
+        // Each drain owns its periodic recon. The recon only checks depth and
+        // nudges the fast job; it never processes an item (ADR 0010 §7).
+        Drains.ALL.forEach { DrainScheduler.android(context, it).ensurePeriodic() }
 
         val partyRequest =
             PeriodicWorkRequestBuilder<PartySyncWorker>(
@@ -213,15 +192,15 @@ object SyncScheduler {
         ).build()
 
     /**
-     * Launch catch-up, as one core job plus **one job per source family**.
+     * Launch catch-up, one persisted backfill job.
      *
-     * Versioned, latest wins: every enqueue bumps [BackfillVersion] and stamps each
-     * unit with it, and `REPLACE`s the unit under its own name. A unit carrying an
-     * older version exits before doing anything — so there is no cancel race, and a
-     * superseded run never loads the model. Per family so a large family (feeds)
-     * cannot hold up a small one (SMS), and each can be inspected on its own.
+     * Versioned, latest wins: every enqueue bumps [BackfillVersion] and stamps the
+     * job with it, and `REPLACE`s it under its own name. A job carrying an older
+     * version exits before doing anything — so there is no cancel race, and a
+     * superseded run never loads the model.
      *
-     * All units share the `backfill` tag, so status is one query. No network
+     * A **forced** backfill is also the tagger-version / manual-retag trigger: it
+     * starts the fast retag drain, which is the single processor. No network
      * constraint — this is local store work (seeds, upgrade, retag).
      */
     fun enqueueBackfill(
@@ -244,18 +223,9 @@ object SyncScheduler {
                 .addTag(BACKFILL_TAG)
                 .build(),
         )
-        workManager.enqueueUniqueWork(
-            RETAG_DISPATCH_NAME,
-            policy,
-            OneTimeWorkRequestBuilder<RetagDispatchWorker>()
-                .setInputData(androidx.work.workDataOf(BackfillVersion.KEY to version))
-                .setBackoffCriteria(
-                    BackoffPolicy.EXPONENTIAL,
-                    RETAG_BACKOFF_SECONDS,
-                    TimeUnit.SECONDS,
-                ).addTag(BACKFILL_TAG)
-                .build(),
-        )
+        // A forced backfill is the tagger-version / manual-retag trigger. The
+        // fast drain is the single processor; there is no second retag worker.
+        if (force) enqueueRetagNow(context)
     }
 
     /**
@@ -324,6 +294,7 @@ object SyncScheduler {
      * skip what already completed. The `runId` is fixed in the request, so a
      * WorkManager retry resumes the same run instead of starting a new one.
      */
+
     fun enqueueWorkflow(
         context: Context,
         workflowId: String,
@@ -352,5 +323,21 @@ object SyncScheduler {
                 ExistingWorkPolicy.KEEP,
                 request,
             )
+    }
+
+    /**
+     * Enrichment now. Coalesced under the drain's one unique name, so a feed and
+     * an SMS sync landing together start one batch, not two.
+     *
+     * Sync only ever starts enrichment (ADR 0010 §7); retagging is discovered
+     * later from the store and nudged by its own recon.
+     */
+    fun enqueueEnrichment(context: Context) {
+        DrainScheduler.android(context, Drains.ENRICHMENT).enqueueNow()
+    }
+
+    /** A tagger-version change or a manual retag: start the fast drain now. */
+    fun enqueueRetagNow(context: Context) {
+        DrainScheduler.android(context, Drains.RETAG).enqueueNow()
     }
 }

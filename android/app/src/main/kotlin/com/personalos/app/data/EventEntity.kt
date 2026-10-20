@@ -44,8 +44,10 @@ data class EventEntity(
     @ColumnInfo(name = "entities") val entities: String = "[]",
     @ColumnInfo(name = "location") val location: String? = null,
     @ColumnInfo(name = "url") val url: String? = null,
-    /** Epoch ms when enrichment was attempted. Null = not tried, 0 = failed, >0 = success timestamp. */
+    /** Epoch ms when enrichment succeeded. Null = not yet done; 0 = gave up after retries. */
     @ColumnInfo(name = "enriched_at") val enrichedAt: Long? = null,
+    /** Failed fetch attempts, so a transient failure is retried but a dead link is not. */
+    @ColumnInfo(name = "enrich_attempts", defaultValue = "0") val enrichAttempts: Int = 0,
     /**
      * Wall-clock ms when the row was ingested. Null only for pre-v9 rows that
      * have not been backfilled (the v8 -> v9 migration sets them to

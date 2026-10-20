@@ -18,5 +18,6 @@ object TagVersions {
     const val HEURISTIC = 10
     const val EMBEDDING = 3
     const val KNN = 1
-    const val CASCADE = 4
+    const val HEADS = 1
+    const val CASCADE = 5
 }

@@ -33,6 +33,7 @@ private fun formatCondition(condition: Condition): String =
         is Condition.Source -> "source is ${condition.sourceId}"
         is Condition.Field -> "${condition.name} ${opSymbol(condition.op)} ${formatFieldValue(condition.value)}"
         is Condition.Text -> "text(${condition.matcher.target.serialName}) ~ \"${condition.matcher.pattern}\""
+        is Condition.Semantic -> "meaning ~ \"${condition.text}\""
         is Condition.Crossing -> "series crossing (not previewable)"
         is Condition.Delta -> "series delta (not previewable)"
         is Condition.Min -> "series min (not previewable)"

@@ -142,7 +142,7 @@ object Sql {
         FROM events e
         JOIN item_tags_current t ON t.item_id = e.ulid
         WHERE t.tag = :tag
-          AND e.type != 'observation'
+          AND e.type = 'feed'
           AND (:cursorTs IS NULL
                OR e.timestamp < :cursorTs
                OR (e.timestamp = :cursorTs AND e.id < :cursorId))
@@ -207,42 +207,38 @@ object Sql {
         """
 
     /**
-     * Keyset walk for re-tagging. Ordered by `id` (insertion order) rather than
-     * timestamp so a caller can persist a single cursor and always make forward
-     * progress - including past items that produce no tags at all.
-     */
-    const val EVENTS_AFTER_ID =
-        """
-        SELECT id AS rowId, ulid, source, category, title, content, url, enriched_at AS enrichedAt
-        FROM events
-        WHERE id > :afterId
-        ORDER BY id ASC
-        LIMIT :limit
-        """
-
-    /**
-     * One batch of the re-tag walk, **newest first**, scoped to a source family
-     * (`:prefix`, e.g. `sms` or `rss:`), or every source when null.
+     * The retag backlog, derived from facts already stored (ADR 0010 §3).
      *
-     * Per-family is what stops one loud source starving the rest: the walk has a
-     * cursor *per family*, so `sms` (~2.6K rows) finishes on its own long before the
-     * feed backlog does, instead of queuing behind it.
+     * An item needs a re-tag when the **active** tagger has no `tagged_items`
+     * marker for it, or when it was enriched after that marker was written. No
+     * cursor and no queue table: the timestamps are the state.
+     *
+     * Newest first, per source family when [prefix] is set (`sms`, `rss:`, ...).
+     * Per-family reads preserve the dispatcher's fairness: a loud family cannot
+     * consume the whole batch meant for a quiet one.
      */
-    const val EVENTS_BEFORE_ID =
+    const val RETAG_BACKLOG =
         """
-        SELECT id AS rowId, ulid, source, category, title, content, url, enriched_at AS enrichedAt
-        FROM events
-        WHERE id < :beforeId
-          AND (:prefix IS NULL OR source LIKE :prefix || '%')
-        ORDER BY id DESC
+        SELECT e.id AS rowId, e.ulid, e.source, e.category, e.title, e.content,
+               e.url AS url, e.enriched_at AS enrichedAt
+        FROM events e
+        LEFT JOIN tagged_items ti
+          ON ti.item_id = e.ulid AND ti.tagger_id = :taggerId
+        WHERE (ti.item_id IS NULL OR e.enriched_at > ti.tagged_at)
+          AND (:prefix IS NULL OR e.source LIKE :prefix || '%')
+        ORDER BY e.timestamp DESC, e.id DESC
         LIMIT :limit
         """
 
-    /** The top of one source family, so its own walk starts from its newest row. */
-    const val EVENTS_MAX_ID_FOR_PREFIX =
+    /** The same predicate without a limit, for depth and adaptive batches. */
+    const val RETAG_BACKLOG_COUNT =
         """
-        SELECT MAX(id) FROM events
-        WHERE (:prefix IS NULL OR source LIKE :prefix || '%')
+        SELECT COUNT(1)
+        FROM events e
+        LEFT JOIN tagged_items ti
+          ON ti.item_id = e.ulid AND ti.tagger_id = :taggerId
+        WHERE (ti.item_id IS NULL OR e.enriched_at > ti.tagged_at)
+          AND (:prefix IS NULL OR e.source LIKE :prefix || '%')
         """
 
     /**
@@ -322,10 +318,9 @@ object Sql {
      * a retry storm. The length threshold is inline rather than a parameter
      * because it is a fixed property of "usefully empty", not a caller choice.
      *
-     * Oldest first on purpose: newest-first starved the backlog tail forever,
-     * because hourly ingest adds short items faster than the 6-hourly batch of
-     * 20 drains them. Fresh items already carry feed summaries ~90% of the time;
-     * the gap this drain fills is concentrated in old backfill.
+     * Newest first (ADR 0010 §4): fresh news is what a person opens the app for;
+     * a retry is considered only after never-attempted rows. The batch stays
+     * bounded, so the old tail is reached over a few runs rather than never.
      */
     const val ENRICHMENT_CANDIDATES =
         """
@@ -335,8 +330,19 @@ object Sql {
           AND type != 'observation'
           AND enriched_at IS NULL
           AND LENGTH(TRIM(content)) < ${EmbedText.USEFULLY_EMPTY_CHARS}
-        ORDER BY timestamp ASC, id ASC
+        ORDER BY enrich_attempts ASC, timestamp DESC, id DESC
         LIMIT :limit
+        """
+
+    /** Depth of the same predicate, for Watchers and progress denominators. */
+    const val ENRICHMENT_BACKLOG_COUNT =
+        """
+        SELECT COUNT(1)
+        FROM events
+        WHERE url IS NOT NULL
+          AND type != 'observation'
+          AND enriched_at IS NULL
+          AND LENGTH(TRIM(content)) < ${EmbedText.USEFULLY_EMPTY_CHARS}
         """
 
     /** The outbox transition: a row moves queued -> sent|failed in place. */
@@ -345,8 +351,18 @@ object Sql {
     const val ENRICHMENT_UPDATE_CONTENT =
         "UPDATE events SET content = :content, enriched_at = :enrichedAt WHERE id = :id"
 
+    /**
+     * Record a failed attempt. The first two leave `enriched_at` null so the item
+     * is retried; the third writes the failure marker and stops counting it as a
+     * candidate, so a dead link is not fetched forever.
+     */
     const val ENRICHMENT_MARK_ATTEMPTED =
-        "UPDATE events SET enriched_at = :enrichedAt WHERE id = :id"
+        """
+        UPDATE events
+        SET enrich_attempts = enrich_attempts + 1,
+            enriched_at = CASE WHEN enrich_attempts + 1 >= 3 THEN :enrichedAt ELSE enriched_at END
+        WHERE id = :id
+        """
 
     // ------------------------------------------------------------- item_tags
     const val ITEM_TAGS_COUNT_FOR_TAGGER =
@@ -379,22 +395,58 @@ object Sql {
     const val ITEM_TAGS_CURRENT_FOR_ITEMS =
         "SELECT item_id, tag FROM item_tags_current WHERE item_id IN (:itemIds)"
 
-    /**
-     * The read surface for tags: rows from the active tagger only.
-     *
-     * Tagging is append-only, so `item_tags` holds several taggers' output at
-     * once and reading the raw table would double-count every item. Tiles read
-     * this view instead. `Retagger` is what backfills the active tagger, so the
-     * window where an item carries only older tags is seconds long, at launch.
-     *
-     * Defined here rather than inline so the `@DatabaseView` and the migration
-     * that creates it are guaranteed to be the same SQL.
-     */
-    const val ITEM_TAGS_CURRENT =
+    /** The original v4 view: the active tagger's rows, and nothing else. */
+    const val ITEM_TAGS_CURRENT_ACTIVE_ONLY =
         """
         SELECT item_id, tag, tagger_id, confidence, entity, tagged_at
         FROM item_tags
         WHERE tagger_id = (SELECT id FROM taggers WHERE active = 1)
+        """
+
+    /**
+     * v23's stopgap view, before `tagged_items` existed: the best tagger that has
+     * tag rows. Kept only for the v22 -> v23 migration; the current view uses the
+     * processed marker so zero-tag items do not fall back.
+     */
+    const val ITEM_TAGS_CURRENT_FALLBACK =
+        """
+        SELECT item_id, tag, tagger_id, confidence, entity, tagged_at
+        FROM item_tags
+        WHERE tagger_id = (
+            SELECT latest.tagger_id
+            FROM item_tags latest
+            LEFT JOIN taggers g ON g.id = latest.tagger_id
+            WHERE latest.item_id = item_tags.item_id
+            ORDER BY CASE WHEN g.active = 1 THEN 0 ELSE 1 END, latest.tagged_at DESC
+            LIMIT 1
+        )
+        """
+
+    /**
+     * The read surface for tags: the best tagger that has **processed** the item.
+     *
+     * Tagging is append-only, so `item_tags` holds several taggers' output at
+     * once. The active tagger wins; an item it has not processed falls back to the
+     * previous tagger, so a version switch never blanks a tile. An item the active
+     * tagger processed and left untagged has a `tagged_items` marker and no
+     * `item_tags` rows, so it correctly shows nothing instead of stale tags.
+     *
+     * Defined here rather than inline so the `@DatabaseView` and the migration
+     * that creates it are guaranteed to be the same SQL.
+     */
+
+    const val ITEM_TAGS_CURRENT =
+        """
+        SELECT item_id, tag, tagger_id, confidence, entity, tagged_at
+        FROM item_tags
+        WHERE tagger_id = (
+            SELECT ti.tagger_id
+            FROM tagged_items ti
+            LEFT JOIN taggers g ON g.id = ti.tagger_id
+            WHERE ti.item_id = item_tags.item_id
+            ORDER BY CASE WHEN g.active = 1 THEN 0 ELSE 1 END, ti.tagged_at DESC
+            LIMIT 1
+        )
         """
 
     // ----------------------------------------------------------------- places
@@ -750,9 +802,9 @@ object Sql {
      * `GROUP_CONCAT` folds the rules that matched it into a single column, so a
      * page is a page of **events** and the Alerts badge counts events, not fires.
      *
-     * Deliberately **not** scoped `source = 'sms'` like the rest of Messages: an
-     * alert is about an item, whatever channel it arrived on (docs/plans/
-     * categorization.md — Alerts is a view over matches, cross-source).
+     * Scoped `source = 'sms'`: Messages owns SMS, so its Alerts are the rule
+     * matches that landed on an SMS. Feed and weather matches belong to
+     * Watchers (per rule) and Radar (the timeline), not to Messages.
      *
      * Keyset-paged on `(events.timestamp, events.id)`, the same total order the
      * thread and timeline use, so pages cannot skip or duplicate as matches are
@@ -767,7 +819,8 @@ object Sql {
                GROUP_CONCAT(ir.rule_id) AS rule_ids
         FROM item_rules ir
         JOIN events e ON e.ulid = ir.item_id
-        WHERE (:cursorTs IS NULL
+        WHERE e.source = 'sms'
+          AND (:cursorTs IS NULL
                OR e.timestamp < :cursorTs
                OR (e.timestamp = :cursorTs AND e.id < :cursorId))
         GROUP BY ir.item_id
@@ -784,6 +837,7 @@ object Sql {
         SELECT COUNT(DISTINCT ir.item_id)
         FROM item_rules ir
         JOIN events e ON e.ulid = ir.item_id
+        WHERE e.source = 'sms'
         """
 
     /** Every item's stored facts at once, so one fire batch costs one read per table. */

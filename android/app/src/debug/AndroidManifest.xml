@@ -104,5 +104,14 @@
                 <action android:name="com.personalos.app.RUN_WORKFLOW" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".debug.ForceRetagReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.FORCE_RETAG" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

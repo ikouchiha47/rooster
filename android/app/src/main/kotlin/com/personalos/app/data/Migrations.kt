@@ -95,7 +95,7 @@ val MIGRATION_2_3_STATEMENTS: List<String> =
  * difference fails as "Migration didn't properly handle: item_tags_current".
  */
 val MIGRATION_3_4_STATEMENTS: List<String> =
-    listOf("CREATE VIEW `item_tags_current` AS ${Sql.ITEM_TAGS_CURRENT.trim()}")
+    listOf("CREATE VIEW `item_tags_current` AS ${Sql.ITEM_TAGS_CURRENT_ACTIVE_ONLY.trim()}")
 
 /**
  * v4 -> v5: record enrichment attempts on items.
@@ -905,6 +905,80 @@ val MIGRATION_21_22_SIM_STATEMENTS: List<String> =
     listOf("ALTER TABLE events ADD COLUMN sim TEXT")
 
 /**
+ * v22 -> v23: `item_tags_current` reads the best available tagger per item, not
+ * only the active one.
+ *
+ * Switching to a new tagger used to blank every tile until the backfill reached
+ * the item: the active tagger had no rows yet, so the view returned nothing. The
+ * fallback shows the most recent previous tagger's rows for an item the active
+ * tagger has not produced any tags for, and switches that item as soon as the
+ * new rows land. Rows stay append-only; this is a read rule, not a rewrite.
+ */
+val MIGRATION_22_23_TAG_FALLBACK_STATEMENTS: List<String> =
+    listOf(
+        "DROP VIEW IF EXISTS `item_tags_current`",
+        "CREATE VIEW `item_tags_current` AS ${Sql.ITEM_TAGS_CURRENT_FALLBACK.trim()}",
+    )
+
+/**
+ * v23 -> v24: count failed enrichment attempts.
+ *
+ * A transient fetch failure used to set `enriched_at = 0`, which meant "never
+ * retry this link". Now the first two failures leave it null and only the third
+ * gives up; existing rows already marked 0 are left alone (the column default
+ * makes their count 0, but they are filtered out by `enriched_at`, not the count).
+ */
+val MIGRATION_23_24_ENRICH_ATTEMPTS_STATEMENTS: List<String> =
+    listOf("ALTER TABLE events ADD COLUMN enrich_attempts INTEGER NOT NULL DEFAULT 0")
+
+/**
+ * v24 -> v25: `tagged_items` records "this tagger processed this item", even when
+ * it produced no tags. `item_tags_current` uses it so an item the active tagger
+ * deliberately left untagged stops falling back to a previous tagger.
+ *
+ * Existing rows are backfilled from the distinct `(item_id, tagger_id)` pairs in
+ * `item_tags`, so every item that has tags today keeps a marker.
+ */
+val MIGRATION_24_25_TAGGED_ITEMS_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `tagged_items` (
+            `item_id` TEXT NOT NULL,
+            `tagger_id` TEXT NOT NULL,
+            `tagged_at` INTEGER NOT NULL,
+            PRIMARY KEY(`item_id`, `tagger_id`)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_tagged_items_tagger_id` ON `tagged_items` (`tagger_id`)",
+        """
+        INSERT OR IGNORE INTO tagged_items (item_id, tagger_id, tagged_at)
+        SELECT item_id, tagger_id, MAX(tagged_at) FROM item_tags GROUP BY item_id, tagger_id
+        """.trimIndent(),
+        "DROP VIEW IF EXISTS `item_tags_current`",
+        "CREATE VIEW `item_tags_current` AS ${Sql.ITEM_TAGS_CURRENT.trim()}",
+    )
+
+/**
+ * v25 -> v26: the embedder's vector per item, for natural-language rules.
+ *
+ * One row per item: the vector belongs to the text, not to a tagger version.
+ * Empty on an existing install until the retag (or the next ingest) writes one.
+ */
+val MIGRATION_25_26_ITEM_EMBEDDINGS_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `item_embeddings` (
+            `item_id` TEXT NOT NULL,
+            `tagger_id` TEXT NOT NULL,
+            `dim` INTEGER NOT NULL,
+            `vector` BLOB NOT NULL,
+            `created_at` INTEGER NOT NULL,
+            PRIMARY KEY(`item_id`)
+        )
+        """.trimIndent(),
+    )
+
+/**
  * Every migration, keyed by the version it produces. Keeping the DDL as data
  * (rather than buried inside a `Migration` object) is what lets
  * `MigrationSchemaTest` execute the real statements against a real SQLite and
@@ -933,6 +1007,10 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         20 to MIGRATION_19_20_STATEMENTS,
         21 to MIGRATION_20_21_STATEMENTS,
         22 to MIGRATION_21_22_SIM_STATEMENTS,
+        23 to MIGRATION_22_23_TAG_FALLBACK_STATEMENTS,
+        24 to MIGRATION_23_24_ENRICH_ATTEMPTS_STATEMENTS,
+        25 to MIGRATION_24_25_TAGGED_ITEMS_STATEMENTS,
+        26 to MIGRATION_25_26_ITEM_EMBEDDINGS_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

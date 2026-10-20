@@ -148,4 +148,29 @@ class WorkerJobsTest {
         assertEquals("UnknownHostException", failureKindName(java.net.UnknownHostException()))
         assertEquals("IllegalStateException", failureKindName(IllegalStateException("gone")))
     }
+
+    @Test
+    fun `drain specs derive honest registrations and counts`() {
+        val enrich = Drains.ENRICHMENT.workerSpec()
+        assertEquals("article-enrich-now", enrich.uniqueName)
+        assertEquals("enrichment", enrich.group)
+        assertEquals(EnrichWorker.KEY_ENRICHED, enrich.countKey)
+        assertEquals("summary", enrich.singular)
+
+        val retag = Drains.RETAG.workerSpec()
+        assertEquals("retag-dispatch", retag.uniqueName)
+        assertEquals("retag", retag.group)
+        assertEquals(RetagDispatchWorker.KEY_TAGGED, retag.countKey)
+        assertEquals("item", retag.singular)
+    }
+
+    @Test
+    fun `both drains and their recons appear in scheduled jobs`() {
+        val names = SyncScheduler.scheduledJobs().map { it.uniqueName }.toSet()
+
+        assertTrue(Drains.ENRICHMENT.uniqueName in names)
+        assertTrue(Drains.ENRICHMENT.reconUniqueName in names)
+        assertTrue(Drains.RETAG.uniqueName in names)
+        assertTrue(Drains.RETAG.reconUniqueName in names)
+    }
 }

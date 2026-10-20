@@ -71,7 +71,7 @@ class MigrationSchemaTest {
 
     @Test
     fun `the exported schema describes exactly what we expect`() {
-        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules", "item_fields", "kinds", "facets", "kind_facets", "sync_runs", "calendar_dates", "conversations", "categories", "category_rules"), tables.keys)
+        assertEquals(setOf("events", "taggers", "item_tags", "places", "mentions", "parties", "party_sources", "sources", "rules", "item_rules", "tagged_items", "item_embeddings", "item_fields", "kinds", "facets", "kind_facets", "sync_runs", "calendar_dates", "conversations", "categories", "category_rules"), tables.keys)
         assertEquals(setOf("item_tags_current"), views.keys)
     }
 
@@ -166,6 +166,15 @@ class MigrationSchemaTest {
                       ('legacy-1', 'news', 'heuristic-v1', 0.7, NULL, 1),
                       ('legacy-1', 'news', 'heuristic-v2', 0.7, NULL, 2),
                       ('legacy-1', 'personal', 'heuristic-v2', 0.7, NULL, 2)
+                    """.trimIndent(),
+                )
+            db
+                .createStatement()
+                .executeUpdate(
+                    """
+                    INSERT INTO tagged_items (item_id, tagger_id, tagged_at) VALUES
+                      ('legacy-1', 'heuristic-v1', 1),
+                      ('legacy-1', 'heuristic-v2', 2)
                     """.trimIndent(),
                 )
             val tags =

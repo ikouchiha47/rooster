@@ -56,7 +56,7 @@ class HeuristicTagger(
     }
 
     /** DLT promotional headers end in `-P`; the suffix beats any wording. */
-    private fun isDltPromo(sender: String?): Boolean = sender?.trim()?.endsWith("-P", ignoreCase = true) == true
+    private fun isDltPromo(sender: String?): Boolean = isPromotionalSender(sender)
 
     /**
      * A sender that is a real phone number is a person. DLT business headers

@@ -33,4 +33,6 @@ data class RuleItem(
     val tags: Set<String>,
     val mentions: List<RuleMention>,
     val fields: Map<String, FieldValue> = emptyMap(),
+    /** The embedder's vector for this item, when the ML rung produced one. */
+    val embedding: FloatArray? = null,
 )
