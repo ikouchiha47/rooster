@@ -7,6 +7,16 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(calendar): day timeline, month grid and saved namespaces
+
+_2026-10-21_
+
+Adds the Calendar shell with Sync and Settings, Day/Month/Year tabs, a 30-minute day timeline, a month grid, a year overview, grouped agenda rows, and a multi-select namespace dropdown.
+
+Calendar settings now live in Room: calendar_settings for each surface's default and calendar_selections for explicit visibility. Adds per-surface defaults, Only, Add Region and migration 26 -> 27.
+
+Verified: assembleDebug, 933 unit tests, ktlintCheck; checked on device.
+
 ## feat(ui): shared tabbed tiles with scoped alerts
 
 _2026-10-21_

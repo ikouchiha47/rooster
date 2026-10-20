@@ -985,6 +985,25 @@ val MIGRATION_25_26_ITEM_EMBEDDINGS_STATEMENTS: List<String> =
  * compare the result with the exported Room schema - Room cannot validate
  * migration SQL at compile time.
  */
+val MIGRATION_26_27_CALENDAR_SETTINGS_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS calendar_settings (
+            surface TEXT NOT NULL,
+            default_source_id TEXT,
+            PRIMARY KEY(surface)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS calendar_selections (
+            surface TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            enabled INTEGER NOT NULL,
+            PRIMARY KEY(surface, source_id)
+        )
+        """.trimIndent(),
+    )
+
 val MIGRATION_STATEMENTS: Map<Int, List<String>> =
     mapOf(
         3 to MIGRATION_2_3_STATEMENTS,
@@ -1011,6 +1030,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         24 to MIGRATION_23_24_ENRICH_ATTEMPTS_STATEMENTS,
         25 to MIGRATION_24_25_TAGGED_ITEMS_STATEMENTS,
         26 to MIGRATION_25_26_ITEM_EMBEDDINGS_STATEMENTS,
+        27 to MIGRATION_26_27_CALENDAR_SETTINGS_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

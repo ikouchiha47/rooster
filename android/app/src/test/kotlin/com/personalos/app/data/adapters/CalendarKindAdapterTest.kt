@@ -58,6 +58,17 @@ class CalendarKindAdapterTest {
                 .filter { it.region in regions && it.startsAt in fromMs..toMs }
                 .sortedBy { it.startsAt }
 
+        override fun observeUpcomingForSources(
+            sources: List<String>,
+            fromMs: Long,
+            toMs: Long,
+        ): Flow<List<CalendarDateEntity>> =
+            flowOf(
+                rows.values
+                    .filter { it.source in sources && it.startsAt in fromMs..toMs }
+                    .sortedBy { it.startsAt },
+            )
+
         override suspend fun count(): Int = rows.size
 
         override suspend fun deleteStaleForSource(

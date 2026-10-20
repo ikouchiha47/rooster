@@ -21,6 +21,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.personalos.app.ui.article.ArticleScreen
 import com.personalos.app.ui.calendar.CalendarScreen
+import com.personalos.app.ui.calendar.CalendarSettingsScreen
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.home.HomeScreen
@@ -77,6 +78,9 @@ sealed interface Destination {
 
     /** Followed regions and their upcoming observances, month-grouped. */
     data object Calendar : Destination
+
+    /** Calendar's saved set, default namespace, and Add Region. */
+    data object CalendarSettings : Destination
 
     /** Travel: the calendar's observances plus travel-tagged news. */
     data object Travel : Destination
@@ -151,6 +155,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Sources -> "sources"
         is Destination.Watchers -> "watchers"
         is Destination.Calendar -> "calendar"
+        is Destination.CalendarSettings -> "calendarSettings"
         is Destination.Travel -> "travel"
         is Destination.Settings -> "settings"
         is Destination.Wallet -> "wallet"
@@ -343,7 +348,13 @@ fun AppNavHost(
                 onNavigate = { navigateToDetail(navController, it) },
             )
         }
-        composable("calendar") { CalendarScreen(onBack = backOrNull(navController)) }
+        composable("calendar") {
+            CalendarScreen(
+                onNavigate = { navigateToDetail(navController, it) },
+                onBack = backOrNull(navController),
+            )
+        }
+        composable("calendarSettings") { CalendarSettingsScreen(onBack = backOrNull(navController)) }
         composable("travel") {
             TravelScreen(
                 onNavigate = { navigateToDetail(navController, it) },

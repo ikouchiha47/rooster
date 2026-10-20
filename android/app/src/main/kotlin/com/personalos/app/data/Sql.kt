@@ -1077,6 +1077,18 @@ object Sql {
         ORDER BY starts_at ASC, name ASC
         """
 
+    /**
+     * Upcoming observances for an exact set of source identities. The surface
+     * selection is projected to identities in [CalendarRepository], so two
+     * providers following the same region stay two facts.
+     */
+    const val CALENDAR_UPCOMING_BY_SOURCE =
+        """
+        SELECT * FROM calendar_dates
+        WHERE source IN (:sources) AND starts_at >= :fromMs AND starts_at <= :toMs
+        ORDER BY starts_at ASC, name ASC
+        """
+
     const val CALENDAR_COUNT = "SELECT COUNT(*) FROM calendar_dates"
 
     const val CALENDAR_DELETE_STALE =

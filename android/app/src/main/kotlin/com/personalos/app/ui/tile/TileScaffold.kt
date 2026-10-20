@@ -48,6 +48,8 @@ fun TileScaffold(
     tabs: List<TabSpec> = emptyList(),
     selectedTab: Int = 0,
     onSelectTab: (Int) -> Unit = {},
+    /** False for a tile whose search is not built yet; the bar is omitted. */
+    showSearch: Boolean = true,
     sourceFilters: List<SourceFilterOption> = emptyList(),
     selectedSource: String? = null,
     onSelectSource: (String?) -> Unit = {},
@@ -75,21 +77,23 @@ fun TileScaffold(
             trailing = header,
         )
 
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .background(RadarColors.paper2)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-        ) {
-            SearchField(
-                hint = config.searchHint,
-                query = draft,
-                onQueryChange = { draft = it },
-                onSubmit = { committed = draft },
-            )
+        if (showSearch) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(RadarColors.paper2)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+            ) {
+                SearchField(
+                    hint = config.searchHint,
+                    query = draft,
+                    onQueryChange = { draft = it },
+                    onSubmit = { committed = draft },
+                )
+            }
+            HardRule()
         }
-        HardRule()
 
         QuickBar(
             items = quickItems,

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.personalos.app.core.calendar.CalendarSurface
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
@@ -85,8 +86,8 @@ fun TravelScreen(
     var selectedSource by remember { mutableStateOf<String?>(null) }
     val tab = travelTabAt(selectedTab)
 
-    val regions by container.calendarRepository.followedRegions().collectAsStateWithLifecycle(initialValue = emptyList())
-    val upcoming by container.calendarRepository.upcoming().collectAsStateWithLifecycle(initialValue = emptyList())
+    val regions by container.calendarRepository.followedRegions(CalendarSurface.TRAVEL).collectAsStateWithLifecycle(initialValue = emptyList())
+    val upcoming by container.calendarRepository.upcoming(CalendarSurface.TRAVEL).collectAsStateWithLifecycle(initialValue = emptyList())
     val months = remember(upcoming) { groupIntoCalendarMonths(upcoming) }
     val tileDao = remember { database.tileDao() }
     val newsCount by tileDao.observeCountByTagScoped(Tags.TRAVEL, selectedSource).collectAsStateWithLifecycle(initialValue = 0)

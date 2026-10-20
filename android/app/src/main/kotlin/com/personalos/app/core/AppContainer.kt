@@ -388,7 +388,11 @@ class AppContainer(
      * one instance, so they can never disagree on which regions are followed.
      */
     val calendarRepository: CalendarRepository =
-        CalendarRepository(database.sourceDao(), database.calendarDao())
+        CalendarRepository(
+            database.sourceDao(),
+            database.calendarDao(),
+            database.calendarSettingsDao(),
+        )
 
     /** The activity log behind the Radar Events tab — one run row per source per poll. */
     val syncRecorder: com.personalos.app.data.RoomSyncRecorder =

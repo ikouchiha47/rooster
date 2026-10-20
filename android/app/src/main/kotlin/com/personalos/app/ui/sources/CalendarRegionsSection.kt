@@ -1,7 +1,9 @@
 package com.personalos.app.ui.sources
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -83,7 +85,14 @@ internal fun calendarRegionSpec(
  * in silence forever.
  */
 @Composable
-fun CalendarRegionsSection(sources: List<SourceEntity>) {
+fun CalendarRegionsSection(
+    sources: List<SourceEntity>,
+    selectedIds: Set<String> = emptySet(),
+    defaultId: String? = null,
+    onToggle: ((String, Boolean) -> Unit)? = null,
+    onOnly: ((String) -> Unit)? = null,
+    onDefault: ((String) -> Unit)? = null,
+) {
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
 
@@ -152,7 +161,7 @@ fun CalendarRegionsSection(sources: List<SourceEntity>) {
     }
 
     Column(Modifier.fillMaxWidth()) {
-        WidgetHeader(title = "Calendars", note = "${calendars.size} regions")
+        WidgetHeader(title = "Calendars", note = if (calendars.size == 1) "1 region" else "${calendars.size} regions")
         Text(
             text =
                 "Holidays and festivals for a region you follow. Pick a country from a provider " +
@@ -219,11 +228,19 @@ fun CalendarRegionsSection(sources: List<SourceEntity>) {
             CalendarRow(
                 source = source,
                 label = calendarRegionLabel(source),
+                selected = if (onToggle != null) source.id in selectedIds else source.enabled,
                 onToggle = {
-                    scope.launch {
-                        runCatching { container.sourceRepository.setEnabled(source.id, source.enabled.not()) }
+                    if (onToggle != null) {
+                        onToggle(source.id, source.id !in selectedIds)
+                    } else {
+                        scope.launch {
+                            runCatching { container.sourceRepository.setEnabled(source.id, source.enabled.not()) }
+                        }
                     }
                 },
+                onOnly = onOnly?.let { callback -> { callback(source.id) } },
+                isDefault = defaultId == source.id,
+                onDefault = onDefault?.let { callback -> { callback(source.id) } },
                 onDelete = {
                     scope.launch {
                         // A user row only; seeded rows are locked by the repository's SQL.
@@ -393,7 +410,11 @@ private fun countDates(url: String): Int? = runCatching { IcsCalendar.parse(Http
 private fun CalendarRow(
     source: SourceEntity,
     label: String,
+    selected: Boolean,
     onToggle: () -> Unit,
+    onOnly: (() -> Unit)?,
+    isDefault: Boolean,
+    onDefault: (() -> Unit)?,
     onDelete: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
@@ -401,6 +422,16 @@ private fun CalendarRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Box(
+                modifier =
+                    Modifier
+                        .width(14.dp)
+                        .height(14.dp)
+                        .border(1.dp, RadarColors.ink)
+                        .background(if (selected) RadarColors.ink else RadarColors.paper2)
+                        .clickable(onClickLabel = if (selected) "Hide calendar" else "Show calendar", onClick = onToggle),
+            )
+            Spacer(Modifier.width(7.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = label,
@@ -410,24 +441,26 @@ private fun CalendarRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = if (source.enabled) "enabled" else "disabled",
+                    text = if (selected) "shown on this surface" else "hidden on this surface",
                     style = RadarType.microPlain,
                     color = RadarColors.ink3,
                     maxLines = 1,
                 )
             }
-            Text(
-                text = if (source.enabled) "DISABLE" else "ENABLE",
-                style = RadarType.labelMicro,
-                color = RadarColors.ink2,
-                modifier = Modifier.clickable(onClick = onToggle).padding(horizontal = 6.dp, vertical = 4.dp),
-            )
-            Text(
-                text = "DELETE",
-                style = RadarType.labelMicro,
-                color = CategoryColors.Vermilion,
-                modifier = Modifier.clickable(onClick = onDelete).padding(horizontal = 6.dp, vertical = 4.dp),
-            )
+            onOnly?.let {
+                Spacer(Modifier.width(4.dp))
+                FlatButton(text = "Only", onClick = it)
+            }
+            onDefault?.let {
+                Spacer(Modifier.width(4.dp))
+                FlatButton(
+                    text = if (isDefault) "Default" else "Set default",
+                    onClick = it,
+                    solid = isDefault,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            FlatButton(text = "Delete", onClick = onDelete, danger = true)
         }
         SoftRule()
     }

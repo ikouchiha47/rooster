@@ -1025,9 +1025,15 @@ fun FlatButton(
     enabled: Boolean = true,
     solid: Boolean = false,
     vermilion: Boolean = false,
+    danger: Boolean = false,
 ) {
     val colors =
         when {
+            danger ->
+                ButtonDefaults.buttonColors(
+                    containerColor = RadarColors.paper2,
+                    contentColor = CategoryColors.Vermilion,
+                )
             vermilion ->
                 ButtonDefaults.buttonColors(
                     containerColor = CategoryColors.Vermilion,
@@ -1051,7 +1057,12 @@ fun FlatButton(
         enabled = enabled,
         colors = colors,
         shape = RoundedCornerShape(2.dp),
-        border = if (!solid && !vermilion) BorderStroke(1.dp, RadarColors.ink) else null,
+        border =
+            when {
+                danger -> BorderStroke(1.dp, CategoryColors.Vermilion)
+                !solid && !vermilion -> BorderStroke(1.dp, RadarColors.ink)
+                else -> null
+            },
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(

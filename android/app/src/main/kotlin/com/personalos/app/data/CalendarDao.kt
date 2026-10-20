@@ -27,6 +27,14 @@ interface CalendarDao {
         toMs: Long,
     ): List<CalendarDateEntity>
 
+    /** Upcoming observances for exact source identities (a surface's selection). */
+    @Query(Sql.CALENDAR_UPCOMING_BY_SOURCE)
+    fun observeUpcomingForSources(
+        sources: List<String>,
+        fromMs: Long,
+        toMs: Long,
+    ): Flow<List<CalendarDateEntity>>
+
     @Query(Sql.CALENDAR_COUNT)
     suspend fun count(): Int
 
