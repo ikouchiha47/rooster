@@ -1,5 +1,10 @@
 package com.personalos.app.ui.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.personalos.app.core.AppContainer
 import com.personalos.app.core.Chars
 import com.personalos.app.core.theme.RadarTheme
@@ -118,6 +127,9 @@ fun SettingsScreen(
                 models = listOf(KnownArtifacts.vocabulary),
                 onDownloaded = { it.reloadVocabulary() },
             )
+
+            Spacer(Modifier.height(12.dp))
+            StorageSection()
 
             Spacer(Modifier.height(12.dp))
             BatterySection()
@@ -214,6 +226,70 @@ private fun EnrichmentSection() {
         )
     }
     FooterStrip("Applies from the next run")
+}
+
+/**
+ * Where models live, and the one grant that makes them shared.
+ *
+ * The SDK decides the directory; this only reports it. Without all-files access
+ * the SDK falls back to app-private storage, so a 187 MB model downloads fine but
+ * is invisible to every other app — worth saying before it is discovered.
+ */
+@Composable
+private fun StorageSection() {
+    val context = LocalContext.current
+    val hub = LocalAppContainer.current.models
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var shared by remember { mutableStateOf(hub.sharedStorageUsable()) }
+
+    // The grant happens in system Settings, so re-read it when this screen returns.
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) shared = hub.sharedStorageUsable()
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    WidgetHeader(title = "Model storage", note = if (shared) "shared" else "app-only")
+    Text(
+        text =
+            if (shared) {
+                "Models live in Downloads/ml-models — your other apps can use the same copy."
+            } else {
+                "Models are private to this app. Grant all-files access to share one copy with your other apps."
+            },
+        style = RadarType.microPlain,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+    if (!shared && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Text(
+            text = "GRANT ALL-FILES ACCESS",
+            style = RadarType.labelMicro,
+            color = CategoryColors.Teal,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { openAllFilesAccess(context) }
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+        )
+    }
+    FooterStrip(if (shared) hub.storageDir().absolutePath else "Private storage")
+}
+
+/** Opens the per-app all-files screen, falling back to the global one. */
+private fun openAllFilesAccess(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+    val perApp =
+        Intent(
+            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:${context.packageName}"),
+        )
+    runCatching { context.startActivity(perApp) }.onFailure {
+        runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
+    }
 }
 
 /**

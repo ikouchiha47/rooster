@@ -7,6 +7,48 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(models): download, load and retag on device — two bugs and a cache
+
+_2026-10-20_
+
+Getting the embedder running on the phone exposed two bugs that would have hit
+every device, plus one policy that made diagnosis harder than it needed to be.
+
+**A FUSE size race.** The download verified 175,410,176 bytes, renamed `.part`
+into place, and ORT then failed with "external initializer out of bounds" — because
+the shared folder briefly reported the *pre-rename* length (`121028608`) at the new
+path, and ONNX Runtime reads its external data with a `stat`. `HttpDownloader` now
+waits until the published path reports the exact expected size before returning.
+
+**Hashing 196 MB to answer "is it here?".** `status()` re-hashed the model on every
+start, which took minutes and let background jobs be stopped mid-hash. A
+`<file>.verified` marker now records the spec's size + SHA-256 once the bytes and
+hash agree; every later start is a `stat`. A changed file fails the marker and pays
+for one fresh hash. Cold-start load went from "minutes, then killed" to **6.0 s**.
+
+Neither of those was an embedding error. The batch failures were the 15 s inference
+watchdog firing on 16-text chunks; the watchdog's `setTerminate` makes ORT report
+`terminate flag`, which the old code logged as a generic failure. Chunks are now 8
+texts with a 60 s safety net, and the log carries **elapsed ms + the limit** so a
+timeout is unmistakable. Cancellation is propagated rather than swallowed, so a
+stopped job no longer logs one "failure" per remaining chunk. After the fix: **0
+batch failures**, tag rows advancing, `retag|1` recorded in `node_attempts`.
+
+Also:
+- `enqueueWorkflow` used `REPLACE`, so any second request killed the in-flight run.
+  It is now `KEEP`, matching backfill/retag: asking again is not a cancel.
+- Settings gains a **Model storage** row. The SDK declared `MANAGE_EXTERNAL_STORAGE`
+  but nothing ever requested it, so the shared folder could never have been used
+  on a real device — downloads would silently land in app-private storage.
+- `UPGRADE_TAGGER` debug receiver, so loading can be tested without WorkManager.
+- `tools/publish-model.sh`: publishes a model as a GitHub release asset and prints
+  the size/sha plus a paste-ready `ArtifactFile`; `--dry-run` verifies without
+  touching the network.
+- README documents the marker and the published-size check.
+
+Verified on device: files and sizes in `Downloads/ml-models/global/embeddinggemma/`,
+`upgradeTagger=true`, `cascade-v4` active, 0 batch failures, one run under `KEEP`.
+
 ## fix(tag): a downloaded vocabulary takes effect without a restart
 
 _2026-10-19_

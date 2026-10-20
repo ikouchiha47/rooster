@@ -345,7 +345,11 @@ object SyncScheduler {
             .getInstance(context)
             .enqueueUniqueWork(
                 "workflow:$workflowId",
-                ExistingWorkPolicy.REPLACE,
+                // KEEP, not REPLACE. A run is long and resumable, so asking again
+                // must not cancel the one in flight — that is how a healthy retag
+                // was being killed by a second trigger. A forced restart is an
+                // explicit cancel followed by an enqueue, not a side effect.
+                ExistingWorkPolicy.KEEP,
                 request,
             )
     }

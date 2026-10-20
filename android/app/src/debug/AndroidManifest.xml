@@ -43,6 +43,15 @@
         </receiver>
 
         <receiver
+            android:name=".debug.UpgradeTaggerReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.personalos.app.UPGRADE_TAGGER" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".debug.ForceModelDownloadReceiver"
             android:enabled="true"
             android:exported="true">

@@ -99,6 +99,17 @@ Three guarantees worth stating:
   partial length, and a `416` restarts clean.
 - **Verified before published** — size and SHA-256 are checked on the `.part`;
   only then is it renamed into place. A reject deletes the `.part`.
+- **Verified once, then remembered.** When the bytes and the hash agree, a
+  `<file>.verified` marker records the spec's size + SHA-256. Every later start
+  then answers *"is this the artifact?"* with a `stat` instead of re-reading
+  167 MB; a file that has changed fails the marker and pays for one fresh hash.
+  Re-verifying a 300M-parameter model on every launch is minutes of IO for an
+  answer that cannot have changed.
+- **Published size is confirmed.** After the `.part` → final rename the downloader
+  waits until the final path reports the exact expected size. A FUSE-backed shared
+  folder can briefly report the *old* length at the new path, and ONNX Runtime
+  reads its external-data length with a `stat` — without this check it opens a
+  short weights file and fails with "external initializer out of bounds".
 - **Content-checked first** — empty bodies, HTML error pages (by first byte *and*
   `Content-Type`), and files without the TFLite `TFL3` / ONNX `0x08` magic bytes
   are rejected before hashing.

@@ -98,6 +98,19 @@ class Hub(
     }
 
     /**
+     * Whether the shared models folder is usable — i.e. all-files access is
+     * granted. When false, everything still works, but only this app can read the
+     * files: [storageDir] is then the app-private directory.
+     *
+     * Exposed because the *screen* has to tell the user which one they are in; the
+     * decision itself belongs here, not in the UI.
+     */
+    fun sharedStorageUsable(): Boolean = Paths.sharedUsable(context)
+
+    /** The directory artifacts are written to now: shared when usable, else private. */
+    fun storageDir(): File = Paths.dir(context)
+
+    /**
      * The file for a **declared** artifact, resolved synchronously.
      *
      * For reading a dataset at startup, where the caller cannot suspend. Declared
@@ -183,7 +196,12 @@ class Hub(
         withContext(Dispatchers.IO) {
             val artifact = resolve(ref)
             val dir = Paths.dirFor(context, artifact)
-            val removed = artifact.files.count { file -> File(dir, file.fileName).delete() }
+            val removed =
+                artifact.files.count { file ->
+                    val target = File(dir, file.fileName)
+                    Verified.marker(target).delete()
+                    target.delete()
+                }
             dir.delete()
             removed > 0
         }
@@ -202,7 +220,10 @@ class Hub(
             val artifacts = merged().artifacts
             val writable = Paths.dir(context)
             val isPrivate = writable == Paths.privateRoot(context)
-            val keep = artifacts.flatMap { it.fileNames() }.toSet() + Paths.MANIFEST_NAME + "${Paths.MANIFEST_NAME}.tmp"
+            val keep =
+                artifacts.flatMap { a -> a.fileNames().flatMap { listOf(it, it + Verified.SUFFIX) } }.toSet() +
+                    Paths.MANIFEST_NAME +
+                    "${Paths.MANIFEST_NAME}.tmp"
             val dirs = listOf(writable) + artifacts.map { File(writable, it.dir) }
             dirs
                 .flatMap { it.listFiles()?.filter { entry -> entry.isFile } ?: emptyList() }
@@ -249,10 +270,15 @@ class Hub(
     ): ArtifactStatus {
         if (file == null) return ArtifactStatus.ABSENT
         val size = file.length()
-        // Hash only when the size already matches: a mismatch is PARTIAL, and the
-        // hash would be a wasted read of the whole file.
-        val sha = if (size == spec.sizeBytes) Integrity.sha256(file) else ""
-        return artifactStatus(PresentFile(size, sha), spec)
+        // A wrong size is PARTIAL, and hashing it would be a wasted read.
+        if (size != spec.sizeBytes) return ArtifactStatus.PARTIAL
+        // Verified before, and the file has not changed since: a stat is enough.
+        if (Verified.matches(file, spec)) return ArtifactStatus.READY
+        val sha = Integrity.sha256(file)
+        if (!sha.equals(spec.sha256, ignoreCase = true)) return ArtifactStatus.STALE
+        // Remember it, so the next start does not re-hash 167 MB.
+        Verified.write(file, spec)
+        return ArtifactStatus.READY
     }
 
     private fun write(

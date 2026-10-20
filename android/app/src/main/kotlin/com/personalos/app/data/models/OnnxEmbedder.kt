@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.nio.LongBuffer
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.sqrt
 
 /**
@@ -40,7 +41,11 @@ import kotlin.math.sqrt
 class OnnxEmbedder(
     private val modelFile: File,
     private val tokenizerFile: File,
-    private val batchSize: Int = 16,
+    // 16 was too many: on this device a 16-item chunk of 256-token texts took
+    // longer than the 15 s watchdog, so every chunk was terminated and reported
+    // as an ORT failure. 8 keeps a chunk well inside a timeout that is meant to
+    // be a safety net, not the normal path.
+    private val batchSize: Int = 8,
     private val maxSeqLen: Int = 256,
     private val embeddingDim: Int = 256,
 ) : Embedder {
@@ -98,8 +103,29 @@ class OnnxEmbedder(
                     val end = minOf(start + batchSize, texts.size)
                     // A chunk that fails leaves its entries null — "no opinion" per
                     // item — rather than nulling the whole batch.
+                    val startedAt = System.nanoTime()
                     runCatching { runChunk(loaded, tok, texts.subList(start, end), out, start) }
-                        .onFailure { Log.w(TAG, "embed batch failed", it) }
+                        .onFailure { error ->
+                            val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+                            if (error is CancellationException) {
+                                // Not a failure: the caller went away. Propagate, because
+                                // swallowing it here would run every remaining chunk against
+                                // a cancelled job and log one "failure" per chunk.
+                                Log.d(
+                                    TAG,
+                                    "embed cancelled at chunk $start..${end - 1} of ${texts.size} after ${elapsedMs}ms: ${error.reason()}",
+                                )
+                                throw error
+                            }
+                            // The elapsed time is the tell: a chunk that fails at the
+                            // watchdog budget is a timeout, whatever ORT calls it.
+                            Log.w(
+                                TAG,
+                                "embed batch failed at chunk $start..${end - 1} of ${texts.size} after ${elapsedMs}ms " +
+                                    "(limit ${INFERENCE_TIMEOUT_MS}ms): ${error.reason()}",
+                                error,
+                            )
+                        }
                 }
                 out.toList()
             }
@@ -154,7 +180,7 @@ class OnnxEmbedder(
                             }
                         }
                     if (result == null) {
-                        Log.w(TAG, "inference timed out after ${INFERENCE_TIMEOUT_MS}ms; chunk left untagged")
+                        Log.w(TAG, "inference timed out after ${INFERENCE_TIMEOUT_MS}ms at offset $offset (${chunk.size} texts); chunk left untagged")
                         return
                     }
                     result.use { r ->
@@ -191,7 +217,7 @@ class OnnxEmbedder(
         const val DEFAULT_OUTPUT = "sentence_embedding"
 
         /** Generous bound for one inference chunk; a healthy chunk is well under 1s. */
-        const val INFERENCE_TIMEOUT_MS = 15_000L
+        const val INFERENCE_TIMEOUT_MS = 60_000L
 
         /**
          * Concurrent inference runs. **1** — one at a time. Two concurrent runs on the
@@ -201,3 +227,10 @@ class OnnxEmbedder(
         const val CONCURRENT_RUNS = 1
     }
 }
+
+/**
+ * The exception in one line, so a log *summary* carries the cause. The stack is
+ * still passed to Log; this is what makes `grep "batch failed"` readable when the
+ * stack has been interleaved with another thread's.
+ */
+private fun Throwable.reason(): String = "${this::class.simpleName}: ${message ?: "(no message)"}"

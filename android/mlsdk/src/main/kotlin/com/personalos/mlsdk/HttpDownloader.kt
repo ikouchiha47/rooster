@@ -1,6 +1,7 @@
 package com.personalos.mlsdk
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
@@ -108,6 +109,44 @@ class HttpDownloader(
             }
             if (finalFile.exists() && !finalFile.delete()) throw IllegalStateException("could not replace ${spec.fileName}")
             if (!part.renameTo(finalFile)) throw IllegalStateException("could not place ${spec.fileName}")
+
+            // A FUSE-backed shared directory can report the *old* file at the new
+            // path for a moment after the rename: the rename is visible before the
+            // attribute cache catches up. ONNX Runtime reads its external data with
+            // a `stat` of that path, so a caller that loads immediately can see a
+            // short weights file and fail with "external initializer out of bounds".
+            // Waiting for the published size closes that window before returning.
+            if (!awaitPublishedSize(finalFile, spec.sizeBytes)) {
+                throw IllegalStateException(
+                    "published size is ${finalFile.length()} but expected ${spec.sizeBytes} for ${spec.fileName}",
+                )
+            }
+            // The transfer and the hash just agreed, so record it: a later start
+            // can answer "is this the artifact?" with a stat.
+            Verified.write(finalFile, spec)
             return@withContext finalFile
         }
+
+    /**
+     * Waits (bounded) until [file] reports [expected] bytes.
+     *
+     * Not a retry of the transfer — the bytes are already verified — only of the
+     * *view* the filesystem gives of them. Returns false when it never agrees, so
+     * the caller fails loudly rather than handing a short file to a runtime.
+     */
+    private suspend fun awaitPublishedSize(
+        file: File,
+        expected: Long,
+    ): Boolean {
+        repeat(PUBLISH_CHECKS) {
+            if (file.length() == expected) return true
+            delay(PUBLISH_DELAY_MS)
+        }
+        return file.length() == expected
+    }
+
+    private companion object {
+        const val PUBLISH_CHECKS = 40
+        const val PUBLISH_DELAY_MS = 100L
+    }
 }
