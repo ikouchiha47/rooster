@@ -1004,6 +1004,89 @@ val MIGRATION_26_27_CALENDAR_SETTINGS_STATEMENTS: List<String> =
         """.trimIndent(),
     )
 
+private val TAG_SEED_STATEMENTS: List<String> =
+    listOf(
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('birthday', 'Birthday', '#D93B2B', 1)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('anniversary', 'Anniversary', '#7A2E5E', 2)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('meeting', 'Meeting', '#2B4C8C', 3)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('appointment', 'Appointment', '#1B7A8C', 4)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('occasion', 'Occasion', '#E0A800', 5)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('travel', 'Travel', '#B4532A', 6)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('trip', 'Trip', '#1F8A70', 7)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('flight', 'Flight', '#6C7BD9', 8)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('hotel', 'Hotel', '#A8C020', 9)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('holiday', 'Holiday', '#D93B2B', 10)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('festival', 'Festival', '#E0A800', 11)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('bill', 'Bill', '#B4532A', 12)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('subscription', 'Subscription', '#7A2E5E', 13)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('renewal', 'Renewal', '#1B7A8C', 14)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('deadline', 'Deadline', '#D93B2B', 15)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('task', 'Task', '#2B4C8C', 16)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('exam', 'Exam', '#6C7BD9', 17)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('interview', 'Interview', '#1F8A70', 18)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('medical', 'Medical', '#1B7A8C', 19)",
+        "INSERT OR IGNORE INTO planner_tags (id, label, color, sort) VALUES ('other', 'Other', '#171513', 20)",
+    )
+
+/** v27 -> v28: Personal workspace, planner items, and the seeded tag set. */
+val MIGRATION_27_28_PLANNER_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS planner_workspaces (
+            id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            is_default INTEGER NOT NULL,
+            source_id TEXT,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        "INSERT OR IGNORE INTO planner_workspaces (id, name, kind, is_default, source_id, created_at) VALUES ('personal', 'Personal', 'personal', 1, NULL, 0)",
+        """
+        CREATE TABLE IF NOT EXISTS planner_items (
+            id TEXT NOT NULL,
+            workspace_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            title TEXT NOT NULL,
+            notes TEXT NOT NULL,
+            start_at INTEGER NOT NULL,
+            end_at INTEGER,
+            all_day INTEGER NOT NULL,
+            time_zone TEXT NOT NULL,
+            recurrence_rule TEXT,
+            recurrence_until INTEGER,
+            recurrence_count INTEGER,
+            status TEXT NOT NULL,
+            lead_minutes INTEGER,
+            source_item_id TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_planner_items_workspace_id_start_at ON planner_items (workspace_id, start_at)",
+        "CREATE INDEX IF NOT EXISTS index_planner_items_start_at ON planner_items (start_at)",
+        "CREATE INDEX IF NOT EXISTS index_planner_items_source_item_id ON planner_items (source_item_id)",
+        """
+        CREATE TABLE IF NOT EXISTS planner_tags (
+            id TEXT NOT NULL,
+            label TEXT NOT NULL,
+            color TEXT NOT NULL,
+            sort INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS planner_item_tags (
+            item_id TEXT NOT NULL,
+            tag_id TEXT NOT NULL,
+            PRIMARY KEY(item_id, tag_id)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_planner_item_tags_tag_id ON planner_item_tags (tag_id)",
+    ) + TAG_SEED_STATEMENTS
+
 val MIGRATION_STATEMENTS: Map<Int, List<String>> =
     mapOf(
         3 to MIGRATION_2_3_STATEMENTS,
@@ -1031,6 +1114,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         25 to MIGRATION_24_25_TAGGED_ITEMS_STATEMENTS,
         26 to MIGRATION_25_26_ITEM_EMBEDDINGS_STATEMENTS,
         27 to MIGRATION_26_27_CALENDAR_SETTINGS_STATEMENTS,
+        28 to MIGRATION_27_28_PLANNER_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

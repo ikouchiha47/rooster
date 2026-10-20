@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(planner): personal workspace, items and tags
+
+_2026-10-21_
+
+Adds the planner data model: a seeded Personal workspace, user-owned events and reminders with an optional recurrence rule, source provenance, a reminder lead time, and status. Items can carry multiple tags from a seeded vocabulary covering birthday, meeting, occasion, travel, bills, renewals, deadlines and more. No ML tag suggestions are used yet.
+
+Adds migration 27 -> 28 and the repository/DAO surface. UI is not wired yet.
+
 ## feat(calendar): day timeline, month grid and saved namespaces
 
 _2026-10-21_
