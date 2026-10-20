@@ -65,6 +65,9 @@ object CategoryColors {
     val Indigo = Color(0xFF2B4C8C)
     val Mustard = Color(0xFFE0A800)
     val Teal = Color(0xFF1F8A70)
+
+    /** Money & Markets: a muted marsh green, distinct from Weather's teal. */
+    val MarshGreen = Color(0xFF5A6B4A)
     val Chartreuse = Color(0xFFA8C020)
     val Periwinkle = Color(0xFF6C7BD9)
     val Plum = Color(0xFF7A2E5E)

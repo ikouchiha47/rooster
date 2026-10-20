@@ -22,6 +22,8 @@ import com.personalos.app.ui.common.QuickItem
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RadarHeader
 import com.personalos.app.ui.common.SearchField
+import com.personalos.app.ui.common.TabSpec
+import com.personalos.app.ui.common.TabStrip
 
 /**
  * The shared tile shell (docs/ARCHITECTURE.md §8): title, search, the tile's
@@ -42,6 +44,13 @@ fun TileScaffold(
     /** Non-null only when this tile was pushed on top of another screen. */
     onBack: (() -> Unit)? = null,
     header: @Composable (() -> Unit)? = null,
+    /** Empty for a single-view tile; non-empty adds the shared tab strip. */
+    tabs: List<TabSpec> = emptyList(),
+    selectedTab: Int = 0,
+    onSelectTab: (Int) -> Unit = {},
+    sourceFilters: List<SourceFilterOption> = emptyList(),
+    selectedSource: String? = null,
+    onSelectSource: (String?) -> Unit = {},
     body: @Composable (query: String) -> Unit,
 ) {
     // What is being typed, and what was last submitted. Search runs on the
@@ -89,6 +98,21 @@ fun TileScaffold(
                 if (index >= 0) onAction(config.actions[index])
             },
         )
+
+        if (tabs.isNotEmpty()) {
+            TabStrip(
+                items = tabs,
+                selectedIndex = selectedTab,
+                onSelect = onSelectTab,
+                trailing = {
+                    SourceFilterDropdown(
+                        options = sourceFilters,
+                        selected = selectedSource,
+                        onSelect = onSelectSource,
+                    )
+                },
+            )
+        }
 
         // Notifications are a root host (see `NotificationHost` in MainActivity),
         // not a child of this scaffold, so every screen shows them.

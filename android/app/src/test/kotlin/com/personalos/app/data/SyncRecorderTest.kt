@@ -28,6 +28,8 @@ class SyncRecorderTest {
 
         override fun observeSourceCount(): Flow<Int> = flowOf(rows.map { it.sourceId }.toSet().size)
 
+        override fun observeLastOkForKind(kind: String): Flow<Long?> = flowOf(rows.filter { it.kind == kind && it.ok }.maxOfOrNull { it.finishedAt })
+
         override suspend fun pruneOlderThan(cutoffMs: Long): Int {
             prunedBefore = cutoffMs
             val before = rows.size

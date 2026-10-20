@@ -128,6 +128,132 @@ object Sql {
         """
 
     /**
+     * A tag read restricted to one source identity. Money & Markets uses this
+     * for its SMS tab: finance-tagged messages are neither feed rows nor a
+     * second SMS store, just the same tag read narrowed by `events.source`.
+     */
+    const val EVENTS_BY_TAG_SOURCE_PAGE =
+        """
+        SELECT e.*,
+               (SELECT GROUP_CONCAT(t2.tag)
+                FROM item_tags_current t2
+                WHERE t2.item_id = e.ulid) AS tags
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.source = :source
+          AND (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND e.id < :cursorId))
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
+        """
+
+    const val EVENTS_COUNT_BY_TAG_SOURCE =
+        """
+        SELECT COUNT(1) FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.source = :source
+        """
+
+    /**
+     * The source families present under a tag, for a tile's filter row. The
+     * family is the part before `:` (`rss:`, `gnews:`), or the whole source for
+     * `sms`. Grouping here means a new source kind appears in the filter without
+     * a screen knowing its name.
+     */
+    const val EVENTS_SOURCE_FAMILIES_BY_TAG =
+        """
+        SELECT CASE
+                   WHEN instr(e.source, ':') > 0
+                   THEN substr(e.source, 1, instr(e.source, ':'))
+                   ELSE e.source
+               END AS source,
+               COUNT(1) AS count
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+        GROUP BY 1
+        ORDER BY count DESC, source
+        """
+
+    /** The same families, limited to rows a feed tab can actually show. */
+    const val EVENTS_FEED_SOURCE_FAMILIES_BY_TAG =
+        """
+        SELECT CASE
+                   WHEN instr(e.source, ':') > 0
+                   THEN substr(e.source, 1, instr(e.source, ':'))
+                   ELSE e.source
+               END AS source,
+               COUNT(1) AS count
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.type = 'feed'
+        GROUP BY 1
+        ORDER BY count DESC, source
+        """
+
+    /** A tag page narrowed by a source-family prefix; null means every source. */
+    const val EVENTS_BY_TAG_PAGE_ITEMS_SCOPED =
+        """
+        SELECT e.*,
+               (SELECT GROUP_CONCAT(t2.tag)
+                FROM item_tags_current t2
+                WHERE t2.item_id = e.ulid) AS tags
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.type = 'feed'
+          AND (:prefix IS NULL OR e.source LIKE :prefix || '%')
+          AND (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND e.id < :cursorId))
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
+        """
+
+    const val EVENTS_COUNT_BY_TAG_SCOPED =
+        """
+        SELECT COUNT(1) FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.type = 'feed'
+          AND (:prefix IS NULL OR e.source LIKE :prefix || '%')
+        """
+
+    const val EVENTS_DAY_HEADERS_BY_TAG_SCOPED =
+        """
+        SELECT (e.timestamp / 86400000 * 86400000) AS dayStart, COUNT(1) AS count
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND (:prefix IS NULL OR e.source LIKE :prefix || '%')
+        GROUP BY (e.timestamp / 86400000)
+        ORDER BY dayStart DESC
+        """
+
+    const val EVENTS_BY_TAG_DAY_PAGE_SCOPED =
+        """
+        SELECT e.*,
+               (SELECT GROUP_CONCAT(t2.tag)
+                FROM item_tags_current t2
+                WHERE t2.item_id = e.ulid) AS tags
+        FROM events e
+        JOIN item_tags_current t ON t.item_id = e.ulid
+        WHERE t.tag = :tag
+          AND e.timestamp >= :dayStart
+          AND e.timestamp < :dayEnd
+          AND (:prefix IS NULL OR e.source LIKE :prefix || '%')
+          AND (:cursorTs IS NULL
+               OR e.timestamp < :cursorTs
+               OR (e.timestamp = :cursorTs AND e.id < :cursorId))
+        ORDER BY e.timestamp DESC, e.id DESC
+        LIMIT :limit
+        """
+
+    /**
      * Tag timelines show editorial items, never gauge observations: an
      * observation carries its topic tag so rules can match it, but
      * `weather:bengaluru:fc:2026-09-18` is not news. Display decision, so it
@@ -802,9 +928,10 @@ object Sql {
      * `GROUP_CONCAT` folds the rules that matched it into a single column, so a
      * page is a page of **events** and the Alerts badge counts events, not fires.
      *
-     * Scoped `source = 'sms'`: Messages owns SMS, so its Alerts are the rule
-     * matches that landed on an SMS. Feed and weather matches belong to
-     * Watchers (per rule) and Radar (the timeline), not to Messages.
+     * Scoped by an optional tag and source prefix. Messages passes
+     * `sourcePrefix = 'sms'`; a tile's Alerts tab passes its own tag (and the
+     * active source filter), so the tab is a view of that screen's facts rather
+     * than a second, global alert list.
      *
      * Keyset-paged on `(events.timestamp, events.id)`, the same total order the
      * thread and timeline use, so pages cannot skip or duplicate as matches are
@@ -819,7 +946,12 @@ object Sql {
                GROUP_CONCAT(ir.rule_id) AS rule_ids
         FROM item_rules ir
         JOIN events e ON e.ulid = ir.item_id
-        WHERE e.source = 'sms'
+        WHERE (:tag IS NULL
+               OR EXISTS (
+                   SELECT 1 FROM item_tags_current t
+                   WHERE t.item_id = e.ulid AND t.tag = :tag
+               ))
+          AND (:sourcePrefix IS NULL OR e.source LIKE :sourcePrefix || '%')
           AND (:cursorTs IS NULL
                OR e.timestamp < :cursorTs
                OR (e.timestamp = :cursorTs AND e.id < :cursorId))
@@ -837,7 +969,12 @@ object Sql {
         SELECT COUNT(DISTINCT ir.item_id)
         FROM item_rules ir
         JOIN events e ON e.ulid = ir.item_id
-        WHERE e.source = 'sms'
+        WHERE (:tag IS NULL
+               OR EXISTS (
+                   SELECT 1 FROM item_tags_current t
+                   WHERE t.item_id = e.ulid AND t.tag = :tag
+               ))
+          AND (:sourcePrefix IS NULL OR e.source LIKE :sourcePrefix || '%')
         """
 
     /** Every item's stored facts at once, so one fire batch costs one read per table. */
@@ -920,6 +1057,13 @@ object Sql {
         """
 
     const val SYNC_RUNS_SOURCE_COUNT = "SELECT COUNT(DISTINCT source_id) FROM sync_runs"
+
+    /** The newest successful run of one kind, for a tile's "synced" line. */
+    const val SYNC_RUNS_LAST_OK_FOR_KIND =
+        """
+        SELECT MAX(finished_at) FROM sync_runs
+        WHERE kind = :kind AND ok = 1
+        """
 
     const val SYNC_RUNS_PRUNE = "DELETE FROM sync_runs WHERE finished_at < :cutoffMs"
 

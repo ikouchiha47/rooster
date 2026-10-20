@@ -78,8 +78,9 @@ fun CalendarScreen(
             // On the side, like every other tile header, through the one component.
             trailing = {
                 HeaderMeta(
-                    "${compactNumber(regions.size)} REGIONS ${Chars.MIDDLE_DOT} ${compactNumber(upcoming.size)} UPCOMING",
-                    Modifier.padding(end = 8.dp),
+                    primary = "${compactNumber(regions.size)} REGIONS",
+                    secondary = "${compactNumber(upcoming.size)} UPCOMING",
+                    modifier = Modifier.padding(end = 8.dp),
                 )
             },
         )

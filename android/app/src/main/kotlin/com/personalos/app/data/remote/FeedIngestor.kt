@@ -93,7 +93,13 @@ class FeedIngestor(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val _lastSyncAt = MutableStateFlow(0L)
+    private val _lastSyncAt =
+        MutableStateFlow(
+            maxOf(
+                loadStatuses().maxOfOrNull { it.lastOkAt } ?: 0L,
+                loadSourceStatuses().maxOfOrNull { it.lastOkAt } ?: 0L,
+            ),
+        )
 
     /** Wall-clock time of the last completed refresh, for the sync line. */
     val lastSyncAt: StateFlow<Long> = _lastSyncAt.asStateFlow()

@@ -1,8 +1,6 @@
 package com.personalos.app.ui.travel
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,25 +22,41 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.tag.Tags
+import com.personalos.app.core.tile.ActionKind
+import com.personalos.app.core.tile.TileConfig
+import com.personalos.app.data.AlertScope
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.TaggedEvent
+import com.personalos.app.ui.alerts.AlertsTab
+import com.personalos.app.ui.alerts.alertDestination
 import com.personalos.app.ui.calendar.CALENDAR_MONTHS_SHOWN
 import com.personalos.app.ui.calendar.CalendarMonth
 import com.personalos.app.ui.calendar.ObservanceRow
 import com.personalos.app.ui.calendar.calendarMonthHeader
 import com.personalos.app.ui.calendar.groupIntoCalendarMonths
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
-import com.personalos.app.ui.common.RadarHeader
 import com.personalos.app.ui.common.SectionHeader
 import com.personalos.app.ui.common.TabSpec
-import com.personalos.app.ui.common.TabStrip
 import com.personalos.app.ui.common.WidgetHeader
+import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.news.NewsRow
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
+import com.personalos.app.ui.tile.TileScaffold
+import com.personalos.app.ui.tile.destinationForAction
+import com.personalos.app.ui.tile.sourceFilterOptions
 import kotlinx.coroutines.launch
+
+private val TRAVEL_TILE =
+    TileConfig(
+        id = "travel",
+        title = "Travel",
+        searchHint = "Search travel",
+        actions = listOf(ActionKind.SYNC, ActionKind.ADD_RULE, ActionKind.SETTINGS),
+    )
 
 private const val PAGE_SIZE = 40
 
@@ -68,45 +82,97 @@ fun TravelScreen(
     val context = LocalContext.current
     val database = remember { AppDatabase.getInstance(context) }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedSource by remember { mutableStateOf<String?>(null) }
     val tab = travelTabAt(selectedTab)
 
     val regions by container.calendarRepository.followedRegions().collectAsStateWithLifecycle(initialValue = emptyList())
     val upcoming by container.calendarRepository.upcoming().collectAsStateWithLifecycle(initialValue = emptyList())
     val months = remember(upcoming) { groupIntoCalendarMonths(upcoming) }
-    val newsCount by database.eventDao().observeCountByTag(Tags.TRAVEL).collectAsStateWithLifecycle(initialValue = 0)
+    val tileDao = remember { database.tileDao() }
+    val newsCount by tileDao.observeCountByTagScoped(Tags.TRAVEL, selectedSource).collectAsStateWithLifecycle(initialValue = 0)
+    val alertScope =
+        remember(selectedSource) {
+            AlertScope.forTag(Tags.TRAVEL).copy(sourcePrefix = selectedSource)
+        }
+    val alertCount by container.ruleFires.observeAlertCount(alertScope).collectAsStateWithLifecycle(initialValue = 0)
+    val sourceFamilies by tileDao.observeSourceFamilies(Tags.TRAVEL).collectAsStateWithLifecycle(initialValue = emptyList())
+    val feedFamilies =
+        remember(sourceFamilies) {
+            sourceFamilies.filterNot { it.source == com.personalos.app.data.SmsSource.SOURCE_ID }
+        }
+    val sourceFilters =
+        remember(tab, feedFamilies, sourceFamilies) {
+            when (tab) {
+                TravelTab.CALENDAR -> emptyList()
+                TravelTab.NEWS -> sourceFilterOptions(feedFamilies, feedFamilies.sumOf { it.count })
+                TravelTab.ALERTS -> sourceFilterOptions(sourceFamilies, sourceFamilies.sumOf { it.count })
+            }
+        }
+    val scope = rememberCoroutineScope()
 
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .background(RadarColors.paper2),
+    TileScaffold(
+        config = TRAVEL_TILE,
+        modifier = modifier,
+        accent = CategoryColors.Mustard,
+        onBack = onBack,
+        header = {
+            HeaderMeta(
+                primary = "${compactNumber(regions.size)} REGIONS",
+                secondary = "${compactNumber(upcoming.size)} UPCOMING",
+            )
+        },
+        tabs =
+            listOf(
+                TabSpec("Holidays", months.size),
+                TabSpec("News", newsCount),
+                TabSpec("Alerts", alertCount),
+            ),
+        selectedTab = selectedTab,
+        onSelectTab = {
+            selectedTab = it
+            if (travelTabAt(it) == TravelTab.NEWS && selectedSource == com.personalos.app.data.SmsSource.SOURCE_ID) {
+                selectedSource = null
+            }
+        },
+        sourceFilters = sourceFilters,
+        selectedSource = selectedSource,
+        onSelectSource = { selectedSource = it },
+        onAction = { action ->
+            when (action) {
+                ActionKind.SYNC ->
+                    scope.launch {
+                        container.sync.run("travel") {
+                            container.sync.step("refreshing calendars and feeds")
+                            runCatching { container.feeds.refresh(force = true) }
+                            container.sync.step("done")
+                        }
+                    }
+
+                else -> destinationForAction(action)?.let(onNavigate)
+            }
+        },
     ) {
-        RadarHeader(
-            title = "Travel",
-            accent = CategoryColors.Mustard,
-            onBack = onBack,
-        )
-        TabStrip(
-            items =
-                TravelTab.entries.map { spec ->
-                    TabSpec(spec.label, if (spec.loadsObservances()) months.size else newsCount)
-                },
-            selectedIndex = selectedTab,
-            onSelect = { selectedTab = it },
-        )
-
         when (tab) {
             TravelTab.CALENDAR ->
                 CalendarTab(
                     regions = regions,
                     months = months,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                 )
 
             TravelTab.NEWS ->
                 TravelNewsTab(
+                    sourcePrefix = selectedSource,
                     onNavigate = onNavigate,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+            TravelTab.ALERTS ->
+                AlertsTab(
+                    repository = container.ruleFires,
+                    scope = alertScope,
+                    onOpen = { event -> alertDestination(event)?.let(onNavigate) },
+                    modifier = Modifier.fillMaxSize(),
                 )
         }
     }
@@ -156,12 +222,13 @@ private fun CalendarTab(
 
 @Composable
 private fun TravelNewsTab(
+    sourcePrefix: String?,
     onNavigate: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val database = remember { AppDatabase.getInstance(context) }
-    val dao = remember { database.eventDao() }
+    val tileDao = remember { database.tileDao() }
     val scope = rememberCoroutineScope()
 
     var rows by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
@@ -176,8 +243,9 @@ private fun TravelNewsTab(
         loading = true
         try {
             val page =
-                dao.pageByTagItems(
+                tileDao.pageByTagItemsScoped(
                     Tags.TRAVEL,
+                    sourcePrefix,
                     if (reset) null else cursorTs,
                     if (reset) 0L else cursorId,
                     PAGE_SIZE,
@@ -193,7 +261,14 @@ private fun TravelNewsTab(
         }
     }
 
-    LaunchedEffect(Unit) { loadMore(reset = true) }
+    LaunchedEffect(sourcePrefix) {
+        rows = emptyList()
+        cursorTs = null
+        cursorId = 0L
+        endReached = false
+        loaded = false
+        loadMore(reset = true)
+    }
 
     LazyColumn(modifier.fillMaxSize()) {
         item { WidgetHeader(title = "Travel news", note = "${rows.size}") }

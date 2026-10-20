@@ -54,6 +54,7 @@ import com.personalos.app.ui.common.FeedRow
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphIcon
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
@@ -226,7 +227,13 @@ fun WeatherScreen(
             .collect { (index, offset) -> if (index == 0 && offset == 0) pendingNews = 0 }
     }
 
-    val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+    val lastFeedSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+    val lastWeatherSync by
+        database
+            .syncRunDao()
+            .observeLastOkForKind("weather")
+            .collectAsStateWithLifecycle(initialValue = null)
+    val lastSync = maxOf(lastFeedSync, lastWeatherSync ?: 0L)
 
     TileScaffold(
         config = WEATHER_TILE,
@@ -234,10 +241,9 @@ fun WeatherScreen(
         accent = CategoryColors.Cyan,
         onBack = onBack,
         header = {
-            Text(
-                text = "${compactNumber(storePlaces.size)} PLACES ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
-                style = RadarType.micro,
-                color = RadarColors.paper4,
+            HeaderMeta(
+                primary = "${compactNumber(storePlaces.size)} PLACES",
+                secondary = syncLabel(lastSync),
             )
         },
         onAction = { action ->

@@ -72,12 +72,16 @@ class RuleFireRepositoryTest {
             cursorTs: Long?,
             cursorId: Long,
             limit: Int,
+            tag: String?,
+            sourcePrefix: String?,
         ): List<AlertCandidate> =
             fires
                 .values
                 .flatten()
-                .filter { events[it.itemId]?.source == "sms" }
-                .groupBy { it.itemId }
+                .filter { fire ->
+                    val source = events[fire.itemId]?.source.orEmpty()
+                    sourcePrefix == null || source.startsWith(sourcePrefix)
+                }.groupBy { it.itemId }
                 .mapNotNull { (itemId, rows) ->
                     val event = events[itemId] ?: return@mapNotNull null
                     AlertCandidate(
@@ -96,12 +100,17 @@ class RuleFireRepositoryTest {
                         (candidate.itemTimestamp == cursorTs && candidate.eventId < cursorId)
                 }.take(limit)
 
-        override fun observeAlertCount(): Flow<Int> =
+        override fun observeAlertCount(
+            tag: String?,
+            sourcePrefix: String?,
+        ): Flow<Int> =
             flowOf(
                 fires.values
                     .flatten()
-                    .filter { events[it.itemId]?.source == "sms" }
-                    .map { it.itemId }
+                    .filter { fire ->
+                        val source = events[fire.itemId]?.source.orEmpty()
+                        sourcePrefix == null || source.startsWith(sourcePrefix)
+                    }.map { it.itemId }
                     .distinct()
                     .size,
             )

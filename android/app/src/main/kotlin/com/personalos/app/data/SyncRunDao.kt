@@ -28,6 +28,10 @@ interface SyncRunDao {
     @Query(Sql.SYNC_RUNS_SOURCE_COUNT)
     fun observeSourceCount(): Flow<Int>
 
+    /** Newest successful run of one kind, or null if it has never succeeded. */
+    @Query(Sql.SYNC_RUNS_LAST_OK_FOR_KIND)
+    fun observeLastOkForKind(kind: String): Flow<Long?>
+
     /** Bounded history: drops runs older than [cutoffMs]. Returns rows removed. */
     @Query(Sql.SYNC_RUNS_PRUNE)
     suspend fun pruneOlderThan(cutoffMs: Long): Int

@@ -68,10 +68,42 @@ class RuleAlertsQueryTest {
             match(db, "ulid-1", "cold", 1)
             match(db, "ulid-2", "hot", 1)
 
-            db.createStatement().executeQuery(Sql.ITEM_RULES_ALERTS_COUNT).use { rs ->
-                rs.next()
-                assertEquals("two events, three fires", 2, rs.getInt(1))
+            db.prepareStatement(Sql.ITEM_RULES_ALERTS_COUNT).use { st ->
+                st.setString(1, null)
+                st.setString(2, "sms")
+                st.executeQuery().use { rs ->
+                    rs.next()
+                    assertEquals("two events, three fires", 2, rs.getInt(1))
+                }
             }
+        }
+    }
+
+    @Test
+    fun `a tile scope sees only that tag, and the source filter narrows it`() {
+        withAlertsDatabase { db ->
+            event(db, "finance-sms", timestamp = 100, source = "sms")
+            event(db, "finance-feed", timestamp = 200, source = "rss:mint")
+            event(db, "news-feed", timestamp = 300, source = "rss:thehindu")
+            match(db, "finance-sms", "bank", 1)
+            match(db, "finance-feed", "markets", 1)
+            match(db, "news-feed", "news", 1)
+            tag(db, "finance-sms", "finance")
+            tag(db, "finance-feed", "finance")
+            tag(db, "news-feed", "news")
+
+            assertEquals(
+                "the finance tab is not the SMS-only Messages scope",
+                listOf("finance-feed", "finance-sms"),
+                alerts(db, cursorTs = null, cursorId = 0L, limit = 10, tag = "finance", sourcePrefix = null)
+                    .map { it.itemId },
+            )
+            assertEquals(
+                "the source chip narrows the same tag read",
+                listOf("finance-feed"),
+                alerts(db, cursorTs = null, cursorId = 0L, limit = 10, tag = "finance", sourcePrefix = "rss:")
+                    .map { it.itemId },
+            )
         }
     }
 
@@ -95,8 +127,17 @@ class RuleAlertsQueryTest {
         cursorTs: Long?,
         cursorId: Long,
         limit: Int,
+        tag: String? = null,
+        sourcePrefix: String? = "sms",
     ): List<AlertRow> {
-        val params = mapOf<String, Any?>("cursorTs" to cursorTs, "cursorId" to cursorId, "limit" to limit)
+        val params =
+            mapOf<String, Any?>(
+                "cursorTs" to cursorTs,
+                "cursorId" to cursorId,
+                "limit" to limit,
+                "tag" to tag,
+                "sourcePrefix" to sourcePrefix,
+            )
         val order = Regex(":(\\w+)").findAll(Sql.ITEM_RULES_ALERTS_PAGE).map { it.groupValues[1] }.toList()
         val sql = Regex(":(\\w+)").replace(Sql.ITEM_RULES_ALERTS_PAGE) { "?" }
         return db.prepareStatement(sql).use { st ->
@@ -146,6 +187,15 @@ class RuleAlertsQueryTest {
                 )
                 """.trimIndent(),
             )
+            db.createStatement().executeUpdate(
+                """
+                CREATE TABLE item_tags_current (
+                    item_id TEXT NOT NULL,
+                    tag TEXT NOT NULL,
+                    PRIMARY KEY (item_id, tag)
+                )
+                """.trimIndent(),
+            )
             block(db)
         }
     }
@@ -154,20 +204,36 @@ class RuleAlertsQueryTest {
         db: Connection,
         ulid: String,
         timestamp: Long,
+        source: String = "sms",
     ): Long {
         db
             .prepareStatement(
-                "INSERT INTO events (ulid, source, type, title, timestamp, content) VALUES (?, 'sms', 'inbox', ?, ?, '')",
+                "INSERT INTO events (ulid, source, type, title, timestamp, content) VALUES (?, ?, 'inbox', ?, ?, '')",
             ).use { st ->
                 st.setString(1, ulid)
-                st.setString(2, ulid)
-                st.setLong(3, timestamp)
+                st.setString(2, source)
+                st.setString(3, ulid)
+                st.setLong(4, timestamp)
                 st.executeUpdate()
             }
         return db.createStatement().executeQuery("SELECT MAX(id) FROM events").use { rs ->
             rs.next()
             rs.getLong(1)
         }
+    }
+
+    private fun tag(
+        db: Connection,
+        itemId: String,
+        value: String,
+    ) {
+        db
+            .prepareStatement("INSERT INTO item_tags_current (item_id, tag) VALUES (?, ?)")
+            .use { st ->
+                st.setString(1, itemId)
+                st.setString(2, value)
+                st.executeUpdate()
+            }
     }
 
     private fun match(

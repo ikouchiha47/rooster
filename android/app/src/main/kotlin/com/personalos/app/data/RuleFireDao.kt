@@ -51,11 +51,16 @@ interface RuleFireDao {
         cursorTs: Long?,
         cursorId: Long,
         limit: Int,
+        tag: String?,
+        sourcePrefix: String?,
     ): List<AlertCandidate>
 
-    /** The Alerts badge: matched events in total. */
+    /** The Alerts badge: matched events in the same scope as [alertsPage]. */
     @Query(Sql.ITEM_RULES_ALERTS_COUNT)
-    fun observeAlertCount(): Flow<Int>
+    fun observeAlertCount(
+        tag: String?,
+        sourcePrefix: String?,
+    ): Flow<Int>
 
     /** The items behind a batch of fires — one read for the whole page. */
     @Query(Sql.EVENTS_BY_ULIDS)

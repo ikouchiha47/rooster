@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,26 +41,35 @@ import com.personalos.app.core.model.FxRate
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
+import com.personalos.app.data.AlertScope
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
+import com.personalos.app.data.TileDao
+import com.personalos.app.ui.alerts.AlertsTab
+import com.personalos.app.ui.alerts.alertDestination
 import com.personalos.app.ui.common.DayMarker
 import com.personalos.app.ui.common.FeedRow
 import com.personalos.app.ui.common.FooterStrip
 import com.personalos.app.ui.common.Glyph
 import com.personalos.app.ui.common.GlyphIcon
+import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
+import com.personalos.app.ui.common.TabSpec
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
 import com.personalos.app.ui.common.groupIntoDays
 import com.personalos.app.ui.navigation.Destination
+import com.personalos.app.ui.news.NewsRow
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import com.personalos.app.ui.tile.TileScaffold
+import com.personalos.app.ui.tile.destinationForAction
+import com.personalos.app.ui.tile.sourceFilterOptions
 import kotlinx.coroutines.launch
 
 /**
@@ -89,6 +99,10 @@ private val MONEY_TILE =
 
 private const val FINANCE_NEWS_LIMIT = 25
 
+private const val TAB_NEWS = 0
+private const val TAB_SMS = 1
+private const val TAB_ALERTS = 2
+
 /** One pair cell in the strip: fixed width and one shared row height. */
 private val PAIR_CELL_WIDTH = 96.dp
 private val PAIR_ROW_HEIGHT = 74.dp
@@ -103,13 +117,37 @@ fun MoneyScreen(
     val container = LocalAppContainer.current
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
+    val tileDao = remember { database.tileDao() }
     val scope = rememberCoroutineScope()
+    var selectedTab by remember { mutableIntStateOf(TAB_NEWS) }
+    var selectedSource by remember { mutableStateOf<String?>(null) }
+    val alertScope =
+        remember(selectedSource) {
+            AlertScope.forTag(Tags.FINANCE).copy(sourcePrefix = selectedSource)
+        }
 
     // Bumping this re-subscribes the provider's flow, which is what a manual sync
     // means for data that is already cached.
     var reload by remember { mutableStateOf(0) }
 
     val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
+    val financeCount by tileDao.observeCountByTagScoped(Tags.FINANCE, selectedSource).collectAsStateWithLifecycle(initialValue = 0)
+    val smsCount by
+        tileDao
+            .observeCountByTagSource(Tags.FINANCE, com.personalos.app.data.SmsSource.SOURCE_ID)
+            .collectAsStateWithLifecycle(initialValue = 0)
+    val alertCount by container.ruleFires.observeAlertCount(alertScope).collectAsStateWithLifecycle(initialValue = 0)
+    val feedFamilies by tileDao.observeFeedSourceFamilies(Tags.FINANCE).collectAsStateWithLifecycle(initialValue = emptyList())
+    val allFamilies by tileDao.observeSourceFamilies(Tags.FINANCE).collectAsStateWithLifecycle(initialValue = emptyList())
+    val feedTotal = remember(feedFamilies) { feedFamilies.sumOf { it.count } }
+    val sourceFilters =
+        remember(selectedTab, feedFamilies, allFamilies, feedTotal) {
+            when (selectedTab) {
+                TAB_NEWS -> sourceFilterOptions(feedFamilies, feedTotal)
+                TAB_ALERTS -> sourceFilterOptions(allFamilies, allFamilies.sumOf { it.count })
+                else -> emptyList()
+            }
+        }
 
     // ADR 0005 T19: FX cells read the store. Pairs come from enabled fx
     // sources; numbers come from the latest observation per identity. Empty
@@ -141,8 +179,8 @@ fun MoneyScreen(
     var news by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
     var financeMentions by remember { mutableStateOf<Map<Long, List<MentionEntity>>>(emptyMap()) }
 
-    LaunchedEffect(maxId, reload) {
-        val page = dao.pageByTagItems(Tags.FINANCE, null, 0L, FINANCE_NEWS_LIMIT)
+    LaunchedEffect(maxId, reload, selectedSource) {
+        val page = tileDao.pageByTagItemsScoped(Tags.FINANCE, selectedSource, null, 0L, FINANCE_NEWS_LIMIT)
         news = page
         // Same one-batched-read-per-page shape as News: the timeline renders
         // first, mentions fill the meta lines without moving row heights.
@@ -193,20 +231,42 @@ fun MoneyScreen(
             .collect { (index, offset) -> if (index == 0 && offset == 0) pendingNews = 0 }
     }
 
-    val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+    val lastFeedSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+    val lastFxSync by
+        database
+            .syncRunDao()
+            .observeLastOkForKind("fx")
+            .collectAsStateWithLifecycle(initialValue = null)
+    val lastSync = maxOf(lastFeedSync, lastFxSync ?: 0L)
 
     TileScaffold(
         config = MONEY_TILE,
         modifier = modifier,
-        accent = CategoryColors.Teal,
+        accent = CategoryColors.MarshGreen,
         onBack = onBack,
         header = {
-            Text(
-                text = "${compactNumber(rates.size)} PAIRS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}",
-                style = RadarType.micro,
-                color = RadarColors.paper4,
+            HeaderMeta(
+                primary = "${compactNumber(rates.size)} PAIRS",
+                secondary = syncLabel(lastSync),
             )
         },
+        tabs =
+            listOf(
+                TabSpec("News", financeCount),
+                TabSpec("SMS", smsCount),
+                TabSpec("Alerts", alertCount),
+            ),
+        selectedTab = selectedTab,
+        onSelectTab = {
+            selectedTab = it
+            if (it != TAB_ALERTS && selectedSource == com.personalos.app.data.SmsSource.SOURCE_ID) {
+                selectedSource = null
+            }
+            if (it == TAB_SMS) selectedSource = null
+        },
+        sourceFilters = sourceFilters,
+        selectedSource = selectedSource,
+        onSelectSource = { selectedSource = it },
         onAction = { action ->
             when (action) {
                 ActionKind.SYNC ->
@@ -219,10 +279,25 @@ fun MoneyScreen(
                         }
                     }
 
-                else -> Unit
+                else -> destinationForAction(action)?.let(onNavigate)
             }
         },
     ) { query ->
+        if (selectedTab == TAB_SMS) {
+            MoneySmsTab(
+                tileDao = tileDao,
+                onNavigate = onNavigate,
+            )
+            return@TileScaffold
+        }
+        if (selectedTab == TAB_ALERTS) {
+            AlertsTab(
+                repository = container.ruleFires,
+                scope = alertScope,
+                onOpen = { event -> alertDestination(event)?.let(onNavigate) },
+            )
+            return@TileScaffold
+        }
         // Search filters both the strip and the timeline in memory, the way
         // Weather filters its places: display-only, the store is untouched.
         val pairs =
@@ -567,4 +642,83 @@ internal fun filterFinanceNews(
     val q = query.trim()
     if (q.isEmpty()) return news
     return news.filter { it.event.title.contains(q, ignoreCase = true) }
+}
+
+/**
+ * Finance-tagged SMS. The rows are the same stored messages Messages owns;
+ * M&M is another view, not another inbox. Tapping one opens the sender thread.
+ */
+@Composable
+private fun MoneySmsTab(
+    tileDao: TileDao,
+    onNavigate: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var rows by remember { mutableStateOf<List<TaggedEvent>>(emptyList()) }
+    var cursorTs by remember { mutableStateOf<Long?>(null) }
+    var cursorId by remember { mutableStateOf(0L) }
+    var endReached by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var loaded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun loadMore(reset: Boolean) {
+        if (loading || (!reset && endReached)) return
+        loading = true
+        try {
+            val page =
+                tileDao.pageByTagSource(
+                    Tags.FINANCE,
+                    com.personalos.app.data.SmsSource.SOURCE_ID,
+                    if (reset) null else cursorTs,
+                    if (reset) 0L else cursorId,
+                    FINANCE_NEWS_LIMIT,
+                )
+            val last = page.lastOrNull()
+            rows = if (reset) page else rows + page
+            cursorTs = last?.event?.timestamp ?: cursorTs
+            cursorId = last?.event?.id ?: cursorId
+            endReached = page.size < FINANCE_NEWS_LIMIT
+            loaded = true
+        } finally {
+            loading = false
+        }
+    }
+
+    LaunchedEffect(Unit) { loadMore(reset = true) }
+
+    LazyColumn(modifier.fillMaxSize()) {
+        item { WidgetHeader(title = "Finance SMS", note = "${rows.size}") }
+        if (loaded && rows.isEmpty()) {
+            item {
+                Text(
+                    text = "No finance-tagged messages yet.",
+                    style = RadarType.body,
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                )
+            }
+        }
+        items(rows, key = { "sms:${it.event.id}" }) { row ->
+            NewsRow(
+                event = row.event.toDomain(),
+                tags = row.tagList,
+                onOpen = { onNavigate(Destination.Conversation(row.event.title)) },
+            )
+        }
+        if (rows.isNotEmpty() && !endReached) {
+            item {
+                Text(
+                    text = if (loading) "LOADING…" else "LOAD MORE",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink2,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !loading) { scope.launch { loadMore(reset = false) } }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                )
+            }
+        }
+    }
 }

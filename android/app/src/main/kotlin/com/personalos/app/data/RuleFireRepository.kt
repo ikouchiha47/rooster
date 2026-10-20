@@ -91,6 +91,25 @@ data class AlertMatch(
     val itemTimestamp: Long get() = event.timestamp
 }
 
+/**
+ * What a list of alerts is a view of. A screen's Alerts tab is scoped to the
+ * items that screen owns: News by the `news` tag, M&M by `finance`, Travel by
+ * `travel`. The source prefix is the active source filter, or null for all.
+ *
+ * Messages keeps [Sms], which is the historical SMS-only view; it is a scope,
+ * not a special case in the query.
+ */
+data class AlertScope(
+    val tag: String? = null,
+    val sourcePrefix: String? = null,
+) {
+    companion object {
+        val Sms: AlertScope = AlertScope(sourcePrefix = "sms")
+
+        fun forTag(tag: String): AlertScope = AlertScope(tag = tag)
+    }
+}
+
 /** One page of the Alerts feed, and where the next page starts (null = no more). */
 data class AlertPage(
     val alerts: List<AlertMatch>,
@@ -210,10 +229,12 @@ class RuleFireRepository(
         cursorTs: Long?,
         cursorId: Long,
         limit: Int = ALERT_PAGE_SIZE,
+        scope: AlertScope = AlertScope.Sms,
     ): AlertPage {
         val raw =
-            runCatching { ruleFireDao.alertsPage(cursorTs, cursorId, limit + 1) }
-                .getOrDefault(emptyList())
+            runCatching {
+                ruleFireDao.alertsPage(cursorTs, cursorId, limit + 1, scope.tag, scope.sourcePrefix)
+            }.getOrDefault(emptyList())
         if (raw.isEmpty()) return AlertPage(emptyList(), null, null)
 
         val page = raw.take(limit)
@@ -261,7 +282,7 @@ class RuleFireRepository(
     }
 
     /** The Alerts badge: matched events, the same grain [alerts] lists. */
-    fun observeAlertCount(): Flow<Int> = ruleFireDao.observeAlertCount()
+    fun observeAlertCount(scope: AlertScope = AlertScope.Sms): Flow<Int> = ruleFireDao.observeAlertCount(scope.tag, scope.sourcePrefix)
 
     /**
      * Maps stored fires to the feed's shape. An unreadable condition costs the

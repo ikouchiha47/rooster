@@ -18,6 +18,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,16 +32,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.personalos.app.core.Chars
 import com.personalos.app.core.tag.Tags
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.core.time.UserZone
+import com.personalos.app.data.AlertScope
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.DayHeader
 import com.personalos.app.data.Event
 import com.personalos.app.data.MentionEntity
 import com.personalos.app.data.TaggedEvent
+import com.personalos.app.ui.alerts.AlertsTab
+import com.personalos.app.ui.alerts.alertDestination
 import com.personalos.app.ui.common.DayMarker
 import com.personalos.app.ui.common.DottedRule
 import com.personalos.app.ui.common.FeedRow
@@ -48,6 +51,7 @@ import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
+import com.personalos.app.ui.common.TabSpec
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
 import com.personalos.app.ui.common.dayLabelRight
@@ -55,6 +59,8 @@ import com.personalos.app.ui.navigation.Destination
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
 import com.personalos.app.ui.tile.TileScaffold
+import com.personalos.app.ui.tile.destinationForAction
+import com.personalos.app.ui.tile.sourceFilterOptions
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -84,6 +90,9 @@ private const val PAGE_SIZE = 40
 
 /** How many articles one manual sync enriches; the scheduled job does more. */
 private const val SYNC_ENRICH_BATCH = 10
+
+private const val TAB_NEWS = 0
+private const val TAB_ALERTS = 1
 
 private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
 
@@ -121,9 +130,16 @@ fun NewsScreen(
     val container = LocalAppContainer.current
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
+    val tileDao = remember { database.tileDao() }
     val mentionDao = database.mentionDao()
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    var selectedTab by remember { mutableIntStateOf(TAB_NEWS) }
+    var selectedSource by remember { mutableStateOf<String?>(null) }
+    val alertScope =
+        remember(selectedSource) {
+            AlertScope.forTag(Tags.NEWS).copy(sourcePrefix = selectedSource)
+        }
 
     val listState = rememberLazyListState()
     var headers by remember { mutableStateOf<List<DayHeader>>(emptyList()) }
@@ -148,7 +164,11 @@ fun NewsScreen(
     var reloadToken by remember { mutableStateOf(0) }
 
     val maxId by dao.observeMaxId().collectAsStateWithLifecycle(initialValue = null)
-    val total by dao.observeCountByTag(Tags.NEWS).collectAsStateWithLifecycle(initialValue = 0)
+    val total by tileDao.observeCountByTagScoped(Tags.NEWS, selectedSource).collectAsStateWithLifecycle(initialValue = 0)
+    val allTotal by tileDao.observeCountByTagScoped(Tags.NEWS, null).collectAsStateWithLifecycle(initialValue = 0)
+    val alertCount by container.ruleFires.observeAlertCount(alertScope).collectAsStateWithLifecycle(initialValue = 0)
+    val sourceFamilies by tileDao.observeFeedSourceFamilies(Tags.NEWS).collectAsStateWithLifecycle(initialValue = emptyList())
+    val sourceFilters = remember(sourceFamilies, allTotal) { sourceFilterOptions(sourceFamilies, allTotal) }
 
     // One batched mention read per page, keyed back onto row ids. Sections
     // render from `pages` first; mentions fill the meta lines in without
@@ -162,7 +182,7 @@ fun NewsScreen(
     }
 
     suspend fun refreshHeaders(): List<DayHeader> {
-        val loaded = dao.dayHeadersByTag(Tags.NEWS)
+        val loaded = tileDao.dayHeadersByTagScoped(Tags.NEWS, selectedSource)
         headers = loaded
         return loaded
     }
@@ -179,10 +199,11 @@ fun NewsScreen(
         loadingDays = loadingDays + dayStart
         try {
             val rows =
-                dao.pageByTagDay(
+                tileDao.pageByTagDayScoped(
                     Tags.NEWS,
                     dayStart,
                     UserZone.nextDayStart(dayStart),
+                    selectedSource,
                     if (reset) null else prev.cursorTs,
                     if (reset) 0L else prev.cursorId,
                     PAGE_SIZE,
@@ -223,7 +244,16 @@ fun NewsScreen(
             return
         }
         if (today !in expanded) return
-        val fresh = dao.pageByTagDay(Tags.NEWS, today, UserZone.nextDayStart(today), null, 0L, PAGE_SIZE)
+        val fresh =
+            tileDao.pageByTagDayScoped(
+                Tags.NEWS,
+                today,
+                UserZone.nextDayStart(today),
+                selectedSource,
+                null,
+                0L,
+                PAGE_SIZE,
+            )
         val freshCount = freshCountAboveHead(fresh.map { it.event.id }, todayHeadId)
         if (freshCount <= 0) return
         if (awayFromTop) {
@@ -242,7 +272,13 @@ fun NewsScreen(
     // Open from the store first, refresh behind it: a full poll of every feed
     // must never gate first paint. Fresh rows re-enter through `maxId`, which
     // re-checks headers and the Today head below.
-    LaunchedEffect(Unit) {
+    LaunchedEffect(selectedSource) {
+        // A source filter is a different slice of the same store: drop the
+        // previous headers/pages, then open the newest day in the new slice.
+        pages = emptyMap()
+        expanded = emptySet()
+        pendingNew = 0
+        todayHeadId = null
         val loaded = refreshHeaders()
         val open = loaded.firstOrNull { it.dayStart == todayStartMs() } ?: loaded.firstOrNull()
         if (open != null) {
@@ -258,8 +294,10 @@ fun NewsScreen(
             }
         }
         initialLoaded = true
-        scope.launch {
-            runCatching { container.feeds.refresh() }
+        if (selectedSource == null) {
+            scope.launch {
+                runCatching { container.feeds.refresh() }
+            }
         }
     }
 
@@ -312,9 +350,22 @@ fun NewsScreen(
         header = {
             if (total > 0) {
                 val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
-                HeaderMeta("${compactNumber(total)} ITEMS ${Chars.MIDDLE_DOT} ${syncLabel(lastSync)}")
+                HeaderMeta(
+                    primary = "${compactNumber(total)} ITEMS",
+                    secondary = syncLabel(lastSync),
+                )
             }
         },
+        tabs =
+            listOf(
+                TabSpec("News", total),
+                TabSpec("Alerts", alertCount),
+            ),
+        selectedTab = selectedTab,
+        onSelectTab = { selectedTab = it },
+        sourceFilters = sourceFilters,
+        selectedSource = selectedSource,
+        onSelectSource = { selectedSource = it },
         onAction = { action ->
             when (action) {
                 ActionKind.SYNC ->
@@ -335,10 +386,18 @@ fun NewsScreen(
                         }
                     }
 
-                else -> Unit
+                else -> destinationForAction(action)?.let(onNavigate)
             }
         },
     ) { query ->
+        if (selectedTab == TAB_ALERTS) {
+            AlertsTab(
+                repository = container.ruleFires,
+                scope = alertScope,
+                onOpen = { event -> alertDestination(event)?.let(onNavigate) },
+            )
+            return@TileScaffold
+        }
         // Read fresh on every recomposition (headers reload on resume), so a
         // midnight rollover re-buckets Today without waiting for a relaunch.
         val today = todayStartMs()

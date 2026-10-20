@@ -625,6 +625,36 @@ fun HeaderMeta(
     )
 }
 
+/**
+ * The same metadata as two right-aligned lines: the count/units first, then the
+ * sync state. Service headers use this so "2.09K ITEMS" and "SYNCED …" do not
+ * fight for one horizontal line beside a title.
+ */
+@Composable
+fun HeaderMeta(
+    primary: String,
+    secondary: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.End,
+    ) {
+        Text(
+            text = primary,
+            style = RadarType.micro,
+            color = LocalHeaderContentColor.current,
+            maxLines = 1,
+        )
+        Text(
+            text = secondary,
+            style = RadarType.microPlain,
+            color = LocalHeaderContentColor.current.copy(alpha = 0.78f),
+            maxLines = 1,
+        )
+    }
+}
+
 /** Readable ink for a filled [accent] band: dark ink on light accents, paper on dark. */
 fun headerContentColor(accent: Color): Color = if (computeLuminance(accent) > 0.4f) RadarColors.ink else RadarColors.paper2
 
@@ -781,6 +811,8 @@ fun TabStrip(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    /** Optional control pinned to the right of the strip, e.g. a source filter. */
+    trailing: @Composable (() -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     // Keep the chosen tab visible: with more tabs than fit, selecting one from
@@ -789,37 +821,40 @@ fun TabStrip(
         if (selectedIndex in items.indices) listState.animateScrollToItem(selectedIndex)
     }
     Column(modifier.fillMaxWidth().background(RadarColors.paper2)) {
-        LazyRow(
-            state = listState,
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            itemsIndexed(items, key = { _, item -> item.label }) { index, item ->
-                val selected = index == selectedIndex
-                Row(
-                    modifier =
-                        Modifier
-                            .clickable { onSelect(index) }
-                            .background(if (selected) RadarColors.ink else Color.Transparent)
-                            .padding(horizontal = 9.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = item.label,
-                        style = RadarType.label,
-                        color = if (selected) RadarColors.paper2 else RadarColors.ink2,
-                        maxLines = 1,
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        text = compactNumber(item.count),
-                        style = RadarType.microPlain,
-                        color = if (selected) RadarColors.paper4 else RadarColors.ink3,
-                        maxLines = 1,
-                    )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(
+                state = listState,
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                itemsIndexed(items, key = { _, item -> item.label }) { index, item ->
+                    val selected = index == selectedIndex
+                    Row(
+                        modifier =
+                            Modifier
+                                .clickable { onSelect(index) }
+                                .background(if (selected) RadarColors.ink else Color.Transparent)
+                                .padding(horizontal = 9.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = item.label,
+                            style = RadarType.label,
+                            color = if (selected) RadarColors.paper2 else RadarColors.ink2,
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = compactNumber(item.count),
+                            style = RadarType.microPlain,
+                            color = if (selected) RadarColors.paper4 else RadarColors.ink3,
+                            maxLines = 1,
+                        )
+                    }
+                    Box(Modifier.width(1.dp).height(26.dp).background(RadarColors.ruleSoft))
                 }
-                Box(Modifier.width(1.dp).height(26.dp).background(RadarColors.ruleSoft))
             }
+            trailing?.invoke()
         }
         HardRule()
     }

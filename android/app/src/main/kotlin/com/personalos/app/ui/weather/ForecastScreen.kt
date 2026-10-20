@@ -58,7 +58,13 @@ fun ForecastScreen(
     val maxId by database.eventDao().observeMaxId().collectAsStateWithLifecycle(initialValue = null)
 
     var reload by remember { mutableStateOf(0) }
-    val lastSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+    val lastFeedSync by container.feeds.lastSyncAt.collectAsStateWithLifecycle(initialValue = 0L)
+    val lastWeatherSync by
+        database
+            .syncRunDao()
+            .observeLastOkForKind("weather")
+            .collectAsStateWithLifecycle(initialValue = null)
+    val lastSync = maxOf(lastFeedSync, lastWeatherSync ?: 0L)
     // A configured place reads its week from the store. Anything else (the
     // present location) is not a source, so it reads the provider cache.
     var configured by remember { mutableStateOf(true) }

@@ -7,6 +7,16 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(ui): shared tabbed tiles with scoped alerts
+
+_2026-10-21_
+
+Adds one tabbed tile shell for News, M&M and Travel. Alerts is now a per-screen tab scoped by tag and source, source filters live in a dropdown on the tab strip, and every tile action navigates instead of no-oping.
+
+M&M uses a marsh-green accent and the latest FX sync; Weather and Forecast use the latest weather sync. Header metadata is stacked. Adds TileDao for scoped reads, AlertScope and scoped alert queries, and regression tests for source-family uniqueness and scoped alerts.
+
+Verified: assembleDebug, 925 unit tests, ktlintCheck.
+
 ## feat(tag): trained heads, semantic rules, and drain workflows
 
 _2026-10-20_

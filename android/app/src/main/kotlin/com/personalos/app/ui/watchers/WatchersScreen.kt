@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.personalos.app.core.Chars
 import com.personalos.app.data.AppDatabase
 import com.personalos.app.data.RuleFire
 import com.personalos.app.data.RuleFirePage
@@ -92,7 +93,14 @@ fun WatchersScreen(
             accent = CategoryColors.Teal,
             onBack = onBack,
             // The same shape as News, via the one component that owns it.
-            trailing = { HeaderMeta(header, Modifier.padding(end = 8.dp)) },
+            trailing = {
+                val parts = header.split(" ${Chars.MIDDLE_DOT} ", limit = 2)
+                HeaderMeta(
+                    primary = parts.getOrElse(0) { header },
+                    secondary = parts.getOrElse(1) { "" },
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            },
         )
 
         // Job health sits above the rules: a running or failed job is timely,
