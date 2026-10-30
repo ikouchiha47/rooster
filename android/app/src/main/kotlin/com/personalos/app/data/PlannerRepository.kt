@@ -45,6 +45,11 @@ class PlannerRepository(
         return items.map { item -> PlannerItemWithTags(item, byId[item.id].orEmpty().map { it.tagId }) }
     }
 
+    suspend fun item(id: String): PlannerItemWithTags? =
+        planner.item(id)?.let { item ->
+            PlannerItemWithTags(item, tagDao.tagsForItem(id).map { it.tagId })
+        }
+
     suspend fun save(
         item: PlannerItemEntity,
         tagIds: Collection<String>,

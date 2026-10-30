@@ -87,6 +87,7 @@ sealed interface Destination {
     data class PlannerEditor(
         val date: String,
         val kind: String = "reminder",
+        val itemId: String? = null,
     ) : Destination
 
     /** Travel: the calendar's observances plus travel-tagged news. */
@@ -163,7 +164,9 @@ private fun routeFor(destination: Destination): String =
         is Destination.Watchers -> "watchers"
         is Destination.Calendar -> "calendar"
         is Destination.CalendarSettings -> "calendarSettings"
-        is Destination.PlannerEditor -> "plannerEditor/${destination.date}?kind=${destination.kind}"
+        is Destination.PlannerEditor ->
+            "plannerEditor/${destination.date}?kind=${destination.kind}" +
+                (destination.itemId?.let { "&itemId=$it" } ?: "")
         is Destination.Travel -> "travel"
         is Destination.Settings -> "settings"
         is Destination.Wallet -> "wallet"
@@ -364,7 +367,7 @@ fun AppNavHost(
         }
         composable("calendarSettings") { CalendarSettingsScreen(onBack = backOrNull(navController)) }
         composable(
-            route = "plannerEditor/{date}?kind={kind}",
+            route = "plannerEditor/{date}?kind={kind}&itemId={itemId}",
             arguments =
                 listOf(
                     navArgument("date") { type = NavType.StringType },
@@ -372,13 +375,19 @@ fun AppNavHost(
                         type = NavType.StringType
                         defaultValue = "reminder"
                     },
+                    navArgument("itemId") {
+                        type = NavType.StringType
+                        nullable = true
+                    },
                 ),
         ) { entry ->
             val date = entry.arguments?.getString("date") ?: return@composable
             val kind = entry.arguments?.getString("kind") ?: "reminder"
+            val itemId = entry.arguments?.getString("itemId")
             PlannerEditorScreen(
                 date = java.time.LocalDate.parse(date),
                 initialKind = kind,
+                itemId = itemId,
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )

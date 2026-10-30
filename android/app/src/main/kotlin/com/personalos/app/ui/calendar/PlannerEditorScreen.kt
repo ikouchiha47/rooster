@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -35,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.tag.Ulid
 import com.personalos.app.core.time.UserZone
 import com.personalos.app.data.PlannerItemEntity
+import com.personalos.app.data.PlannerItemWithTags
 import com.personalos.app.data.PlannerTagEntity
 import com.personalos.app.data.PlannerWorkspaceEntity
 import com.personalos.app.ui.common.Chip
@@ -64,6 +66,7 @@ private val TIME_FMT = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
 fun PlannerEditorScreen(
     date: LocalDate,
     initialKind: String = "reminder",
+    itemId: String? = null,
     onSaved: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -73,6 +76,7 @@ fun PlannerEditorScreen(
     val workspaces by container.plannerRepository.workspaces.collectAsStateWithLifecycle(initialValue = emptyList())
     val tags by container.plannerRepository.tags.collectAsStateWithLifecycle(initialValue = emptyList())
 
+    var selectedDate by remember { mutableStateOf(date) }
     var kind by remember { mutableStateOf(if (initialKind == "event") "event" else "reminder") }
     var title by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
@@ -84,16 +88,57 @@ fun PlannerEditorScreen(
     var repeat by remember { mutableStateOf<String?>(null) }
     var workspaceMenu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var existing by remember { mutableStateOf<PlannerItemWithTags?>(null) }
+    var loaded by remember { mutableStateOf(itemId == null) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
-    LaunchedEffect(workspaces) {
+    LaunchedEffect(itemId) {
+        if (itemId == null) {
+            loaded = true
+            return@LaunchedEffect
+        }
+        val found = container.plannerRepository.item(itemId)
+        if (found != null) {
+            existing = found
+            val item = found.item
+            selectedDate =
+                java.time.Instant
+                    .ofEpochMilli(item.startAt)
+                    .atZone(UserZone.current)
+                    .toLocalDate()
+            kind = item.kind
+            title = item.title
+            notes = item.notes
+            allDay = item.allDay
+            java.time.Instant.ofEpochMilli(item.startAt).atZone(UserZone.current).toLocalTime().let {
+                hour = it.hour
+                minute = it.minute
+            }
+            repeat = item.recurrenceRule
+            selectedTags = found.tagIds.toSet()
+        }
+        loaded = true
+    }
+
+    LaunchedEffect(workspaces, existing) {
         if (workspace == null) {
-            workspace = workspaces.firstOrNull { it.isDefault } ?: workspaces.firstOrNull()
+            val target = existing?.item?.workspaceId
+            workspace =
+                workspaces.firstOrNull { it.id == target }
+                    ?: workspaces.firstOrNull { it.isDefault }
+                    ?: workspaces.firstOrNull()
         }
     }
 
     Column(modifier.fillMaxSize().background(RadarColors.paper2)) {
         RadarHeader(
-            title = if (kind == "event") "New event" else "New reminder",
+            title =
+                when {
+                    itemId != null && kind == "event" -> "Edit event"
+                    itemId != null -> "Edit reminder"
+                    kind == "event" -> "New event"
+                    else -> "New reminder"
+                },
             accent = CategoryColors.Rust,
             onBack = onBack,
         )
@@ -115,7 +160,7 @@ fun PlannerEditorScreen(
 
             Text(text = "DATE", style = RadarType.labelMicro, color = RadarColors.ink3)
             Text(
-                text = date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH)),
+                text = selectedDate.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH)),
                 style = RadarType.serifTitle,
                 color = RadarColors.ink,
                 modifier = Modifier.padding(top = 2.dp, bottom = 6.dp),
@@ -241,7 +286,7 @@ fun PlannerEditorScreen(
                             runCatching {
                                 container.plannerRepository.save(
                                     PlannerItemEntity(
-                                        id = Ulid.next(),
+                                        id = existing?.item?.id ?: Ulid.next(),
                                         workspaceId = target.id,
                                         kind = kind,
                                         title = title.trim(),
@@ -256,7 +301,7 @@ fun PlannerEditorScreen(
                                         status = "scheduled",
                                         leadMinutes = if (kind == "reminder") 0 else null,
                                         sourceItemId = null,
-                                        createdAt = System.currentTimeMillis(),
+                                        createdAt = existing?.item?.createdAt ?: System.currentTimeMillis(),
                                         updatedAt = System.currentTimeMillis(),
                                     ),
                                     selectedTags,
@@ -266,11 +311,52 @@ fun PlannerEditorScreen(
                         }
                     },
                     solid = true,
-                    enabled = title.isNotBlank() && workspace != null && !saving,
+                    enabled = loaded && title.isNotBlank() && workspace != null && !saving,
+                )
+            }
+            if (itemId != null && loaded) {
+                Spacer(Modifier.height(8.dp))
+                FlatButton(
+                    text = "Delete",
+                    onClick = { confirmDelete = true },
+                    danger = true,
+                    enabled = !saving,
+                )
+            }
+            if (!loaded) {
+                Text(
+                    text = "Loading…",
+                    style = RadarType.microPlain,
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this item?") },
+            text = { Text("The reminder/event will be removed. Linked source items are untouched.") },
+            confirmButton = {
+                FlatButton(
+                    text = "Delete",
+                    danger = true,
+                    onClick = {
+                        confirmDelete = false
+                        scope.launch {
+                            itemId?.let { container.plannerRepository.delete(it) }
+                            onSaved()
+                        }
+                    },
+                )
+            },
+            dismissButton = {
+                FlatButton(text = "Cancel", onClick = { confirmDelete = false })
+            },
+        )
     }
 }
 

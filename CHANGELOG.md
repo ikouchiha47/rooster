@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(calendar): edit, delete and place planner items
+
+_2026-10-30_
+
+Planner entries in the agenda open the editor for edit or delete. Month cells now mark days that carry a planner item, and timed items render in the Day timeline's half-hour slot while all-day items stay in the planner section.
+
+Still no notifications or month/timeline editing gestures.
+
 ## feat(calendar): create reminders and events from a day
 
 _2026-10-30_

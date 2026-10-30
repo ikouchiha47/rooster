@@ -108,7 +108,19 @@ fun CalendarScreen(
     var selected by remember { mutableStateOf(today) }
     val listState = rememberLazyListState()
 
-    val cells = remember(month, upcoming, selected, today) { calendarGrid(month, upcoming, selected, today) }
+    val plannerCounts =
+        remember(plannerItems, month) {
+            val from = month.atDay(1)
+            val to = month.atEndOfMonth()
+            plannerItems
+                .flatMap { item -> plannerOccurrences(item.item, from, to, UserZone.current) }
+                .groupingBy { it.date }
+                .eachCount()
+        }
+    val cells =
+        remember(month, upcoming, selected, today, plannerCounts) {
+            calendarGrid(month, upcoming, selected, today, plannerCounts)
+        }
     val agenda = remember(upcoming, selected) { agendaFor(upcoming, selected) }
     val year = remember(month, upcoming) { yearMonths(month.year, upcoming) }
     val plannerForDay =
@@ -244,6 +256,15 @@ fun CalendarScreen(
                             entries = plannerForDay,
                             tagLabels = plannerTags.associate { it.id to it.label },
                             workspaceNames = plannerWorkspaces.associate { it.id to it.name },
+                            onOpen = { item ->
+                                onNavigate(
+                                    Destination.PlannerEditor(
+                                        date = selected.toString(),
+                                        kind = item.occurrence.item.kind,
+                                        itemId = item.occurrence.item.id,
+                                    ),
+                                )
+                            },
                         )
                     }
                     if (agenda.isEmpty() && plannerForDay.isEmpty()) {
@@ -306,11 +327,20 @@ fun CalendarScreen(
                             entries = plannerForDay,
                             tagLabels = plannerTags.associate { it.id to it.label },
                             workspaceNames = plannerWorkspaces.associate { it.id to it.name },
+                            onOpen = { item ->
+                                onNavigate(
+                                    Destination.PlannerEditor(
+                                        date = selected.toString(),
+                                        kind = item.occurrence.item.kind,
+                                        itemId = item.occurrence.item.id,
+                                    ),
+                                )
+                            },
                         )
                     }
                     item { TimelineHeader() }
                     items(daySlots(LocalTime.now()), key = { "slot:${it.startMinute}" }) { slot ->
-                        TimelineSlot(slot)
+                        TimelineSlot(slot, plannerForDay)
                     }
                 }
 
@@ -594,6 +624,10 @@ private fun DayCell(
                 maxLines = 1,
             )
         }
+        if (cell.plannerCount > 0) {
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.width(5.dp).height(5.dp).background(RadarColors.ink))
+        }
     }
 }
 
@@ -791,7 +825,16 @@ private fun TimelineHeader() {
 }
 
 @Composable
-private fun TimelineSlot(slot: DaySlot) {
+private fun TimelineSlot(
+    slot: DaySlot,
+    entries: List<PlannerEntry>,
+) {
+    val timed =
+        entries.filter { entry ->
+            val start = entry.occurrence.start ?: return@filter false
+            val minute = start.hour * 60 + start.minute
+            minute in slot.startMinute until slot.startMinute + 30
+        }
     Row(
         modifier = Modifier.fillMaxWidth().height(34.dp),
         verticalAlignment = Alignment.Top,
@@ -816,6 +859,27 @@ private fun TimelineSlot(slot: DaySlot) {
                     color = CategoryColors.Vermilion,
                     modifier = Modifier.padding(start = 4.dp, top = 3.dp),
                 )
+            }
+            timed.firstOrNull()?.let { entry ->
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp)
+                            .background(RadarColors.paper3)
+                            .border(1.dp, CategoryColors.Rust, RoundedCornerShape(2.dp))
+                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = entry.occurrence.item.title,
+                        style = RadarType.microPlain,
+                        color = RadarColors.ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
@@ -869,6 +933,7 @@ private fun PlannerSection(
     entries: List<PlannerEntry>,
     tagLabels: Map<String, String>,
     workspaceNames: Map<String, String>,
+    onOpen: (PlannerEntry) -> Unit,
 ) {
     if (entries.isEmpty()) return
     Row(
@@ -883,7 +948,11 @@ private fun PlannerSection(
     entries.forEach { entry ->
         val item = entry.occurrence.item
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpen(entry) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.width(3.dp).height(30.dp).background(CategoryColors.Rust))

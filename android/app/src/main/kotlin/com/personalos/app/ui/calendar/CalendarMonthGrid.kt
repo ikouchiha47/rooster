@@ -15,6 +15,7 @@ data class CalendarCell(
     val isToday: Boolean,
     val isSelected: Boolean,
     val items: List<CalendarDateEntity>,
+    val plannerCount: Int = 0,
 )
 
 /**
@@ -27,6 +28,7 @@ fun calendarGrid(
     rows: List<CalendarDateEntity>,
     selected: LocalDate,
     today: LocalDate,
+    plannerCounts: Map<LocalDate, Int> = emptyMap(),
 ): List<CalendarCell> {
     val byDate = rows.groupBy { runCatching { LocalDate.parse(it.date) }.getOrNull() }
     val first = month.atDay(1)
@@ -39,6 +41,7 @@ fun calendarGrid(
             isToday = date == today,
             isSelected = date == selected,
             items = byDate[date].orEmpty().sortedWith(compareBy({ it.name }, { it.source })),
+            plannerCount = plannerCounts[date] ?: 0,
         )
     }
 }
