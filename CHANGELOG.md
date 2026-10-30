@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(calendar): create reminders and events from a day
+
+_2026-10-30_
+
+Adds Add reminder / Add event from the selected Calendar day, an editor with Personal as the default workspace, tags, all-day or timed start, notes, and a repeat rule. Planner entries render in the selected-day agenda, and yearly/weekly/monthly/daily occurrences expand for display.
+
+Still no edit/delete, notifications, month-grid marks or timeline blocks.
+
 ## feat(planner): personal workspace, items and tags
 
 _2026-10-21_

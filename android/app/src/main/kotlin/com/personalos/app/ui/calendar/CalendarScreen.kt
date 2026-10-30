@@ -43,8 +43,11 @@ import com.personalos.app.core.calendar.CalendarDirectoryParser
 import com.personalos.app.core.calendar.CalendarSurface
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
+import com.personalos.app.core.time.UserZone
 import com.personalos.app.data.CalendarDateEntity
 import com.personalos.app.data.CalendarSource
+import com.personalos.app.data.plannerOccurrences
+import com.personalos.app.ui.common.FlatButton
 import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
@@ -93,6 +96,9 @@ fun CalendarScreen(
     val calendars by container.calendarRepository.calendars(CalendarSurface.CALENDAR).collectAsStateWithLifecycle(initialValue = emptyList())
     val upcoming by container.calendarRepository.upcoming(CalendarSurface.CALENDAR).collectAsStateWithLifecycle(initialValue = emptyList())
     val regionLabels = remember(sources) { calendarRegionLabels(sources) }
+    val plannerItems by container.plannerRepository.allItems().collectAsStateWithLifecycle(initialValue = emptyList())
+    val plannerTags by container.plannerRepository.tags.collectAsStateWithLifecycle(initialValue = emptyList())
+    val plannerWorkspaces by container.plannerRepository.workspaces.collectAsStateWithLifecycle(initialValue = emptyList())
 
     var mode by remember { mutableStateOf(CalendarMode.MONTH) }
     var namespaceMenuOpen by remember { mutableStateOf(false) }
@@ -105,6 +111,14 @@ fun CalendarScreen(
     val cells = remember(month, upcoming, selected, today) { calendarGrid(month, upcoming, selected, today) }
     val agenda = remember(upcoming, selected) { agendaFor(upcoming, selected) }
     val year = remember(month, upcoming) { yearMonths(month.year, upcoming) }
+    val plannerForDay =
+        remember(plannerItems, selected) {
+            plannerItems
+                .flatMap { item ->
+                    plannerOccurrences(item.item, selected, selected, UserZone.current)
+                        .map { PlannerEntry(it, item.tagIds) }
+                }.sortedBy { it.occurrence.start ?: java.time.LocalDateTime.MIN }
+        }
 
     LaunchedEffect(mode) {
         if (mode == CalendarMode.DAY) {
@@ -183,6 +197,23 @@ fun CalendarScreen(
                     },
                 )
             }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FlatButton(
+                        text = "Add reminder",
+                        onClick = { onNavigate(Destination.PlannerEditor(selected.toString(), "reminder")) },
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    FlatButton(
+                        text = "Add event",
+                        onClick = { onNavigate(Destination.PlannerEditor(selected.toString(), "event")) },
+                        solid = true,
+                    )
+                }
+            }
 
             when (mode) {
                 CalendarMode.MONTH -> {
@@ -207,8 +238,15 @@ fun CalendarScreen(
                     }
                     item { WeekdayHeader() }
                     item { MonthGrid(cells = cells, onSelect = { selected = it }) }
-                    item { AgendaHeader(date = selected, count = agenda.size) }
-                    if (agenda.isEmpty()) {
+                    item { AgendaHeader(date = selected, count = agenda.size + plannerForDay.size) }
+                    item {
+                        PlannerSection(
+                            entries = plannerForDay,
+                            tagLabels = plannerTags.associate { it.id to it.label },
+                            workspaceNames = plannerWorkspaces.associate { it.id to it.name },
+                        )
+                    }
+                    if (agenda.isEmpty() && plannerForDay.isEmpty()) {
                         item {
                             Text(
                                 text =
@@ -261,6 +299,13 @@ fun CalendarScreen(
                         AllDaySection(
                             rows = agenda,
                             regionLabels = regionLabels,
+                        )
+                    }
+                    item {
+                        PlannerSection(
+                            entries = plannerForDay,
+                            tagLabels = plannerTags.associate { it.id to it.label },
+                            workspaceNames = plannerWorkspaces.associate { it.id to it.name },
                         )
                     }
                     item { TimelineHeader() }
@@ -812,6 +857,63 @@ private fun AgendaNamespaceHeader(
         Text(text = compactNumber(count), style = RadarType.labelMicro, color = RadarColors.ink3)
     }
     SoftRule()
+}
+
+private data class PlannerEntry(
+    val occurrence: com.personalos.app.data.PlannerOccurrence,
+    val tagIds: List<String>,
+)
+
+@Composable
+private fun PlannerSection(
+    entries: List<PlannerEntry>,
+    tagLabels: Map<String, String>,
+    workspaceNames: Map<String, String>,
+) {
+    if (entries.isEmpty()) return
+    Row(
+        modifier = Modifier.fillMaxWidth().background(RadarColors.paper3).padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "PERSONAL", style = RadarType.labelMicro, color = RadarColors.ink2)
+        Spacer(Modifier.weight(1f))
+        Text(text = compactNumber(entries.size), style = RadarType.labelMicro, color = RadarColors.ink3)
+    }
+    SoftRule()
+    entries.forEach { entry ->
+        val item = entry.occurrence.item
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(3.dp).height(30.dp).background(CategoryColors.Rust))
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    style = RadarType.serifTitle,
+                    color = RadarColors.ink,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text =
+                        buildString {
+                            append(entry.occurrence.start?.format(DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)) ?: "All day")
+                            append(" · ")
+                            append(workspaceNames[item.workspaceId] ?: "Personal")
+                            val tags = entry.tagIds.mapNotNull { tagLabels[it] }
+                            if (tags.isNotEmpty()) append(" · ").append(tags.joinToString(" / "))
+                        },
+                    style = RadarType.microPlain,
+                    color = RadarColors.ink3,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        SoftRule()
+    }
 }
 
 /** Public/regional observances get distinct marks; the feed kind is the fact. */

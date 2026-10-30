@@ -22,6 +22,7 @@ import androidx.navigation.navArgument
 import com.personalos.app.ui.article.ArticleScreen
 import com.personalos.app.ui.calendar.CalendarScreen
 import com.personalos.app.ui.calendar.CalendarSettingsScreen
+import com.personalos.app.ui.calendar.PlannerEditorScreen
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.home.HomeScreen
@@ -81,6 +82,12 @@ sealed interface Destination {
 
     /** Calendar's saved set, default namespace, and Add Region. */
     data object CalendarSettings : Destination
+
+    /** Create a planner item on [date] (ISO), defaulting to a reminder or event. */
+    data class PlannerEditor(
+        val date: String,
+        val kind: String = "reminder",
+    ) : Destination
 
     /** Travel: the calendar's observances plus travel-tagged news. */
     data object Travel : Destination
@@ -156,6 +163,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Watchers -> "watchers"
         is Destination.Calendar -> "calendar"
         is Destination.CalendarSettings -> "calendarSettings"
+        is Destination.PlannerEditor -> "plannerEditor/${destination.date}?kind=${destination.kind}"
         is Destination.Travel -> "travel"
         is Destination.Settings -> "settings"
         is Destination.Wallet -> "wallet"
@@ -355,6 +363,26 @@ fun AppNavHost(
             )
         }
         composable("calendarSettings") { CalendarSettingsScreen(onBack = backOrNull(navController)) }
+        composable(
+            route = "plannerEditor/{date}?kind={kind}",
+            arguments =
+                listOf(
+                    navArgument("date") { type = NavType.StringType },
+                    navArgument("kind") {
+                        type = NavType.StringType
+                        defaultValue = "reminder"
+                    },
+                ),
+        ) { entry ->
+            val date = entry.arguments?.getString("date") ?: return@composable
+            val kind = entry.arguments?.getString("kind") ?: "reminder"
+            PlannerEditorScreen(
+                date = java.time.LocalDate.parse(date),
+                initialKind = kind,
+                onSaved = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable("travel") {
             TravelScreen(
                 onNavigate = { navigateToDetail(navController, it) },

@@ -35,11 +35,15 @@ class PlannerRepository(
     fun itemsInRange(
         fromMs: Long,
         toMs: Long,
-    ): Flow<List<PlannerItemWithTags>> =
-        planner.observeRange(fromMs, toMs).map { items ->
-            val byId = tagDao.tagsForItems(items.map { it.id }).groupBy { it.itemId }
-            items.map { item -> PlannerItemWithTags(item, byId[item.id].orEmpty().map { it.tagId }) }
-        }
+    ): Flow<List<PlannerItemWithTags>> = planner.observeRange(fromMs, toMs).map(::withTags)
+
+    /** All planner items, for recurrence expansion over a visible window. */
+    fun allItems(): Flow<List<PlannerItemWithTags>> = planner.observeAll().map(::withTags)
+
+    private suspend fun withTags(items: List<PlannerItemEntity>): List<PlannerItemWithTags> {
+        val byId = tagDao.tagsForItems(items.map { it.id }).groupBy { it.itemId }
+        return items.map { item -> PlannerItemWithTags(item, byId[item.id].orEmpty().map { it.tagId }) }
+    }
 
     suspend fun save(
         item: PlannerItemEntity,

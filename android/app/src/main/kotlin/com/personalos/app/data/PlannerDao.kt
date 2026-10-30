@@ -35,6 +35,9 @@ interface PlannerDao {
         toMs: Long,
     ): Flow<List<PlannerItemEntity>>
 
+    @Query("SELECT * FROM planner_items ORDER BY start_at ASC, id ASC")
+    fun observeAll(): Flow<List<PlannerItemEntity>>
+
     @Query("SELECT * FROM planner_items WHERE id = :id")
     suspend fun item(id: String): PlannerItemEntity?
 
