@@ -1,5 +1,6 @@
 package com.personalos.app.data.remote
 
+import com.personalos.app.core.hazard.HazardWindow
 import com.personalos.app.core.hazard.Quake
 import com.personalos.app.core.hazard.QuakeGeoJsonParser
 import com.personalos.app.core.hazard.QuakeSource
@@ -13,10 +14,12 @@ class UsgsEarthquakeSource(
 ) : QuakeSource {
     override val id: String = SOURCE_ID
 
-    override suspend fun fetch(): List<Quake> =
+    override suspend fun fetch(window: HazardWindow): List<Quake> =
         withContext(Dispatchers.IO) {
-            QuakeGeoJsonParser.parse(Http.getText(url, accept = ACCEPT))
+            QuakeGeoJsonParser.parse(Http.getText(urlFor(window), accept = ACCEPT))
         }
+
+    private fun urlFor(window: HazardWindow): String = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${window.feed}.geojson"
 
     companion object {
         const val SOURCE_ID = "usgs-earthquakes"

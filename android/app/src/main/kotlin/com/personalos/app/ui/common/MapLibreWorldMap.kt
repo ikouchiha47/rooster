@@ -97,6 +97,7 @@ fun MapLibreWorldMap(
     overlayMaxZoom: Float = 6f,
     overlaySaturation: Float = 0f,
     maxZoom: Double = 8.0,
+    mapAspectRatio: Float = 1.45f,
     preventWorldRepeat: Boolean = true,
     markers: List<MapMarker> = emptyList(),
     mapLines: List<MapLine> = emptyList(),
@@ -175,7 +176,7 @@ fun MapLibreWorldMap(
     Box(
         modifier
             .fillMaxWidth()
-            .aspectRatio(1.45f)
+            .aspectRatio(mapAspectRatio)
             .background(RadarColors.paper3),
     ) {
         AndroidView(

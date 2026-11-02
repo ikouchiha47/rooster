@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(hazards): centre carousel dots and space the carousel header
+
+_2026-11-03_
+
+Adds equal 8dp spacing above and below the Largest header, and centres the page dots on the full width with the page counter at the trailing edge.
+
+Build and ktlint pass.
+
 ## fix(hazards): full-width single-card largest pager
 
 _2026-11-03_

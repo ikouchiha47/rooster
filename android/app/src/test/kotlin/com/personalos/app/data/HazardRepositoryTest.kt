@@ -1,5 +1,6 @@
 package com.personalos.app.data
 
+import com.personalos.app.core.hazard.HazardWindow
 import com.personalos.app.core.hazard.Quake
 import com.personalos.app.core.hazard.QuakeSource
 import kotlinx.coroutines.runBlocking
@@ -59,7 +60,7 @@ class HazardRepositoryTest {
     ) : QuakeSource {
         override val id: String = "fake"
 
-        override suspend fun fetch(): List<Quake> {
+        override suspend fun fetch(window: HazardWindow): List<Quake> {
             failure?.let { throw it }
             return listOf(
                 Quake(

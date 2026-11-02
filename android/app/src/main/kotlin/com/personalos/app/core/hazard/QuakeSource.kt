@@ -7,5 +7,5 @@ package com.personalos.app.core.hazard
 interface QuakeSource {
     val id: String
 
-    suspend fun fetch(): List<Quake>
+    suspend fun fetch(window: HazardWindow = HazardWindow.DAY): List<Quake>
 }

@@ -19,7 +19,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
 import com.personalos.app.core.hazard.HazardSnapshot
+import com.personalos.app.core.hazard.HazardWindow
 import com.personalos.app.core.hazard.Quake
 import com.personalos.app.core.map.MapCamera
 import com.personalos.app.core.tile.ActionKind
@@ -63,7 +69,7 @@ private val HAZARDS_TILE =
         id = "hazards",
         title = "Hazards",
         searchHint = "Search place or magnitude",
-        actions = listOf(ActionKind.SYNC),
+        actions = listOf(ActionKind.SYNC, ActionKind.FILTER),
     )
 
 private val TIME_FORMAT = SimpleDateFormat("d MMM HH:mm", Locale.getDefault())
@@ -93,163 +99,229 @@ fun HazardsScreen(
     var selectedId by remember { mutableStateOf<String?>(null) }
     var minMagnitude by remember { mutableStateOf<Double?>(null) }
     var visibleCount by remember { mutableIntStateOf(20) }
+    var locationFilter by remember { mutableStateOf("") }
+    var window by remember { mutableStateOf(HazardWindow.DAY) }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
 
     // Ordering is a display decision, so it lives here rather than in the feed.
     val ordered = remember(snapshot.quakes) { snapshot.quakes.sortedByDescending { it.time } }
-    LaunchedEffect(minMagnitude) { visibleCount = 20 }
+    LaunchedEffect(minMagnitude, locationFilter, window) { visibleCount = 20 }
+    LaunchedEffect(window) { container.hazards.refresh(window) }
 
     fun select(quake: Quake) {
         selectedId = quake.id
         camera = camera.copy(lat = quake.lat, lon = quake.lon, zoom = maxOf(camera.zoom, 4.0))
     }
 
-    TileScaffold(
-        config = HAZARDS_TILE,
-        modifier = modifier,
-        accent = CategoryColors.Rust,
-        onBack = onBack,
-        header = {
-            HeaderMeta(
-                primary = "${ordered.size} EVENTS",
-                secondary = syncLabel(snapshot),
-            )
-        },
-        onAction = { action ->
-            if (action == ActionKind.SYNC) {
-                scope.launch {
-                    container.sync.run("hazards") {
-                        container.sync.step("fetching USGS earthquakes")
-                        container.hazards.refresh()
-                        container.sync.step("done: ${container.hazards.snapshot.value.quakes.size} events")
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        drawerContent = {
+            ModalDrawerSheet {
+                Text(
+                    text = "Hazard filters",
+                    style = RadarType.serifTitle,
+                    color = RadarColors.ink,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+                OutlinedTextField(
+                    value = locationFilter,
+                    onValueChange = { locationFilter = it },
+                    singleLine = true,
+                    label = { Text("Location") },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                )
+                Text(
+                    text = "MIN MAGNITUDE",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                )
+                val mags = listOf<Pair<String, Double?>>("All" to null, "M2.5+" to 2.5, "M4.5+" to 4.5, "M5+" to 5.0)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    mags.forEach { (label, value) ->
+                        FlatButton(text = label, onClick = { minMagnitude = value }, solid = minMagnitude == value)
+                        Spacer(Modifier.width(4.dp))
                     }
                 }
-            }
-        },
-    ) { query ->
-        val shown =
-            remember(ordered, query, minMagnitude) {
-                val needle = query.trim()
-                ordered.filter { quake ->
-                    (minMagnitude == null || (quake.magnitude ?: 0.0) >= minMagnitude!!) &&
-                        (needle.isEmpty() || quake.matches(needle))
-                }
-            }
-        val largest = remember(shown) { shown.sortedByDescending { it.magnitude ?: 0.0 }.take(4) }
-        val visible = shown.take(visibleCount)
-        val dayGroups =
-            remember(visible) {
-                visible
-                    .groupBy { dayKey(it.time) }
-                    .toList()
-                    .sortedByDescending { it.first }
-            }
-
-        Column(Modifier.fillMaxSize()) {
-            HazardFilterBar(
-                minMagnitude = minMagnitude,
-                onMinMagnitude = { minMagnitude = it },
-            )
-            MagnitudeLegend()
-            MapLibreWorldMap(
-                camera = camera,
-                overlayTileUrl = null,
-                markers =
-                    shown.map {
-                        MapMarker(
-                            id = it.id,
-                            label = it.place,
-                            lat = it.lat,
-                            lon = it.lon,
-                            color = magnitudeColor(it.magnitude),
-                        )
-                    },
-                onCameraChange = { camera = it },
-                onMarkerClick = { id -> shown.firstOrNull { it.id == id }?.let(::select) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-            )
-            LargestCarousel(
-                largest = largest,
-                onSelect = ::select,
-            )
-            WidgetHeader(
-                title = "Earthquakes",
-                note = if (shown.size == ordered.size) "${ordered.size}" else "${shown.size}/${ordered.size}",
-                glyph = Glyph.Storm,
-            )
-
-            snapshot.error?.let { message ->
                 Text(
-                    text =
-                        if (snapshot.hasData) {
-                            "Showing last good data ${Chars.MIDDLE_DOT} $message"
-                        } else {
-                            "USGS unavailable ${Chars.MIDDLE_DOT} $message"
-                        },
+                    text = "WINDOW",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                )
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    HazardWindow.entries.forEach { option ->
+                        FlatButton(text = option.label, onClick = { window = option }, solid = window == option)
+                        Spacer(Modifier.width(4.dp))
+                    }
+                }
+                Text(
+                    text = "USGS updates the 24H feed continuously. 7D and 30D are historical windows.",
                     style = RadarType.microPlain,
-                    color = CategoryColors.Vermilion,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .background(RadarColors.paper3)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(16.dp),
+                )
+                FlatButton(
+                    text = "Reset filters",
+                    onClick = {
+                        locationFilter = ""
+                        minMagnitude = null
+                        window = HazardWindow.DAY
+                    },
                 )
             }
+        },
+    ) {
+        TileScaffold(
+            config = HAZARDS_TILE,
+            modifier = modifier,
+            accent = CategoryColors.Rust,
+            onBack = onBack,
+            header = {
+                HeaderMeta(
+                    primary = "${ordered.size} EVENTS",
+                    secondary = syncLabel(snapshot),
+                )
+            },
+            onAction = { action ->
+                if (action == ActionKind.SYNC) {
+                    scope.launch {
+                        container.sync.run("hazards") {
+                            container.sync.step("fetching USGS earthquakes")
+                            container.hazards.refresh(window)
+                            container.sync.step("done: ${container.hazards.snapshot.value.quakes.size} events")
+                        }
+                    }
+                }
+            },
+        ) { query ->
+            val shown =
+                remember(ordered, query, minMagnitude) {
+                    val needle = query.trim()
+                    ordered.filter { quake ->
+                        (minMagnitude == null || (quake.magnitude ?: 0.0) >= minMagnitude!!) &&
+                            (locationFilter.isBlank() || quake.place.contains(locationFilter, ignoreCase = true)) &&
+                            (needle.isEmpty() || quake.matches(needle))
+                    }
+                }
+            val largest = remember(shown) { shown.sortedByDescending { it.magnitude ?: 0.0 }.take(4) }
+            val visible = shown.take(visibleCount)
+            val dayGroups =
+                remember(visible) {
+                    visible
+                        .groupBy { dayKey(it.time) }
+                        .toList()
+                        .sortedByDescending { it.first }
+                }
 
-            if (shown.isEmpty()) {
-                Box(
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                ) {
+            Column(Modifier.fillMaxSize()) {
+                HazardFilterBar(
+                    minMagnitude = minMagnitude,
+                    onMinMagnitude = { minMagnitude = it },
+                )
+                MagnitudeLegend()
+                MapLibreWorldMap(
+                    camera = camera,
+                    overlayTileUrl = null,
+                    markers =
+                        shown.map {
+                            MapMarker(
+                                id = it.id,
+                                label = it.place,
+                                lat = it.lat,
+                                lon = it.lon,
+                                color = magnitudeColor(it.magnitude),
+                            )
+                        },
+                    onCameraChange = { camera = it },
+                    onMarkerClick = { id -> shown.firstOrNull { it.id == id }?.let(::select) },
+                    mapAspectRatio = 2.4f,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+                LargestCarousel(
+                    largest = largest,
+                    onSelect = ::select,
+                )
+                WidgetHeader(
+                    title = "Earthquakes",
+                    note = if (shown.size == ordered.size) "${ordered.size}" else "${shown.size}/${ordered.size}",
+                    glyph = Glyph.Storm,
+                )
+
+                snapshot.error?.let { message ->
                     Text(
-                        text = emptyLabel(snapshot, query),
-                        style = RadarType.body,
-                        color = RadarColors.ink3,
+                        text =
+                            if (snapshot.hasData) {
+                                "Showing last good data ${Chars.MIDDLE_DOT} $message"
+                            } else {
+                                "USGS unavailable ${Chars.MIDDLE_DOT} $message"
+                            },
+                        style = RadarType.microPlain,
+                        color = CategoryColors.Vermilion,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .background(RadarColors.paper3)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
-            } else {
-                LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-                    dayGroups.forEach { (day, quakes) ->
-                        stickyHeader(key = "day:$day") {
-                            Text(
-                                text = dayLabel(day),
-                                style = RadarType.labelMicro,
-                                color = RadarColors.ink2,
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .background(RadarColors.paper3)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-                        }
-                        items(quakes, key = { it.id }) { quake ->
-                            QuakeRow(
-                                quake = quake,
-                                selected = quake.id == selectedId,
-                                onSelect = { select(quake) },
-                            )
-                        }
+
+                if (shown.isEmpty()) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = emptyLabel(snapshot, query),
+                            style = RadarType.body,
+                            color = RadarColors.ink3,
+                        )
                     }
-                    if (visibleCount < shown.size) {
-                        item(key = "more") {
-                            FlatButton(
-                                text = "Load ${minOf(20, shown.size - visibleCount)} more",
-                                onClick = { visibleCount = minOf(shown.size, visibleCount + 20) },
-                            )
+                } else {
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+                        dayGroups.forEach { (day, quakes) ->
+                            stickyHeader(key = "day:$day") {
+                                Text(
+                                    text = dayLabel(day),
+                                    style = RadarType.labelMicro,
+                                    color = RadarColors.ink2,
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .background(RadarColors.paper3)
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
+                            items(quakes, key = { it.id }) { quake ->
+                                QuakeRow(
+                                    quake = quake,
+                                    selected = quake.id == selectedId,
+                                    onSelect = { select(quake) },
+                                )
+                            }
+                        }
+                        if (visibleCount < shown.size) {
+                            item(key = "more") {
+                                FlatButton(
+                                    text = "Load ${minOf(20, shown.size - visibleCount)} more",
+                                    onClick = { visibleCount = minOf(shown.size, visibleCount + 20) },
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            FooterStrip(
-                "USGS all earthquakes, past day ${Chars.MIDDLE_DOT} " +
-                    "${ordered.size} events ${Chars.MIDDLE_DOT} " +
-                    (if (snapshot.error == null) "live" else "cached"),
-            )
+                FooterStrip(
+                    "USGS all earthquakes, ${window.label} ${Chars.MIDDLE_DOT} " +
+                        "${ordered.size} events ${Chars.MIDDLE_DOT} " +
+                        (if (snapshot.error == null) "live" else "cached"),
+                )
+            }
         }
     }
 }
@@ -300,8 +372,9 @@ private fun LargestCarousel(
     largest: List<Quake>,
     onSelect: (Quake) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
         WidgetHeader(title = "Largest", note = "24H", glyph = Glyph.Storm)
+        Spacer(Modifier.height(8.dp))
         if (largest.isEmpty()) {
             Text(
                 text = "No events at this filter.",
@@ -322,24 +395,26 @@ private fun LargestCarousel(
             ) { page ->
                 LargestCard(quake = largest[page], onSelect = { onSelect(largest[page]) })
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                largest.indices.forEach { index ->
-                    Box(
-                        Modifier
-                            .padding(end = 4.dp)
-                            .width(if (index == pager.currentPage) 14.dp else 6.dp)
-                            .height(3.dp)
-                            .background(if (index == pager.currentPage) RadarColors.ink else RadarColors.ruleSoft),
-                    )
+            Box(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    largest.indices.forEach { index ->
+                        Box(
+                            Modifier
+                                .padding(horizontal = 2.dp)
+                                .width(if (index == pager.currentPage) 14.dp else 6.dp)
+                                .height(3.dp)
+                                .background(if (index == pager.currentPage) RadarColors.ink else RadarColors.ruleSoft),
+                        )
+                    }
                 }
-                Spacer(Modifier.weight(1f))
                 Text(
                     text = "${pager.currentPage + 1} / ${largest.size}",
                     style = RadarType.labelMicro,
                     color = RadarColors.ink3,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
                 )
             }
         }
@@ -356,7 +431,7 @@ private fun LargestCard(
             Modifier
                 .fillMaxWidth()
                 .height(96.dp)
-                .background(RadarColors.paper2)
+                .background(magnitudePastel(quake.magnitude))
                 .border(1.dp, RadarColors.ruleSoft)
                 .clickable(onClick = onSelect)
                 .padding(8.dp),
@@ -376,11 +451,9 @@ private fun LargestCard(
         Text(
             text = "${timeLabel(quake.time)} ${Chars.MIDDLE_DOT} ${depthLabel(quake.depth)}",
             style = RadarType.microPlain,
-            color = RadarColors.ink3,
+            color = RadarColors.ink2,
             maxLines = 1,
         )
-        Spacer(Modifier.height(4.dp))
-        Box(Modifier.fillMaxWidth().height(3.dp).background(magnitudeColor(quake.magnitude)))
     }
 }
 
@@ -434,6 +507,16 @@ private fun QuakeRow(
 }
 
 /** The one severity ramp, shared by markers and rows. */
+private fun magnitudePastel(magnitude: Double?): Color =
+    when {
+        magnitude == null -> RadarColors.paper3
+        magnitude >= 6.0 -> Color(0xFFF3D3CD)
+        magnitude >= 5.0 -> Color(0xFFF1DDD0)
+        magnitude >= 4.0 -> Color(0xFFF7EBC8)
+        magnitude >= 3.0 -> Color(0xFFE8F0D3)
+        else -> Color(0xFFDCECEF)
+    }
+
 private fun magnitudeColor(magnitude: Double?): Color =
     when {
         magnitude == null -> RadarColors.ink3

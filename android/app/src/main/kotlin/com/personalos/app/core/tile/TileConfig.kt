@@ -6,6 +6,7 @@ enum class ActionKind(
 ) {
     SEARCH("Search"),
     SYNC("Sync"),
+    FILTER("Filter"),
     ADD_RULE("Rule"),
     ADD_FEED("Feed"),
     ADD_LOCATION("Place"),

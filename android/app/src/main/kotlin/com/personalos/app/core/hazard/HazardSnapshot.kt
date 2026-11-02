@@ -11,6 +11,7 @@ data class HazardSnapshot(
     val quakes: List<Quake> = emptyList(),
     val fetchedAt: Long? = null,
     val error: String? = null,
+    val window: HazardWindow = HazardWindow.DAY,
 ) {
     val hasData: Boolean get() = fetchedAt != null
 }

@@ -1,6 +1,7 @@
 package com.personalos.app.data
 
 import com.personalos.app.core.hazard.HazardSnapshot
+import com.personalos.app.core.hazard.HazardWindow
 import com.personalos.app.core.hazard.QuakeSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,10 +51,10 @@ class HazardRepository(
     }
 
     /** A user-visible Sync always fetches, even inside the freshness window. */
-    suspend fun refresh() {
+    suspend fun refresh(window: HazardWindow = _snapshot.value.window) {
         mutex.withLock {
             lastAttemptAt = now()
-            val result = runCatching { source.fetch() }
+            val result = runCatching { source.fetch(window) }
             val at = now()
             result
                 .onSuccess { quakes ->
@@ -61,6 +62,7 @@ class HazardRepository(
                         HazardSnapshot(
                             quakes = quakes,
                             fetchedAt = at,
+                            window = window,
                         )
                 }.onFailure { error ->
                     _snapshot.value =
