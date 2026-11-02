@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(weather): regional rain, wind and pressure
+
+_2026-11-03_
+
+Adds daily rain and cloud-compatible regional layers to Weather Regional, removes the vague Clouds chip for now, and surfaces wind speed/direction and pressure for weather places. Wind arrows are drawn as GeoJSON lines from each place using the current direction; the selected place card shows wind and pressure. Adds wind_direction_10m and surface_pressure to Open-Meteo current observations and the weather store fields.
+
+Build, tests and ktlint pass. Cyclone tracks are not included yet; they need a track source rather than a current-point marker.
+
 ## feat(climate): colour-range highlight for temperature and rain
 
 _2026-11-03_

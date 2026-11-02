@@ -36,6 +36,9 @@ data class WeatherSnapshot(
      */
     val lat: Double? = null,
     val lon: Double? = null,
+    val windKph: Int? = null,
+    val windDirection: Int? = null,
+    val pressureHpa: Int? = null,
 )
 
 /**

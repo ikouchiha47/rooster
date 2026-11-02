@@ -3,8 +3,6 @@ package com.personalos.app.ui.weather
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
@@ -41,6 +38,7 @@ import com.personalos.app.core.map.SavedRegion
 import com.personalos.app.data.remote.climate.ClimateColormap
 import com.personalos.app.data.remote.climate.fetchClimateColormap
 import com.personalos.app.data.remote.climate.fetchRangeBitmap
+import com.personalos.app.ui.common.CompactValueSlider
 import com.personalos.app.ui.common.FlatButton
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.MapHighlight
@@ -382,7 +380,7 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
                     color = RadarColors.ink,
                     modifier = Modifier.width(78.dp),
                 )
-                MonthSlider(
+                CompactValueSlider(
                     value = monthOffset,
                     max = maxOffset,
                     onValueChange = { monthOffset = it },
@@ -490,47 +488,6 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MonthSlider(
-    value: Int,
-    max: Int,
-    onValueChange: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var width by remember { mutableIntStateOf(1) }
-
-    fun update(x: Float) {
-        if (max <= 0) return
-        val fraction = (x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
-        onValueChange(((1f - fraction) * max).toInt().coerceIn(0, max))
-    }
-    Canvas(
-        modifier
-            .height(24.dp)
-            .onSizeChanged { width = it.width }
-            .pointerInput(max) {
-                detectTapGestures { offset -> update(offset.x) }
-            }.pointerInput(max) {
-                detectHorizontalDragGestures { change, _ ->
-                    change.consume()
-                    update(change.position.x)
-                }
-            },
-    ) {
-        val y = size.height / 2f
-        drawLine(
-            color = RadarColors.ruleSoft,
-            start = Offset(0f, y),
-            end = Offset(size.width, y),
-            strokeWidth = 2.dp.toPx(),
-        )
-        val fraction = if (max <= 0) 1f else 1f - value.toFloat() / max
-        val x = size.width * fraction
-        drawCircle(color = RadarColors.ink, radius = 6.dp.toPx(), center = Offset(x, y))
-        drawCircle(color = RadarColors.paper2, radius = 3.dp.toPx(), center = Offset(x, y))
-    }
-}
-
-@Composable
 private fun RangeLegend(
     colormap: ClimateColormap,
     low: Float,
@@ -561,7 +518,11 @@ private fun RangeLegend(
                         onDrag = { change, _ ->
                             change.consume()
                             val fraction = (change.position.x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                            if (dragging == 0) onLow(fraction.coerceAtMost(high - 0.01f)) else onHigh(fraction.coerceAtLeast(low + 0.01f))
+                            if (dragging == 0) {
+                                onLow(fraction.coerceAtMost(high - 0.01f))
+                            } else {
+                                onHigh(fraction.coerceAtLeast(low + 0.01f))
+                            }
                         },
                     )
                 },

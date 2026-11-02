@@ -68,6 +68,8 @@ class WeatherKindAdapter(
             fields["rain_mm"] = FieldValue.Num(current.rainMm)
             fields["humidity_pct"] = FieldValue.Num(current.humidityPct)
             fields["wind_kmh"] = FieldValue.Num(current.windKmh)
+            fields["wind_direction"] = FieldValue.Num(current.windDirection)
+            fields["pressure_hpa"] = FieldValue.Num(current.pressureHpa)
             current.weatherCode?.let { fields["weather_code"] = FieldValue.Num(it) }
             observations.write(
                 ObservationWriter.Observation(

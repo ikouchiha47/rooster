@@ -165,6 +165,9 @@ fun WeatherScreen(
                     lat = spec.lat,
                     lon = spec.lon,
                     temperatureC = temp?.let { kotlin.math.round(it).toInt() },
+                    windKph = (view?.fields?.get("wind_kmh") as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt(),
+                    windDirection = (view?.fields?.get("wind_direction") as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt(),
+                    pressureHpa = (view?.fields?.get("pressure_hpa") as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt(),
                     observed = view != null,
                     weatherCode = (view?.fields?.get("weather_code") as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt(),
                 )
@@ -285,6 +288,9 @@ fun WeatherScreen(
                             lat = it.lat,
                             lon = it.lon,
                             temperatureC = it.temperatureC,
+                            windKph = it.windKph,
+                            windDirection = it.windDirection,
+                            pressureHpa = it.pressureHpa,
                         )
                     },
                 modifier = Modifier.fillMaxSize(),
@@ -675,6 +681,9 @@ private data class StorePlace(
     val lat: Double,
     val lon: Double,
     val temperatureC: Int?,
+    val windKph: Int? = null,
+    val windDirection: Int? = null,
+    val pressureHpa: Int? = null,
     val observed: Boolean,
     val weatherCode: Int? = null,
 )

@@ -17,6 +17,8 @@ object WeatherCurrentParser {
         val rainMm: Double,
         val humidityPct: Double,
         val windKmh: Double,
+        val windDirection: Double,
+        val pressureHpa: Double,
         /** WMO weather code, when the reply carries one. */
         val weatherCode: Double?,
     )
@@ -31,6 +33,8 @@ object WeatherCurrentParser {
             rainMm = current["precipitation"]?.jsonPrimitive?.doubleOrNull() ?: 0.0,
             humidityPct = current["relative_humidity_2m"]?.jsonPrimitive?.doubleOrNull() ?: 0.0,
             windKmh = current["wind_speed_10m"]?.jsonPrimitive?.doubleOrNull() ?: 0.0,
+            windDirection = current["wind_direction_10m"]?.jsonPrimitive?.doubleOrNull() ?: 0.0,
+            pressureHpa = current["surface_pressure"]?.jsonPrimitive?.doubleOrNull() ?: 0.0,
             weatherCode = current["weather_code"]?.jsonPrimitive?.doubleOrNull(),
         )
     }
@@ -148,7 +152,7 @@ object WeatherUrl {
     ): String =
         "https://api.open-meteo.com/v1/forecast" +
             "?latitude=$lat&longitude=$lon" +
-            "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,weather_code" +
+            "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,surface_pressure,precipitation,weather_code" +
             "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code" +
             "&timezone=auto&forecast_days=7"
 }

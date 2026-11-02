@@ -48,6 +48,7 @@ import org.maplibre.android.style.sources.RasterSource
 import org.maplibre.android.style.sources.TileSet
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
 import kotlin.math.PI
@@ -65,6 +66,14 @@ data class MapMarker(
     val label: String,
     val lat: Double,
     val lon: Double,
+)
+
+data class MapLine(
+    val id: String,
+    val startLat: Double,
+    val startLon: Double,
+    val endLat: Double,
+    val endLon: Double,
 )
 
 data class MapHighlight(
@@ -86,6 +95,7 @@ fun MapLibreWorldMap(
     maxZoom: Double = 8.0,
     preventWorldRepeat: Boolean = true,
     markers: List<MapMarker> = emptyList(),
+    mapLines: List<MapLine> = emptyList(),
     areaPin: MapMarker? = null,
     areaRadiusKm: Double? = null,
     highlight: MapHighlight? = null,
@@ -314,6 +324,33 @@ fun MapLibreWorldMap(
             val current = active.cameraPosition.toMapCamera()
             if (current.closeTo(target)) return@LaunchedEffect
             active.animateCamera(CameraUpdateFactory.newCameraPosition(target.toCameraPosition()), 550)
+        }
+
+        LaunchedEffect(map, styleReady, mapLines) {
+            val active = map ?: return@LaunchedEffect
+            if (!styleReady) return@LaunchedEffect
+            val style = active.style ?: return@LaunchedEffect
+            style.getLayer("wind-lines")?.let { style.removeLayer(it) }
+            style.getSource("wind-lines")?.let { style.removeSource(it) }
+            if (mapLines.isEmpty()) return@LaunchedEffect
+            val features =
+                mapLines.map { line ->
+                    Feature.fromGeometry(
+                        LineString.fromLngLats(
+                            listOf(
+                                Point.fromLngLat(line.startLon, line.startLat),
+                                Point.fromLngLat(line.endLon, line.endLat),
+                            ),
+                        ),
+                    )
+                }
+            style.addSource(GeoJsonSource("wind-lines", FeatureCollection.fromFeatures(features)))
+            style.addLayer(
+                org.maplibre.android.style.layers.LineLayer("wind-lines", "wind-lines").withProperties(
+                    PropertyFactory.lineColor("#1F5F9E"),
+                    PropertyFactory.lineWidth(2f),
+                ),
+            )
         }
 
         LaunchedEffect(map, styleReady, markers) {

@@ -167,7 +167,7 @@ class OpenMeteoWeatherProvider(
                 append("https://api.open-meteo.com/v1/forecast")
                 append("?latitude=").append(location.lat)
                 append("&longitude=").append(location.lon)
-                append("&current=temperature_2m,relative_humidity_2m,wind_speed_10m")
+                append("&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,surface_pressure")
                 append("&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max")
                 append("&timezone=auto&forecast_days=").append(FORECAST_DAYS)
             }
@@ -185,6 +185,8 @@ class OpenMeteoWeatherProvider(
             val temperature = current?.get("temperature_2m")?.jsonPrimitive?.double
             val humidity = current?.get("relative_humidity_2m")?.jsonPrimitive?.int
             val wind = current?.get("wind_speed_10m")?.jsonPrimitive?.double
+            val windDirection = current?.get("wind_direction_10m")?.jsonPrimitive?.double
+            val pressure = current?.get("surface_pressure")?.jsonPrimitive?.double
             val rain =
                 root["daily"]
                     ?.jsonObject
@@ -205,6 +207,9 @@ class OpenMeteoWeatherProvider(
                     ).joinToString(" ${Chars.MIDDLE_DOT} "),
                 lat = location.lat,
                 lon = location.lon,
+                windKph = wind?.roundToInt(),
+                windDirection = windDirection?.roundToInt(),
+                pressureHpa = pressure?.roundToInt(),
             )
         } catch (e: Exception) {
             Log.w(TAG, "map failed for ${location.name}", e)
