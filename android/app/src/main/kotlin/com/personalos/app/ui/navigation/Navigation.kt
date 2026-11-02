@@ -23,6 +23,7 @@ import com.personalos.app.ui.article.ArticleScreen
 import com.personalos.app.ui.calendar.CalendarScreen
 import com.personalos.app.ui.calendar.CalendarSettingsScreen
 import com.personalos.app.ui.calendar.PlannerEditorScreen
+import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.StatusBarIconsFor
 import com.personalos.app.ui.home.HomeScreen
@@ -47,6 +48,7 @@ import com.personalos.app.ui.sources.OverviewScreen
 import com.personalos.app.ui.travel.TravelScreen
 import com.personalos.app.ui.wallet.WalletScreen
 import com.personalos.app.ui.watchers.WatchersScreen
+import com.personalos.app.ui.weather.ClimateDetailScreen
 import com.personalos.app.ui.weather.ClimateScreen
 import com.personalos.app.ui.weather.ForecastScreen
 import com.personalos.app.ui.weather.WeatherScreen
@@ -75,6 +77,11 @@ sealed interface Destination {
 
     /** Global climate signals; not location-based weather. */
     data object Climate : Destination
+
+    /** One climate series with the scrubber. */
+    data class ClimateDetail(
+        val metric: String,
+    ) : Destination
 
     data object Sources : Destination
 
@@ -165,6 +172,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Money -> "money"
         is Destination.Weather -> "weather"
         is Destination.Climate -> "climate"
+        is Destination.ClimateDetail -> "climateDetail/${destination.metric}"
         is Destination.Sources -> "sources"
         is Destination.Watchers -> "watchers"
         is Destination.Calendar -> "calendar"
@@ -341,7 +349,23 @@ fun AppNavHost(
                 onBack = backOrNull(navController),
             )
         }
-        composable("climate") { ClimateScreen(onBack = backOrNull(navController)) }
+        composable("climate") {
+            ClimateScreen(
+                onNavigate = { navigateToDetail(navController, it) },
+                onBack = backOrNull(navController),
+            )
+        }
+        composable(
+            route = "climateDetail/{metric}",
+            arguments = listOf(navArgument("metric") { type = NavType.StringType }),
+        ) { entry ->
+            val metric = entry.arguments?.getString("metric") ?: return@composable
+            ClimateDetailScreen(
+                metricId = metric,
+                repository = LocalAppContainer.current.climateRepository,
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable("weather") {
             WeatherScreen(
                 onNavigate = { navigateToDetail(navController, it) },

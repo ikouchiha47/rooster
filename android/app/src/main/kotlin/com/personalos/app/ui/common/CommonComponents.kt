@@ -802,7 +802,8 @@ fun MiniCard(
 
 data class TabSpec(
     val label: String,
-    val count: Int,
+    /** Null draws no count; zero is a real count and still renders. */
+    val count: Int? = null,
 )
 
 @Composable
@@ -843,13 +844,15 @@ fun TabStrip(
                             color = if (selected) RadarColors.paper2 else RadarColors.ink2,
                             maxLines = 1,
                         )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            text = compactNumber(item.count),
-                            style = RadarType.microPlain,
-                            color = if (selected) RadarColors.paper4 else RadarColors.ink3,
-                            maxLines = 1,
-                        )
+                        item.count?.let { count ->
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                text = compactNumber(count),
+                                style = RadarType.microPlain,
+                                color = if (selected) RadarColors.paper4 else RadarColors.ink3,
+                                maxLines = 1,
+                            )
+                        }
                     }
                     Box(Modifier.width(1.dp).height(26.dp).background(RadarColors.ruleSoft))
                 }

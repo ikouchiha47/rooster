@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(climate): chart scrubber and regional map shell
+
+_2026-11-03_
+
+Adds the climate detail chart with nearest-point tap/drag selection, selected-dot toggle and LATEST reset. Adds the Global/Regional switch, per-layer month ranges, and a static regional map composed from Blue Marble, the data overlay and coastlines. Sea ice and fires now sit on a visible Earth.
+
+Updates ADR 0013 and the task DAG for MapLibre, shared SavedRegion/RegionDefault, camera semantics and per-layer timelines. MapLibre, locate-me and saved regions are the remaining implementation slice. Not pushed.
+
 ## feat(climate): global climate service with live series
 
 _2026-11-02_

@@ -216,6 +216,111 @@ The card's "original value" means the latest point, not a cached first render.
 - NASA GIBS is the v1 visual source; numeric gridded anomalies (ERA5/C3S) are a
   later layer.
 
+### 7d. Map engine and “camera”
+
+The Regional view uses **MapLibre Native**, not the static WMS image and not a
+WebView. MapLibre is the open-source map renderer with no API key. The current
+bitmap map is a placeholder.
+
+“Camera” means the **map viewport state**, not the device camera and not Street
+View:
+
+```kotlin
+MapCamera(
+  lat, lon,          // centre
+  zoom,              // tile zoom
+  bearing = 0,
+  pitch = 0,
+)
+```
+
+It does not request photos, street-level imagery or device camera access. A
+camera animation is simply a viewport move: Home → current region, saved region
+→ saved region, or locate-me → current coordinates.
+
+MapLibre provides:
+
+- pinch/pan/zoom
+- progressive raster tile loading for the visible viewport
+- tile cache
+- camera animations
+- no Google Maps key
+
+Raster sources:
+
+- base: NASA Blue Marble shaded relief
+- data overlay: GIBS WMTS layer for the selected month
+- outline: GIBS coastlines
+
+The GIBS raster tile template is:
+
+```
+https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/
+  {layer}/default/{date}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png
+```
+
+The static `WorldMap` is retained only as an offline/fallback renderer until
+MapLibre is wired.
+
+### 7e. Saved regions are shared, not service-specific
+
+A saved region is a named **map camera/area**, not a Weather place and not a
+Calendar provider region:
+
+```kotlin
+SavedRegion(
+  id, name, lat, lon, zoom, bbox?,
+  sourceKind?,   // weather_place | calendar_region | trip | manual
+  sourceId?,     // link only; do not copy the source fact
+  createdAt
+)
+
+RegionDefault(
+  consumer,      // weather, climate, travel, hazards, maps...
+  regionId
+)
+```
+
+Rules:
+
+- `SavedRegion` is global. Any service can use any saved region.
+- `RegionDefault` stores per-consumer defaults; `Home` is a region chosen in
+  Settings, not a flag duplicated on every row.
+- A Calendar region listing has no coordinates; it can be a **source** for a
+  saved region only after resolving a centre. It is never used as map geometry
+  directly.
+- A Weather place already has `lat`/`lon`; it can seed or link a saved region.
+- Saving the same source twice updates its camera rather than creating a
+  duplicate.
+- No `surfaces = {WEATHER, CLIMATE}` booleans on the region; consumers ask for
+  the regions they need and own their default.
+
+The Regional picker shows:
+
+- saved regions (`Home`, `Trip`, custom)
+- weather places as possible sources
+- calendar regions as possible sources, with “location not resolved” when no
+  centre can be found
+
+### 7f. Timeline is per layer
+
+There is no hardcoded “60 months”. Each raster layer declares its actual
+available range:
+
+| Layer | Available range |
+|---|---|
+| Temperature | 1980-01 → 2026-08 |
+| Rain | 2000-01 → 2026-06 |
+| Sea ice | 2012-07 → 2025-09 |
+| Fires | latest only |
+
+- Slider range comes from `availableFrom`/`availableTo`.
+- Ticks every 12 months; the selected month is labelled.
+- `LATEST` returns to the newest available month.
+- Changing layer clamps the month; unavailable combinations show “not available”
+  rather than a blank image.
+- Play/pause is optional; one tile per visible viewport per month.
+
 ### 8. Data sources (first set)
 
 These have been checked as reachable and free/public-domain or
@@ -273,6 +378,7 @@ Notes:
 - No mixing global temperature anomaly with local daily temperature.
 - No climate alerts as push notifications in v1.
 - No Hazards/cyclone map in this ADR; that is a separate surface.
+- No Street View, device-camera imagery, 3D buildings or street-level photos.
 
 ## Alternatives considered
 
@@ -331,9 +437,15 @@ Costs:
 5. **Advisories**
    - ONI strength, record temperature, sea-ice anomaly
    - cooldown, no push by default
-6. **Later**
-   - regional lens, IRI forecast if an official API exists, ocean heat,
-     monsoon, other gridded datasets
+6. **Shared regions + MapLibre**
+   - `SavedRegion` + `RegionDefault` + Settings Home
+   - MapLibre dependency and common `WorldMap`
+   - Climate Regional switches from static image to MapLibre
+7. **Weather Regional**
+   - same map engine and saved regions; weather layers/alerts
+8. **Later**
+   - IRI forecast if an official API exists, ocean heat, monsoon, other gridded
+     datasets
 
 ## Open questions
 

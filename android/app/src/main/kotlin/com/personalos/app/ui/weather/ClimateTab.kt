@@ -2,6 +2,7 @@ package com.personalos.app.ui.weather
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,6 +55,7 @@ private val UPDATED_FMT = SimpleDateFormat("d MMM yyyy", Locale.ENGLISH)
 fun ClimateTab(
     repository: ClimateRepository,
     modifier: Modifier = Modifier,
+    onOpen: (String) -> Unit = {},
 ) {
     val dashboard by repository.dashboard().collectAsStateWithLifecycle(initialValue = null)
     val series = dashboard?.series.orEmpty()
@@ -81,7 +83,7 @@ fun ClimateTab(
             }
         } else {
             items(FEATURED, key = { it.id }) { metric ->
-                ClimateCard(metric = metric, series = series[metric.id])
+                ClimateCard(metric = metric, series = series[metric.id], onOpen = { onOpen(metric.id) })
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -92,6 +94,7 @@ fun ClimateTab(
 private fun ClimateCard(
     metric: ClimateMetric,
     series: ClimateSeries?,
+    onOpen: () -> Unit,
 ) {
     val latest = series?.latest
     val color =
@@ -102,7 +105,7 @@ private fun ClimateCard(
             ClimateMetrics.ARCTIC_ICE.id, ClimateMetrics.ANTARCTIC_ICE.id -> CategoryColors.Indigo
             else -> CategoryColors.Cyan
         }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp)) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 8.dp, vertical = 7.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = metric.label, style = RadarType.serifTitle, color = RadarColors.ink)
             Spacer(Modifier.weight(1f))

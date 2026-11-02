@@ -15,8 +15,11 @@
 | **J3** | `ClimateRepository` + source registry + AppContainer | one owner for cache, staleness, source health | `data/ClimateRepository.kt`, `AppContainer.kt` |
 | **J4** | `ClimateScreen` route/tile + `ClimateTab` shell | UI cannot be split before the route contract | `ClimateScreen.kt`, `ClimateTab.kt`, `Navigation.kt`, Home/Services tiles |
 | **J5** | Metric naming, units, baselines, and source IDs | prevents two adapters inventing different IDs | `ClimateMetrics.kt` + tests |
+| **J6** | `SavedRegion` + `RegionDefault` schema/repository | shared by Climate, Weather, Travel, Hazards | `SavedRegionEntity.kt`, `RegionDao.kt`, `RegionRepository.kt`, Settings |
+| **J7** | MapLibre dependency + raster style + GIBS tile source | one map engine for both regional views | `MapLibreWorldMap.kt`, `gradle/libs.versions.toml` |
+| **J8** | Common `WorldMap` API (camera, gestures, locator, save) | Weather/Climate share the same viewport contract | `ui/common/WorldMap.kt` |
 
-Only after J1–J5 compile and tests pass may the lanes branch.
+Only after J1–J8 compile and tests pass may the map lanes branch.
 
 ## DAG
 
@@ -31,66 +34,99 @@ J5 metrics ┘                  ├─> B ENSO adapters ────────
 J4 shell ───────────────────────────────────────────────────┘
 ```
 
-### J1 — schema
-- [ ] `climate_series` table: source_id, metric, region, period_start,
+### J1 — schema — DONE
+- [x] `climate_series` table: source_id, metric, region, period_start,
       period_end, value, anomaly, unit, baseline, source_url, fetched_at.
 - [ ] `ClimateDao`: upsert/read by metric + region, latest fetch per source.
 - [ ] migration 28→29 + exported schema + migration test.
 
-### J2 — domain
-- [ ] `ClimatePoint` / `ClimateSeries` as in ADR.
+### J2 — domain — DONE
+- [x] `ClimatePoint` / `ClimateSeries` as in ADR.
 - [ ] `ClimateSource` interface with `id`, `metrics`, `cadence`, `licence`,
       `fetch()`.
 - [ ] `ClimateSnapshot`/`ClimateDashboard` UI model.
 - [ ] `ClimateMetric` seed: id, label, region, unit, baseline, source.
 
-### J3 — repository
-- [ ] `ClimateRepository`: observe series, save points, last-updated, stale flag.
+### J3 — repository — DONE
+- [x] `ClimateRepository`: observe series, save points, last-updated, stale flag.
 - [ ] source registry: one list of registered `ClimateSource`s.
 - [ ] refresh policy per source; failures never blank a card.
 - [ ] AppContainer wiring.
 
-### J4 — shell
-- [ ] `ClimateScreen` route, Home/Services tile, `Sync` action.
+### J4 — shell — DONE
+- [x] `ClimateScreen` route, Home/Services tile, `Sync` action.
 - [ ] `ClimateTab` header + featured cards + placeholder states.
 - [ ] cards read `ClimateDashboard`; no adapter logic in UI.
 - [ ] Weather stays local; Regional is a later Weather lens.
 
-### J5 — metric contract
-- [ ] IDs: `global_temp_anomaly`, `global_temp_anomaly_ncei`, `oni`, `soi`,
+### J5 — metric contract — DONE
+- [x] IDs: `global_temp_anomaly`, `global_temp_anomaly_ncei`, `oni`, `soi`,
       `co2_mauna_loa`, `sea_ice_arctic`, `sea_ice_antarctic`, `sea_level`.
 - [ ] Units and baselines are explicit per metric.
 - [ ] Tests reject unknown metric/baseline pairing.
 
 ## Parallel lanes (only after J1–J5)
 
-### A — Temperature
-- [ ] NASA GISTEMP CSV parser → `global_temp_anomaly` (1951–1980).
+### A — Temperature — DONE
+- [x] NASA GISTEMP CSV parser → `global_temp_anomaly` (1951–1980).
 - [ ] NOAA NCEI CSV parser → `global_temp_anomaly_ncei` (1901–2000).
 - [ ] Fixtures + parser tests; no network in tests.
 
-### B — ENSO
-- [ ] NOAA CPC ONI ASCII parser → `oni` (1991–2020, 3-month seasons).
+### B — ENSO — DONE
+- [x] NOAA CPC ONI ASCII parser → `oni` (1991–2020, 3-month seasons).
 - [ ] NOAA CPC SOI parser → `soi`.
 - [ ] Test season labels, missing values, latest period.
 
-### C — CO₂
-- [ ] NOAA GML Mauna Loa monthly CSV → `co2_mauna_loa`.
+### C — CO₂ — DONE
+- [x] NOAA GML Mauna Loa monthly CSV → `co2_mauna_loa`.
 - [ ] Keep average and seasonally adjusted; label Mauna Loa, not global.
 - [ ] Test header/comment handling.
 
-### D — Ice and sea level
-- [ ] NSIDC monthly `N_<MM>` / `S_<MM>` CSVs → Arctic/Antarctic extent.
+### D — Ice and sea level — DONE
+- [x] NSIDC monthly `N_<MM>` / `S_<MM>` CSVs → Arctic/Antarctic extent.
 - [ ] NOAA STAR sea-level CSV → `sea_level`.
 - [ ] Derive anomaly against 1981–2010 for ice; label sea-level reference.
 - [ ] Current-month URL handling + fixture tests.
 
-### E — UI
-- [ ] Featured cards with value, unit, anomaly, baseline, source, last updated.
+### E — UI — DONE
+- [x] Featured cards with value, unit, anomaly, baseline, source, last updated.
 - [ ] Sparkline from `ClimateSeries` points.
 - [ ] Detail view for one series.
 - [ ] Stale/error/empty states.
 - [ ] No local weather, no “super El Niño”.
+
+### E2 — chart scrubber — DONE
+- [x] Card sparkline is not scrubbable; tap opens the metric detail.
+- [ ] Detail chart selects the nearest real point on tap.
+- [ ] Horizontal drag scrubs and snaps to real points.
+- [ ] Selected point draws a dot and vertical guide; header shows period/value.
+- [ ] Tapping the selected dot clears; reverting to latest.
+- [ ] `LATEST` chip and tap-outside clear.
+- [ ] Missing points are skipped, never interpolated.
+- [ ] Vertical scroll wins vertical gestures; only horizontal drag past slop scrubs.
+- [ ] Tests for nearest-point selection, toggle clear, missing values.
+
+### G — Shared regions
+- [ ] `saved_regions` and `region_defaults` tables + migration.
+- [ ] SavedRegion/RegionDefault repository; Home default in Settings.
+- [ ] Link Weather places and Calendar regions by source id; resolve centres only.
+- [ ] Region picker: saved, weather place, calendar region, unresolved state.
+
+### H — MapLibre regional map
+- [ ] Add MapLibre Native; no Google key.
+- [ ] Minimal style: Blue Marble base, GIBS data overlay, coastlines.
+- [ ] Camera = lat/lon/zoom/bearing/pitch; no Street View/device camera.
+- [ ] Pinch/pan/zoom; progressive tiles; tile cache.
+- [ ] Locate-me only on tap; animate camera; honest denial.
+- [ ] Save current view; chips for Home/saved; animate to region.
+- [ ] Per-layer timeline from actual ranges; LASTEST; clamp; no blank fake frames.
+- [ ] Switch Climate Regional from static image to this component.
+- [ ] Weather Regional reuses the same component and region store.
+
+### I — Map tests and gates
+- [ ] Pure camera/region tests; timeline range/clamp tests.
+- [ ] Device: pinch, locate, save region, layer/month change.
+- [ ] Offline tile cache and failure states.
 
 ### F — Integration and gates
 - [ ] Register all sources; no duplicate metric IDs.
@@ -109,8 +145,10 @@ J4 shell ───────────────────────�
 
 ## Definition of done for the first branch
 
-- Duration: ~2–3 weeks of one-person work.
-- `Weather > Climate` shows global temperature, ONI, CO₂, sea ice, sea level.
+- Global Climate shows temperature, ONI, CO₂, sea ice, sea level and detail scrubber.
 - Every card shows baseline, source and last-updated.
+- Climate Regional uses the shared map engine, per-layer timeline and saved regions.
+- Weather Regional can reuse the same map component and region store.
 - Monthly stale data is explicit; offline shows cached data.
 - No IRI scraping, no forecast probabilities, no local climate claim.
+- No Street View, device camera or street-level imagery.
