@@ -27,6 +27,10 @@ data class MapCamera(
             lon = ((lon + 180.0) % 360.0 + 360.0) % 360.0 - 180.0,
         )
 
+    /** Approximate half-world width at this zoom, in kilometres. */
+    val radiusKm: Double
+        get() = 8000.0 / 2.0.pow(zoom)
+
     private companion object {
         const val MAX_LAT = 85.05112878
         const val MAX_ZOOM = 20.0
@@ -42,9 +46,8 @@ data class SavedRegion(
     val sourceId: String? = null,
     val createdAt: Long = 0L,
 ) {
-    /** Approximate radius of the area the pin covers at its saved zoom. */
     val radiusKm: Double
-        get() = 20037.5 / 2.0.pow(camera.zoom)
+        get() = camera.radiusKm
 }
 
 object RegionConsumers {

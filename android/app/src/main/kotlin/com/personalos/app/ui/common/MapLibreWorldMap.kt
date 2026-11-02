@@ -44,8 +44,12 @@ import org.maplibre.android.style.sources.TileSet
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
+import org.maplibre.geojson.Polygon
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.log2
+import kotlin.math.sin
 
 const val BLUE_MARBLE_TILES: String =
     "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/" +
@@ -68,11 +72,15 @@ fun MapLibreWorldMap(
     camera: MapCamera,
     overlayTileUrl: String?,
     overlayMaxZoom: Float = 6f,
+    overlaySaturation: Float = 0f,
     maxZoom: Double = 8.0,
     preventWorldRepeat: Boolean = true,
     markers: List<MapMarker> = emptyList(),
+    areaPin: MapMarker? = null,
+    areaRadiusKm: Double? = null,
     onCameraChange: (MapCamera) -> Unit,
     onMarkerClick: ((String) -> Unit)? = null,
+    onMapTap: ((Double, Double) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -90,6 +98,7 @@ fun MapLibreWorldMap(
     var minZoom by remember { mutableStateOf(0.0) }
     val currentOnCamera = rememberUpdatedState(onCameraChange)
     val currentOnMarker = rememberUpdatedState(onMarkerClick)
+    val currentOnMapTap = rememberUpdatedState(onMapTap)
     val countryLabels =
         remember(context) {
             runCatching {
@@ -164,10 +173,6 @@ fun MapLibreWorldMap(
                             ready.setMinZoomPreference(minZoom)
                             ready.setMaxZoomPreference(maxZoom)
                             ready.addOnCameraIdleListener {
-                                android.util.Log.i(
-                                    "MapDebug",
-                                    "idle z=" + ready.cameraPosition.zoom + " min=" + minZoom + " width=" + width,
-                                )
                                 currentOnCamera.value(ready.cameraPosition.toMapCamera().clamped())
                             }
                             ready.addOnMapClickListener { latLng ->
@@ -177,8 +182,13 @@ fun MapLibreWorldMap(
                                         "places-layer",
                                     )
                                 val id = features.firstOrNull()?.getStringProperty("id")
-                                if (id != null) currentOnMarker.value?.invoke(id)
-                                id != null
+                                if (id != null) {
+                                    currentOnMarker.value?.invoke(id)
+                                    true
+                                } else {
+                                    currentOnMapTap.value?.invoke(latLng.latitude, latLng.longitude)
+                                    currentOnMapTap.value != null
+                                }
                             }
                             ready.cameraPosition =
                                 camera.copy(zoom = camera.zoom.coerceIn(minZoom, maxZoom)).toCameraPosition()
@@ -190,7 +200,7 @@ fun MapLibreWorldMap(
             modifier = Modifier.fillMaxSize(),
         )
 
-        LaunchedEffect(map, styleReady, overlayTileUrl, overlayMaxZoom) {
+        LaunchedEffect(map, styleReady, overlayTileUrl, overlayMaxZoom, overlaySaturation) {
             val active = map ?: return@LaunchedEffect
             if (!styleReady) return@LaunchedEffect
             if (appliedOverlay == overlayTileUrl) return@LaunchedEffect
@@ -208,6 +218,7 @@ fun MapLibreWorldMap(
                     RasterLayer("climate-overlay", "climate-overlay").withProperties(
                         PropertyFactory.rasterOpacity(0.82f),
                         PropertyFactory.rasterResampling("linear"),
+                        PropertyFactory.rasterSaturation(overlaySaturation),
                     )
                 val below =
                     when {
@@ -302,6 +313,59 @@ fun MapLibreWorldMap(
             )
         }
 
+        LaunchedEffect(map, styleReady, areaPin, areaRadiusKm) {
+            val active = map ?: return@LaunchedEffect
+            if (!styleReady) return@LaunchedEffect
+            val style = active.style ?: return@LaunchedEffect
+            listOf("area-radius-fill", "area-radius-line", "area-pin").forEach { id ->
+                style.getLayer(id)?.let { style.removeLayer(it) }
+            }
+            listOf("area-radius", "area-pin-point").forEach { id ->
+                style.getSource(id)?.let { style.removeSource(it) }
+            }
+            val pin = areaPin ?: return@LaunchedEffect
+            val radius = areaRadiusKm
+            if (radius != null) {
+                val polygon = circlePolygon(pin.lat, pin.lon, radius)
+                style.addSource(GeoJsonSource("area-radius", Feature.fromGeometry(polygon)))
+                val fill =
+                    org.maplibre.android.style.layers
+                        .FillLayer("area-radius-fill", "area-radius")
+                        .withProperties(
+                            PropertyFactory.fillColor("#F2B233"),
+                            PropertyFactory.fillOpacity(0.13f),
+                        )
+                val line =
+                    org.maplibre.android.style.layers
+                        .LineLayer("area-radius-line", "area-radius")
+                        .withProperties(
+                            PropertyFactory.lineColor("#C58A13"),
+                            PropertyFactory.lineWidth(1.5f),
+                        )
+                if (style.getLayer("world-country-labels-major") != null) {
+                    style.addLayerBelow(fill, "world-country-labels-major")
+                    style.addLayerBelow(line, "world-country-labels-major")
+                } else {
+                    style.addLayer(fill)
+                    style.addLayer(line)
+                }
+            }
+            style.addSource(
+                GeoJsonSource(
+                    "area-pin-point",
+                    Feature.fromGeometry(Point.fromLngLat(pin.lon, pin.lat)),
+                ),
+            )
+            style.addLayer(
+                CircleLayer("area-pin", "area-pin-point").withProperties(
+                    PropertyFactory.circleRadius(7f),
+                    PropertyFactory.circleColor("#B3261E"),
+                    PropertyFactory.circleStrokeColor("#FFFCF2"),
+                    PropertyFactory.circleStrokeWidth(2f),
+                ),
+            )
+        }
+
         androidx.compose.material3.Text(
             text = "NASA GIBS · MAPLIBRE",
             style = RadarType.labelMicro,
@@ -313,6 +377,24 @@ fun MapLibreWorldMap(
                     .padding(horizontal = 4.dp, vertical = 2.dp),
         )
     }
+}
+
+private fun circlePolygon(
+    lat: Double,
+    lon: Double,
+    radiusKm: Double,
+): Polygon {
+    val latDelta = radiusKm / 111.0
+    val lonDelta = radiusKm / (111.0 * cos(lat * PI / 180.0).coerceAtLeast(0.1))
+    val points =
+        (0..64).map { index ->
+            val angle = 2.0 * PI * index / 64.0
+            Point.fromLngLat(
+                lon + lonDelta * cos(angle),
+                (lat + latDelta * sin(angle)).coerceIn(-85.0, 85.0),
+            )
+        }
+    return Polygon.fromLngLats(listOf(points))
 }
 
 private fun MapCamera.toCameraPosition(): CameraPosition =

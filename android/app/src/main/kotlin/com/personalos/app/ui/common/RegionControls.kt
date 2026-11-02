@@ -1,14 +1,17 @@
 package com.personalos.app.ui.common
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,10 +22,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.personalos.app.core.map.SavedRegion
+import com.personalos.app.ui.common.Glyph
+import com.personalos.app.ui.common.GlyphIcon
 import com.personalos.app.ui.theme.RadarType
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegionControls(
     regions: List<SavedRegion>,
@@ -35,32 +43,61 @@ fun RegionControls(
     locating: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = regions.firstOrNull { it.id == selectedId } ?: defaultRegion
     Column(modifier.fillMaxWidth()) {
-        if (defaultRegion != null || regions.isNotEmpty()) {
-            Row(
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+            OutlinedTextField(
+                value = selected?.name ?: "Whole world",
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                label = { Text("Saved location", style = RadarType.microPlain) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier =
                     Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
             ) {
+                DropdownMenuItem(
+                    text = { Text("Whole world") },
+                    onClick = {
+                        expanded = false
+                        onClear?.invoke()
+                    },
+                )
                 defaultRegion?.let { region ->
-                    FlatButton(
-                        text = "Home",
-                        onClick = { onSelect(region) },
-                        solid = selectedId == region.id,
+                    DropdownMenuItem(
+                        text = { Text("Home · ${region.name}") },
+                        onClick = {
+                            expanded = false
+                            onSelect(region)
+                        },
                     )
-                    Spacer(Modifier.width(4.dp))
                 }
                 regions.forEach { region ->
                     if (region.id == defaultRegion?.id) return@forEach
-                    FlatButton(
-                        text = region.name,
-                        onClick = { onSelect(region) },
-                        solid = selectedId == region.id,
+                    DropdownMenuItem(
+                        text = { Text(region.name) },
+                        onClick = {
+                            expanded = false
+                            onSelect(region)
+                        },
                     )
-                    Spacer(Modifier.width(4.dp))
+                }
+                if (regions.isEmpty() && defaultRegion == null) {
+                    DropdownMenuItem(
+                        text = { Text("No saved locations yet") },
+                        onClick = { expanded = false },
+                    )
                 }
             }
         }
@@ -68,16 +105,25 @@ fun RegionControls(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FlatButton(text = "Save area", onClick = onSaveView)
-            Spacer(Modifier.width(4.dp))
-            FlatButton(
-                text = if (locating) "Locating…" else "Locate",
+            IconButton(
+                onClick = onSaveView,
+                modifier = Modifier.size(42.dp).semantics { contentDescription = "Add pin" },
+            ) {
+                GlyphIcon(glyph = Glyph.Plus, tint = RadarColors.ink, size = 22.dp)
+            }
+            IconButton(
                 onClick = onLocate,
-                solid = false,
-            )
+                modifier = Modifier.size(42.dp).semantics { contentDescription = "Locate" },
+            ) {
+                GlyphIcon(glyph = Glyph.Place, tint = RadarColors.ink, size = 22.dp)
+            }
             if (selectedId != null && onClear != null) {
-                Spacer(Modifier.width(4.dp))
-                FlatButton(text = "Clear", onClick = onClear)
+                IconButton(
+                    onClick = onClear,
+                    modifier = Modifier.size(42.dp).semantics { contentDescription = "Clear area" },
+                ) {
+                    GlyphIcon(glyph = Glyph.Close, tint = RadarColors.ink, size = 22.dp)
+                }
             }
         }
     }
@@ -86,19 +132,30 @@ fun RegionControls(
 @Composable
 fun SaveRegionDialog(
     onDismiss: () -> Unit,
+    radiusKm: Double? = null,
     onSave: (String) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save this area", style = RadarType.label) },
+        title = { Text("Add a pin", style = RadarType.label) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                singleLine = true,
-                label = { Text("Name") },
-            )
+            androidx.compose.foundation.layout.Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    label = { Text("Name") },
+                )
+                if (radiusKm != null) {
+                    Text(
+                        text = "Pin radius ~${radiusKm.toInt()} km at this zoom",
+                        style = RadarType.microPlain,
+                        color = RadarColors.ink3,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
         },
         confirmButton = {
             TextButton(
@@ -107,7 +164,7 @@ fun SaveRegionDialog(
                     onSave(name.trim())
                     onDismiss()
                 },
-            ) { Text("SAVE") }
+            ) { Text("ADD PIN") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("CANCEL") }

@@ -37,6 +37,7 @@ import com.personalos.app.core.map.SavedRegion
 import com.personalos.app.ui.common.FlatButton
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.MapLibreWorldMap
+import com.personalos.app.ui.common.MapMarker
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.RegionControls
 import com.personalos.app.ui.common.RemoteBitmapImage
@@ -94,7 +95,7 @@ private val LAYERS =
             start = YearMonth.of(2012, 7),
             latest = YearMonth.of(2025, 9),
             legendUrl = null,
-            legendText = "White / pale blue = ice concentration.",
+            legendText = "White / grey = ice; blue = open water.",
             description = "Polar sea-ice concentration, Arctic or Antarctic. Not sea level.",
         ),
         RegionalLayer(
@@ -147,7 +148,16 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
     var locating by remember { mutableStateOf(false) }
     var locateNote by remember { mutableStateOf<String?>(null) }
     var iceHemisphere by remember { mutableStateOf("arctic") }
+    var placingPin by remember { mutableStateOf(false) }
+    var pendingPin by remember { mutableStateOf<MapMarker?>(null) }
 
+    val selectedRegion = regions.firstOrNull { it.id == selectedRegionId }
+    val areaPin =
+        pendingPin
+            ?: selectedRegion?.let {
+                MapMarker(it.id, it.name, it.camera.lat, it.camera.lon)
+            }
+    val areaRadiusKm = if (pendingPin != null) camera.radiusKm else selectedRegion?.radiusKm
     val layer = LAYERS[layerIndex]
     val maxOffset =
         if (layer.start != null && layer.latest != null) {
@@ -182,6 +192,8 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
     fun selectLayer(index: Int) {
         layerIndex = index
         monthOffset = 0
+        pendingPin = null
+        placingPin = false
         if (LAYERS[index].id == "ice") {
             camera = polarCamera(iceHemisphere)
             selectedRegionId = null
@@ -191,11 +203,24 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
     fun selectRegion(region: SavedRegion) {
         selectedRegionId = region.id
         camera = region.camera
+        pendingPin = null
+        placingPin = false
     }
 
     fun clearSelection() {
         selectedRegionId = null
+        pendingPin = null
+        placingPin = false
         camera = climateDefault?.camera ?: homeDefault?.camera ?: MapCamera(20.0, 0.0, 0.1)
+    }
+
+    fun dropPin(
+        lat: Double,
+        lon: Double,
+    ) {
+        if (!placingPin) return
+        pendingPin = MapMarker("pending", "New pin", lat, lon)
+        placingPin = false
     }
 
     fun locate() {
@@ -265,17 +290,34 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             defaultRegion = climateDefault ?: homeDefault,
             selectedId = selectedRegionId,
             onSelect = ::selectRegion,
-            onSaveView = { showSave = true },
+            onSaveView = {
+                placingPin = true
+                selectedRegionId = null
+            },
             onLocate = ::locate,
             onClear = ::clearSelection,
             locating = locating,
         )
-        Text(
-            text = "Save area stores this pin and the radius implied by the current zoom; pick it later or make it Home in Settings.",
-            style = RadarType.microPlain,
-            color = RadarColors.ink3,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-        )
+        if (placingPin) {
+            Text(
+                text = "Tap the map to drop the pin.",
+                style = RadarType.microPlain,
+                color = RadarColors.ink3,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        if (pendingPin != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "Pin dropped", style = RadarType.microPlain, color = RadarColors.ink3)
+                Spacer(Modifier.width(8.dp))
+                FlatButton(text = "Save pin", onClick = { showSave = true })
+                Spacer(Modifier.width(4.dp))
+                FlatButton(text = "Cancel", onClick = { pendingPin = null })
+            }
+        }
 
         if (month != null && layer.start != null) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -312,8 +354,12 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             camera = camera,
             overlayTileUrl = overlayUrl,
             overlayMaxZoom = 6f,
+            overlaySaturation = if (layer.id == "ice") -1f else 0f,
             maxZoom = 4.5,
+            areaPin = areaPin,
+            areaRadiusKm = areaRadiusKm,
             onCameraChange = { camera = it },
+            onMapTap = ::dropPin,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         )
 
@@ -362,12 +408,15 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
     }
 
     if (showSave) {
+        val pinCamera = pendingPin?.let { camera.copy(lat = it.lat, lon = it.lon) } ?: camera
         SaveRegionDialog(
             onDismiss = { showSave = false },
+            radiusKm = pinCamera.radiusKm,
             onSave = { name ->
                 scope.launch {
-                    val saved = container.regions.save(name = name, camera = camera)
+                    val saved = container.regions.save(name = name, camera = pinCamera)
                     selectedRegionId = saved.id
+                    pendingPin = null
                 }
             },
         )

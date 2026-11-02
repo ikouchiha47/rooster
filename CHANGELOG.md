@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(map): manual pin drop, radius and icon actions
+
+_2026-11-03_
+
+Adds manual map pin placement: Add pin enters placement mode, the next map tap drops a pin, a radius ring is drawn from the current zoom, and Save pin opens the name dialog. Radius is shown in the dialog and Settings; it updates with zoom before saving. Saved locations move to a proper exposed dropdown. Add pin, Locate and Clear use icons rather than text boxes.
+
+Build, unit tests and ktlint pass. Device fell into a stuck notification shade before this build could be visually verified.
+
 ## feat(map): polar sea ice, labels and readable regional controls
 
 _2026-11-03_

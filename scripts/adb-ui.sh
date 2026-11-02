@@ -36,7 +36,7 @@ wanted, index, path = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 root = ET.parse(path).getroot()
 hits = []
 for node in root.iter('node'):
-    if node.get('text') == wanted:
+    if node.get('text') == wanted or node.get('content-desc') == wanted:
         m = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.get('bounds', ''))
         if m:
             x1, y1, x2, y2 = map(int, m.groups())
@@ -51,8 +51,12 @@ PY
 
 open_app() {
   adb_ shell am force-stop com.personalos.app
-  adb_ shell monkey -p com.personalos.app -c android.intent.category.LAUNCHER 1 >/dev/null
-  sleep "${1:-5}"
+  adb_ shell am start -W -n com.personalos.app/.MainActivity >/dev/null
+  for _ in 1 2 3 4 5 6; do
+    if dump 2>/dev/null | grep -q 'Personal Radar'; then return 0; fi
+    sleep 1
+  done
+  return 0
 }
 
 home() {

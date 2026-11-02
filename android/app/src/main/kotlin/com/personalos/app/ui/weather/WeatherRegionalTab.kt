@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,8 +71,17 @@ fun WeatherRegionalTab(
     var showSave by remember { mutableStateOf(false) }
     var locating by remember { mutableStateOf(false) }
     var locateNote by remember { mutableStateOf<String?>(null) }
+    var placingPin by remember { mutableStateOf(false) }
+    var pendingPin by remember { mutableStateOf<MapMarker?>(null) }
 
     val selectedPlace = places.firstOrNull { it.id == selectedPlaceId }
+    val selectedRegion = regions.firstOrNull { it.id == selectedRegionId }
+    val areaPin =
+        pendingPin
+            ?: selectedRegion?.let {
+                MapMarker(it.id, it.name, it.camera.lat, it.camera.lon)
+            }
+    val areaRadiusKm = if (pendingPin != null) camera.radiusKm else selectedRegion?.radiusKm
 
     LaunchedEffect(weatherDefault, homeDefault, regions, places) {
         if (initialised) return@LaunchedEffect
@@ -92,11 +102,24 @@ fun WeatherRegionalTab(
     fun selectRegion(region: SavedRegion) {
         selectedRegionId = region.id
         camera = region.camera
+        pendingPin = null
+        placingPin = false
     }
 
     fun clearSelection() {
         selectedRegionId = null
+        pendingPin = null
+        placingPin = false
         camera = weatherDefault?.camera ?: homeDefault?.camera ?: MapCamera(20.0, 0.0, 0.1)
+    }
+
+    fun dropPin(
+        lat: Double,
+        lon: Double,
+    ) {
+        if (!placingPin) return
+        pendingPin = MapMarker("pending", "New pin", lat, lon)
+        placingPin = false
     }
 
     fun locate() {
@@ -123,17 +146,42 @@ fun WeatherRegionalTab(
             defaultRegion = weatherDefault ?: homeDefault,
             selectedId = selectedRegionId,
             onSelect = ::selectRegion,
-            onSaveView = { showSave = true },
+            onSaveView = {
+                placingPin = true
+                selectedRegionId = null
+            },
             onLocate = ::locate,
             onClear = ::clearSelection,
             locating = locating,
         )
-        androidx.compose.material3.Text(
-            text = "Save area stores this pin and the radius implied by the current zoom; pick it later or make it Home in Settings.",
-            style = RadarType.microPlain,
-            color = RadarColors.ink3,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-        )
+        if (placingPin) {
+            androidx.compose.material3.Text(
+                text = "Tap the map to drop the pin.",
+                style = RadarType.microPlain,
+                color = RadarColors.ink3,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        if (pendingPin != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.Text(
+                    text = "Pin dropped",
+                    style = RadarType.microPlain,
+                    color = RadarColors.ink3,
+                )
+                Spacer(Modifier.width(8.dp))
+                com.personalos.app.ui.common.FlatButton(
+                    text = "Save pin",
+                    onClick = { showSave = true },
+                )
+                Spacer(Modifier.width(4.dp))
+                com.personalos.app.ui.common
+                    .FlatButton(text = "Cancel", onClick = { pendingPin = null })
+            }
+        }
 
         MapLibreWorldMap(
             camera = camera,
@@ -147,7 +195,10 @@ fun WeatherRegionalTab(
                         lon = it.lon,
                     )
                 },
+            areaPin = areaPin,
+            areaRadiusKm = areaRadiusKm,
             onCameraChange = { camera = it },
+            onMapTap = ::dropPin,
             onMarkerClick = { id ->
                 selectedPlaceId = id
                 places.firstOrNull { it.id == id }?.let {
@@ -207,12 +258,15 @@ fun WeatherRegionalTab(
     }
 
     if (showSave) {
+        val pinCamera = pendingPin?.let { camera.copy(lat = it.lat, lon = it.lon) } ?: camera
         SaveRegionDialog(
             onDismiss = { showSave = false },
+            radiusKm = pinCamera.radiusKm,
             onSave = { name ->
                 scope.launch {
-                    val saved = container.regions.save(name = name, camera = camera)
+                    val saved = container.regions.save(name = name, camera = pinCamera)
                     selectedRegionId = saved.id
+                    pendingPin = null
                 }
             },
         )

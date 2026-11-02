@@ -311,8 +311,10 @@ Rules:
 - A Weather place already has `lat`/`lon`; it can seed or link a saved region.
 - Saving the same source twice updates its camera rather than creating a
   duplicate.
-- A saved “area” is a pin plus the radius implied by its saved zoom; the UI shows
-  an approximate km radius and does not pretend it is a precise boundary.
+- A saved “area” is dropped manually on the map, then stored as a pin plus the
+  radius implied by the zoom at save time. The map shows the pin and radius ring;
+  the dialog shows the approximate km radius. It is not a precise boundary.
+- Saved locations are chosen from a dropdown, not a row of chips.
 - No `surfaces = {WEATHER, CLIMATE}` booleans on the region; consumers ask for
   the regions they need and own their default.
 
