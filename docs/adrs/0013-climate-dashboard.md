@@ -315,6 +315,10 @@ Rules:
   radius implied by the zoom at save time. The map shows the pin and radius ring;
   the dialog shows the approximate km radius. It is not a precise boundary.
 - Saved locations are chosen from a dropdown, not a row of chips.
+- Add pin, Locate and Clear use 40dp icon tiles with 9sp caps labels
+  (add-pin, scan, trash), 8dp apart; Clear is always present but disabled with no
+  selection. The month is a compact inline label plus track, not a separate
+  text block.
 - No `surfaces = {WEATHER, CLIMATE}` booleans on the region; consumers ask for
   the regions they need and own their default.
 

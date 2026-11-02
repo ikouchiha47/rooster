@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(map): pin placement row, icon tiles and compact month
+
+_2026-11-03_
+
+Manual pin placement now works end to end: Add pin enters placement mode, the next map tap drops a pin with a zoom-derived radius ring, and Save pin/Cancel sits in a separate row. Adds 40dp icon tiles with ADD PIN/LOCATE/CLEAR labels, using pin, scan and trash glyphs; Clear is disabled and dimmed without a selection. Moves the month to a compact inline label beside its track and removes the redundant month/range text.
+
+Build, tests and ktlint pass. Verified on device: pin drop, radius ring, save/cancel row and month slider.
+
 ## feat(map): manual pin drop, radius and icon actions
 
 _2026-11-03_

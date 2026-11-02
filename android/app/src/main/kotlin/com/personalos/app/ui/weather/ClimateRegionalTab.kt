@@ -318,29 +318,26 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
                 FlatButton(text = "Cancel", onClick = { pendingPin = null })
             }
         }
+        SoftRule()
 
         if (month != null && layer.start != null) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "MONTH", style = RadarType.labelMicro, color = RadarColors.ink3)
-                Spacer(Modifier.width(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 24.dp, top = 6.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     text = month.format(MONTH_FMT).uppercase(Locale.ENGLISH),
                     style = RadarType.label,
                     color = RadarColors.ink,
+                    modifier = Modifier.width(78.dp),
                 )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "${layer.start.year}–${layer.latest.year}",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.ink3,
+                MonthSlider(
+                    value = monthOffset,
+                    max = maxOffset,
+                    onValueChange = { monthOffset = it },
+                    modifier = Modifier.weight(1f),
                 )
             }
-            MonthSlider(
-                value = monthOffset,
-                max = maxOffset,
-                onValueChange = { monthOffset = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
-            )
         } else {
             Text(
                 text = "LATEST AVAILABLE",
