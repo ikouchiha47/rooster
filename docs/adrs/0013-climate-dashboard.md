@@ -207,7 +207,9 @@ The card's "original value" means the latest point, not a cached first render.
 
 - Fixed map viewport with pan/zoom; the map is not the page scroll container.
 - Month slider, not live data.
-- Layer chips: temperature, rain, drought, sea ice, fires.
+- Layer chips: temperature, rain, sea ice, fires.
+- Sea ice is polar: selecting it moves to the Arctic/Antarctic and exposes a
+  North/South switch. It is concentration, not sea level.
 - Legend with units and baseline.
 - Source and `valid for <month>` visible.
 - Tap a place: show a value only when the layer has a point/region dataset;
@@ -259,6 +261,9 @@ not a second tile set.
 Raster sources:
 
 - base: NASA Blue Marble shaded relief
+- labels: bundled Natural Earth country labels, plus OpenFreeMap city labels
+  above the raster overlay; a light ocean tint and coastlines keep land/water
+  readable under a full-bleed data layer
 - data overlay: GIBS WMTS raster layer for the selected month, linear
   resampling and 82% opacity so the base map remains legible
 - fires: GIBS WMS on the EPSG:4326 endpoint with an EPSG:3857 SRS/BBOX, because
@@ -283,7 +288,7 @@ Calendar provider region:
 
 ```kotlin
 SavedRegion(
-  id, name, lat, lon, zoom, bbox?,
+  id, name, lat, lon, zoom, radiusKm?,
   sourceKind?,   // weather_place | calendar_region | trip | manual
   sourceId?,     // link only; do not copy the source fact
   createdAt
@@ -306,6 +311,8 @@ Rules:
 - A Weather place already has `lat`/`lon`; it can seed or link a saved region.
 - Saving the same source twice updates its camera rather than creating a
   duplicate.
+- A saved “area” is a pin plus the radius implied by its saved zoom; the UI shows
+  an approximate km radius and does not pretend it is a precise boundary.
 - No `surfaces = {WEATHER, CLIMATE}` booleans on the region; consumers ask for
   the regions they need and own their default.
 

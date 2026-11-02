@@ -1,5 +1,7 @@
 package com.personalos.app.core.map
 
+import kotlin.math.pow
+
 /**
  * The map viewport. This is not the device camera and not street-level imagery;
  * it is only where the renderer is looking.
@@ -39,7 +41,11 @@ data class SavedRegion(
     val sourceKind: String? = null,
     val sourceId: String? = null,
     val createdAt: Long = 0L,
-)
+) {
+    /** Approximate radius of the area the pin covers at its saved zoom. */
+    val radiusKm: Double
+        get() = 20037.5 / 2.0.pow(camera.zoom)
+}
 
 object RegionConsumers {
     const val HOME = "home"

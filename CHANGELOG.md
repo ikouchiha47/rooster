@@ -7,6 +7,16 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(map): polar sea ice, labels and readable regional controls
+
+_2026-11-03_
+
+Adds bundled Natural Earth country labels plus OpenFreeMap city labels, draws a light ocean tint and stronger coastlines above the raster overlay, and fits the initial world view in the viewport.
+
+Sea ice now opens an Arctic/Antarctic camera with a North/South switch. Saved views are reframed as saved areas: a pin plus the radius implied by zoom, with the radius shown in Settings. Saved-area chips get their own scroll row so many of them cannot crowd the Save/Locate/Clear actions. The month slider is a small custom track kept away from the screen edge.
+
+Adds scripts/adb-ui.sh for text/bounds-driven navigation instead of fixed taps. Build, tests and ktlint pass. Device disconnected before this build could be installed.
+
 ## fix(map): keep longitude continuous while panning
 
 _2026-11-03_

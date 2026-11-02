@@ -1,6 +1,7 @@
 package com.personalos.app.ui.common
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,37 +31,55 @@ fun RegionControls(
     onSelect: (SavedRegion) -> Unit,
     onSaveView: () -> Unit,
     onLocate: () -> Unit,
+    onClear: (() -> Unit)? = null,
     locating: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        defaultRegion?.let { region ->
-            FlatButton(
-                text = "Home",
-                onClick = { onSelect(region) },
-                solid = selectedId == region.id,
-            )
-            Spacer(Modifier.width(4.dp))
+    Column(modifier.fillMaxWidth()) {
+        if (defaultRegion != null || regions.isNotEmpty()) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                defaultRegion?.let { region ->
+                    FlatButton(
+                        text = "Home",
+                        onClick = { onSelect(region) },
+                        solid = selectedId == region.id,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                regions.forEach { region ->
+                    if (region.id == defaultRegion?.id) return@forEach
+                    FlatButton(
+                        text = region.name,
+                        onClick = { onSelect(region) },
+                        solid = selectedId == region.id,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+            }
         }
-        regions.forEach { region ->
-            if (region.id == defaultRegion?.id) return@forEach
-            FlatButton(
-                text = region.name,
-                onClick = { onSelect(region) },
-                solid = selectedId == region.id,
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FlatButton(text = "Save area", onClick = onSaveView)
             Spacer(Modifier.width(4.dp))
+            FlatButton(
+                text = if (locating) "Locating…" else "Locate",
+                onClick = onLocate,
+                solid = false,
+            )
+            if (selectedId != null && onClear != null) {
+                Spacer(Modifier.width(4.dp))
+                FlatButton(text = "Clear", onClick = onClear)
+            }
         }
-        FlatButton(text = "Save view", onClick = onSaveView)
-        Spacer(Modifier.width(4.dp))
-        FlatButton(
-            text = if (locating) "Locating…" else "Locate",
-            onClick = onLocate,
-            solid = false,
-        )
     }
 }
 
@@ -72,7 +91,7 @@ fun SaveRegionDialog(
     var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save this view", style = RadarType.label) },
+        title = { Text("Save this area", style = RadarType.label) },
         text = {
             OutlinedTextField(
                 value = name,

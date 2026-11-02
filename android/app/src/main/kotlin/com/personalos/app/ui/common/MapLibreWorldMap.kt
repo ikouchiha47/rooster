@@ -33,9 +33,11 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.RasterLayer
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.style.sources.RasterSource
 import org.maplibre.android.style.sources.TileSet
@@ -88,6 +90,31 @@ fun MapLibreWorldMap(
     var minZoom by remember { mutableStateOf(0.0) }
     val currentOnCamera = rememberUpdatedState(onCameraChange)
     val currentOnMarker = rememberUpdatedState(onMarkerClick)
+    val countryLabels =
+        remember(context) {
+            runCatching {
+                context.assets
+                    .open("world-countries.json")
+                    .bufferedReader()
+                    .use { FeatureCollection.fromJson(it.readText()) }
+            }.getOrNull()
+        }
+    val majorCountries =
+        remember(countryLabels) {
+            countryLabels?.let { collection ->
+                FeatureCollection.fromFeatures(
+                    collection.features()?.filter { (it.getNumberProperty("rank")?.toInt() ?: 7) <= 2 }.orEmpty(),
+                )
+            }
+        }
+    val minorCountries =
+        remember(countryLabels) {
+            countryLabels?.let { collection ->
+                FeatureCollection.fromFeatures(
+                    collection.features()?.filter { (it.getNumberProperty("rank")?.toInt() ?: 7) > 2 }.orEmpty(),
+                )
+            }
+        }
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer =
@@ -103,6 +130,8 @@ fun MapLibreWorldMap(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            mapView.onPause()
+            mapView.onStop()
             mapView.onDestroy()
         }
     }
@@ -128,13 +157,17 @@ fun MapLibreWorldMap(
                                     ?: context.resources.displayMetrics.widthPixels
                             minZoom =
                                 if (preventWorldRepeat) {
-                                    log2(width / 512.0).coerceAtLeast(0.0) + 0.5
+                                    log2(width / 1024.0).coerceAtLeast(0.0) + 0.01
                                 } else {
                                     0.0
                                 }
                             ready.setMinZoomPreference(minZoom)
                             ready.setMaxZoomPreference(maxZoom)
                             ready.addOnCameraIdleListener {
+                                android.util.Log.i(
+                                    "MapDebug",
+                                    "idle z=" + ready.cameraPosition.zoom + " min=" + minZoom + " width=" + width,
+                                )
                                 currentOnCamera.value(ready.cameraPosition.toMapCamera().clamped())
                             }
                             ready.addOnMapClickListener { latLng ->
@@ -171,15 +204,69 @@ fun MapLibreWorldMap(
                         this.maxZoom = overlayMaxZoom
                     }
                 style.addSource(RasterSource("climate-overlay", tileSet, 256))
-                style.addLayer(RasterLayer("climate-overlay", "climate-overlay"))
+                val overlay =
+                    RasterLayer("climate-overlay", "climate-overlay").withProperties(
+                        PropertyFactory.rasterOpacity(0.82f),
+                        PropertyFactory.rasterResampling("linear"),
+                    )
+                val below =
+                    when {
+                        style.getLayer("ocean-tint") != null -> "ocean-tint"
+                        style.getLayer("world-country-labels-major") != null -> "world-country-labels-major"
+                        style.getLayer("city-labels") != null -> "city-labels"
+                        else -> null
+                    }
+                if (below != null) style.addLayerBelow(overlay, below) else style.addLayer(overlay)
             }
             appliedOverlay = overlayTileUrl
         }
 
-        LaunchedEffect(map, styleReady, camera) {
+        LaunchedEffect(map, styleReady, majorCountries, minorCountries) {
             val active = map ?: return@LaunchedEffect
             if (!styleReady) return@LaunchedEffect
-            val target = camera.normalised()
+            val style = active.style ?: return@LaunchedEffect
+            listOf("world-country-labels-major", "world-country-labels-minor").forEach { id ->
+                style.getLayer(id)?.let { style.removeLayer(it) }
+            }
+            listOf("world-countries-major", "world-countries-minor").forEach { id ->
+                style.getSource(id)?.let { style.removeSource(it) }
+            }
+            val major = majorCountries ?: return@LaunchedEffect
+            style.addSource(GeoJsonSource("world-countries-major", major))
+            style.addLayer(
+                SymbolLayer("world-country-labels-major", "world-countries-major")
+                    .withProperties(
+                        PropertyFactory.textField(Expression.get("name")),
+                        PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+                        PropertyFactory.textSize(10.5f),
+                        PropertyFactory.textColor("#10150f"),
+                        PropertyFactory.textHaloColor("#FFFCF2"),
+                        PropertyFactory.textHaloWidth(2.2f),
+                        PropertyFactory.textMaxWidth(8f),
+                        PropertyFactory.textPadding(4f),
+                    ).apply { setMinZoom(0f) },
+            )
+            val minor = minorCountries ?: return@LaunchedEffect
+            style.addSource(GeoJsonSource("world-countries-minor", minor))
+            style.addLayer(
+                SymbolLayer("world-country-labels-minor", "world-countries-minor")
+                    .withProperties(
+                        PropertyFactory.textField(Expression.get("name")),
+                        PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+                        PropertyFactory.textSize(9.5f),
+                        PropertyFactory.textColor("#10150f"),
+                        PropertyFactory.textHaloColor("#FFFCF2"),
+                        PropertyFactory.textHaloWidth(1.8f),
+                        PropertyFactory.textMaxWidth(8f),
+                        PropertyFactory.textPadding(3f),
+                    ).apply { setMinZoom(3f) },
+            )
+        }
+
+        LaunchedEffect(map, styleReady, camera, minZoom, maxZoom) {
+            val active = map ?: return@LaunchedEffect
+            if (!styleReady) return@LaunchedEffect
+            val target = camera.clamped().copy(zoom = camera.zoom.coerceIn(minZoom, maxZoom))
             if (!cameraInitialised) {
                 active.cameraPosition = target.toCameraPosition()
                 cameraInitialised = true
@@ -257,6 +344,7 @@ private fun baseStyleJson(): String =
     """
     {
       "version": 8,
+      "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
       "sources": {
         "base": {
           "type": "raster",
@@ -264,10 +352,55 @@ private fun baseStyleJson(): String =
           "tileSize": 256,
           "minzoom": 0,
           "maxzoom": 8
+        },
+        "labels": {
+          "type": "vector",
+          "url": "https://tiles.openfreemap.org/planet"
         }
       },
       "layers": [
-        {"id":"base","type":"raster","source":"base"}
+        {"id":"base","type":"raster","source":"base"},
+        {
+          "id":"ocean-tint",
+          "type":"fill",
+          "source":"labels",
+          "source-layer":"water",
+          "paint":{"fill-color":"#21627F","fill-opacity":0.30}
+        },
+        {
+          "id":"coastline",
+          "type":"line",
+          "source":"labels",
+          "source-layer":"water",
+          "paint":{"line-color":"#102C36","line-width":1.1,"line-opacity":0.72}
+        },
+        {
+          "id":"country-borders",
+          "type":"line",
+          "source":"labels",
+          "source-layer":"boundary",
+          "filter":["==",["get","admin_level"],2],
+          "paint":{"line-color":"rgba(24,30,24,0.7)","line-width":0.9}
+        },
+        {
+          "id":"city-labels",
+          "type":"symbol",
+          "source":"labels",
+          "source-layer":"place",
+          "filter":["in",["get","class"],["literal",["city","town"]]],
+          "layout":{
+            "text-field":["coalesce",["get","name:en"],["get","name"]],
+            "text-font":["Noto Sans Regular"],
+            "text-size":["interpolate",["linear"],["zoom"],2,10,4,12,6,14],
+            "text-max-width":10,
+            "text-padding":3
+          },
+          "paint":{
+            "text-color":"#31362e",
+            "text-halo-color":"rgba(247,243,232,0.9)",
+            "text-halo-width":1.2
+          }
+        }
       ]
     }
     """.trimIndent()

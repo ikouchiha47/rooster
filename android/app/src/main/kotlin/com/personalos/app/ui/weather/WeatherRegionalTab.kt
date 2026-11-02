@@ -63,7 +63,7 @@ fun WeatherRegionalTab(
             .observeDefault(RegionConsumers.HOME)
             .collectAsStateWithLifecycle(initialValue = null)
 
-    var camera by remember { mutableStateOf(MapCamera(20.0, 0.0, 1.2)) }
+    var camera by remember { mutableStateOf(MapCamera(20.0, 0.0, 0.1)) }
     var selectedRegionId by remember { mutableStateOf<String?>(null) }
     var selectedPlaceId by remember { mutableStateOf<String?>(null) }
     var initialised by remember { mutableStateOf(false) }
@@ -94,6 +94,11 @@ fun WeatherRegionalTab(
         camera = region.camera
     }
 
+    fun clearSelection() {
+        selectedRegionId = null
+        camera = weatherDefault?.camera ?: homeDefault?.camera ?: MapCamera(20.0, 0.0, 0.1)
+    }
+
     fun locate() {
         if (locating) return
         locating = true
@@ -120,7 +125,14 @@ fun WeatherRegionalTab(
             onSelect = ::selectRegion,
             onSaveView = { showSave = true },
             onLocate = ::locate,
+            onClear = ::clearSelection,
             locating = locating,
+        )
+        androidx.compose.material3.Text(
+            text = "Save area stores this pin and the radius implied by the current zoom; pick it later or make it Home in Settings.",
+            style = RadarType.microPlain,
+            color = RadarColors.ink3,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
         )
 
         MapLibreWorldMap(
@@ -143,7 +155,7 @@ fun WeatherRegionalTab(
                     camera = camera.copy(lat = it.lat, lon = it.lon, zoom = max(camera.zoom, 4.0))
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         )
 
         locateNote?.let { note ->

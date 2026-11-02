@@ -196,6 +196,12 @@ private fun RegionSection() {
                     modifier = Modifier.weight(1f),
                 )
                 Text(
+                    text = "~${region.radiusKm.toInt()} km",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink3,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
                     text = if (home?.id == region.id) "HOME" else "SET HOME",
                     style = RadarType.labelMicro,
                     color = if (home?.id == region.id) CategoryColors.Teal else RadarColors.ink3,

@@ -128,6 +128,11 @@ J4 shell ───────────────────────�
 - [x] Cap max zoom to 4.5 and use linear raster resampling; the remaining blocks
       are the coarse climate grid, not overzoom.
 - [x] Keep longitude continuous during pan; do not snap on the antimeridian.
+- [x] Sea ice opens a polar Arctic/Antarctic camera, with a hemisphere switch.
+- [x] Bundled country labels and OpenFreeMap city labels; ocean tint and
+      coastlines above the raster overlay.
+- [x] Saved “areas” show the approximate radius implied by zoom; saved chips
+      are on their own scroll row, separate from Save/Locate/Clear actions.
 
 ### I — Map tests and gates — PARTIAL
 - [x] Pure camera/region tests.
