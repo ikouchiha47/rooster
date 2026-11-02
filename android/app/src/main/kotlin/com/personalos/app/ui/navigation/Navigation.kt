@@ -47,6 +47,7 @@ import com.personalos.app.ui.sources.OverviewScreen
 import com.personalos.app.ui.travel.TravelScreen
 import com.personalos.app.ui.wallet.WalletScreen
 import com.personalos.app.ui.watchers.WatchersScreen
+import com.personalos.app.ui.weather.ClimateScreen
 import com.personalos.app.ui.weather.ForecastScreen
 import com.personalos.app.ui.weather.WeatherScreen
 
@@ -71,6 +72,9 @@ sealed interface Destination {
     data object Money : Destination
 
     data object Weather : Destination
+
+    /** Global climate signals; not location-based weather. */
+    data object Climate : Destination
 
     data object Sources : Destination
 
@@ -160,6 +164,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Rss -> "rss"
         is Destination.Money -> "money"
         is Destination.Weather -> "weather"
+        is Destination.Climate -> "climate"
         is Destination.Sources -> "sources"
         is Destination.Watchers -> "watchers"
         is Destination.Calendar -> "calendar"
@@ -336,6 +341,7 @@ fun AppNavHost(
                 onBack = backOrNull(navController),
             )
         }
+        composable("climate") { ClimateScreen(onBack = backOrNull(navController)) }
         composable("weather") {
             WeatherScreen(
                 onNavigate = { navigateToDetail(navController, it) },

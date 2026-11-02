@@ -7,6 +7,18 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(climate): global climate service with live series
+
+_2026-11-02_
+
+Adds a separate Climate service tile and route, with plain-language global cards for temperature, El Niño/La Niña, CO₂, Arctic sea ice and sea level. Each card carries its baseline, source, last update and sparkline.
+
+Adds seven adapters: NASA GISTEMP, NOAA NCEI, NOAA CPC ONI/SOI, NOAA GML CO₂, NSIDC sea ice and NOAA STAR sea level. CO₂ keeps the monthly mean and no longer mislabels the seasonally adjusted value as an anomaly.
+
+Removes the duplicate Alerts service tile; Alerts now live per service, while Watchers remains the global rule/fire audit.
+
+Verified on device: climate sync loaded all series; 979 tests and ktlint pass.
+
 ## feat(climate): dashboard foundation and source contract
 
 _2026-11-02_

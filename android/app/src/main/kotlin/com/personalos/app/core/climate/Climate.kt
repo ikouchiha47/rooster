@@ -31,21 +31,24 @@ data class ClimateMetric(
     val region: String,
     val unit: String,
     val baseline: String,
+    /** Plain-language explanation; acronyms belong in the secondary line. */
+    val description: String = "",
 )
 
 object ClimateMetrics {
     val GLOBAL_TEMP =
         ClimateMetric(
             id = "global_temp_anomaly",
-            label = "Global temperature anomaly",
+            label = "Global temperature",
             region = "global",
             unit = "°C",
             baseline = "1951–1980",
+            description = "How much warmer than the 1951–1980 average.",
         )
     val GLOBAL_TEMP_NCEI =
         ClimateMetric(
             id = "global_temp_anomaly_ncei",
-            label = "Global temperature anomaly (NCEI)",
+            label = "Global temperature (NCEI)",
             region = "global",
             unit = "°C",
             baseline = "1901–2000",
@@ -57,12 +60,45 @@ object ClimateMetrics {
             region = "nino34",
             unit = "°C",
             baseline = "1991–2020",
+            description = "Pacific Ocean pattern that shifts rainfall and heat.",
         )
     val SOI = ClimateMetric("soi", "Southern Oscillation Index", "global", "index", "1935–present")
-    val CO2 = ClimateMetric("co2_mauna_loa", "CO₂ · Mauna Loa", "mauna_loa", "ppm", "dry air")
-    val ARCTIC_ICE = ClimateMetric("sea_ice_arctic", "Arctic sea ice", "arctic", "million km²", "1981–2010")
-    val ANTARCTIC_ICE = ClimateMetric("sea_ice_antarctic", "Antarctic sea ice", "antarctic", "million km²", "1981–2010")
-    val SEA_LEVEL = ClimateMetric("sea_level", "Global mean sea level", "global", "mm", "TOPEX/Jason reference")
+    val CO2 =
+        ClimateMetric(
+            id = "co2_mauna_loa",
+            label = "Carbon dioxide",
+            region = "mauna_loa",
+            unit = "ppm",
+            baseline = "Mauna Loa",
+            description = "Heat-trapping gas measured at Mauna Loa, Hawaii.",
+        )
+    val ARCTIC_ICE =
+        ClimateMetric(
+            id = "sea_ice_arctic",
+            label = "Arctic sea ice",
+            region = "arctic",
+            unit = "million km²",
+            baseline = "1981–2010",
+            description = "This month compared with the 1981–2010 average.",
+        )
+    val ANTARCTIC_ICE =
+        ClimateMetric(
+            id = "sea_ice_antarctic",
+            label = "Antarctic sea ice",
+            region = "antarctic",
+            unit = "million km²",
+            baseline = "1981–2010",
+            description = "This month compared with the 1981–2010 average.",
+        )
+    val SEA_LEVEL =
+        ClimateMetric(
+            id = "sea_level",
+            label = "Sea level",
+            region = "global",
+            unit = "mm",
+            baseline = "since 1993",
+            description = "Satellite-measured global sea-level rise.",
+        )
 
     val ALL: List<ClimateMetric> =
         listOf(GLOBAL_TEMP, GLOBAL_TEMP_NCEI, ONI, SOI, CO2, ARCTIC_ICE, ANTARCTIC_ICE, SEA_LEVEL)
@@ -89,3 +125,15 @@ data class ClimateDashboard(
     val fetchedAt: Long?,
     val stale: Boolean,
 )
+
+/** Plain-language ENSO state; ONI thresholds are the technical detail. */
+fun ensoState(oni: Double): String =
+    when {
+        oni >= 2.0 -> "Very strong El Niño"
+        oni >= 1.5 -> "Strong El Niño"
+        oni >= 0.5 -> "El Niño"
+        oni <= -2.0 -> "Very strong La Niña"
+        oni <= -1.5 -> "Strong La Niña"
+        oni <= -0.5 -> "La Niña"
+        else -> "Neutral"
+    }

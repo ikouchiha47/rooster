@@ -149,10 +149,11 @@ fun HomeScreen(
                                 "RSS" -> onNavigate(Destination.Rss)
                                 "M&M" -> onNavigate(Destination.Money)
                                 "Weather" -> onNavigate(Destination.Weather)
+                                "Climate" -> onNavigate(Destination.Climate)
                                 "Calendar" -> onNavigate(Destination.Calendar)
                                 "Travel" -> onNavigate(Destination.Travel)
                                 "Settings" -> onNavigate(Destination.Settings)
-                                "Watchers", "Alerts" -> onNavigate(Destination.Watchers)
+                                "Watchers" -> onNavigate(Destination.Watchers)
                                 else -> onNavigate(Destination.Placeholder(tile.name))
                             }
                         },
@@ -546,7 +547,6 @@ private val CARD_ROW_HEIGHT = 140.dp
 private val HOME_TILES: List<TileSpec> =
     listOf(
         TileSpec("Radar", CategoryColors.Vermilion, Glyph.Radar),
-        TileSpec("Alerts", CategoryColors.Rust, Glyph.Bell),
         TileSpec("M&M", CategoryColors.Teal, Glyph.Banknote),
         TileSpec("News", CategoryColors.Indigo, Glyph.News),
         TileSpec("Travel", CategoryColors.Mustard, Glyph.Plane, darkGlyph = true),
@@ -557,6 +557,7 @@ private val HOME_TILES: List<TileSpec> =
         TileSpec("RSS", CategoryColors.Indigo, Glyph.Rss),
         TileSpec("Watchers", CategoryColors.Teal, Glyph.Eye),
         TileSpec("Weather", CategoryColors.Cyan, Glyph.CloudRain),
+        TileSpec("Climate", CategoryColors.Cyan, Glyph.CloudSun),
         TileSpec("Calendar", CategoryColors.Rust, Glyph.Clock),
         TileSpec("Notes", RadarColors.ink, Glyph.Note),
         TileSpec("Settings", RadarColors.ink2, Glyph.Tune),

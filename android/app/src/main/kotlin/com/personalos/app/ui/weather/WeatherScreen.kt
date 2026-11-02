@@ -26,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,7 +58,6 @@ import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
-import com.personalos.app.ui.common.TabSpec
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
@@ -100,9 +98,6 @@ private val WEATHER_TILE =
 
 private const val WEATHER_NEWS_LIMIT = 25
 
-private const val TAB_WEATHER = 0
-private const val TAB_CLIMATE = 1
-
 /** One place cell in the Places strip: fixed width and one shared row height. */
 private val PLACE_CELL_WIDTH = 96.dp
 private val PLACE_ROW_HEIGHT = 74.dp
@@ -118,7 +113,6 @@ fun WeatherScreen(
     val database = remember { AppDatabase.getInstance(context) }
     val dao = database.eventDao()
     val scope = rememberCoroutineScope()
-    var selectedTab by remember { mutableIntStateOf(TAB_WEATHER) }
 
     // Bumping this re-subscribes the provider's flow, which is what a manual sync
     // means for data that is already cached.
@@ -246,37 +240,21 @@ fun WeatherScreen(
         modifier = modifier,
         accent = CategoryColors.Cyan,
         onBack = onBack,
-        showSearch = selectedTab == TAB_WEATHER,
         header = {
-            if (selectedTab == TAB_CLIMATE) {
-                HeaderMeta(primary = "GLOBAL CLIMATE", secondary = "SLOW SIGNALS")
-            } else {
-                HeaderMeta(
-                    primary = "${compactNumber(storePlaces.size)} PLACES",
-                    secondary = syncLabel(lastSync),
-                )
-            }
+            HeaderMeta(
+                primary = "${compactNumber(storePlaces.size)} PLACES",
+                secondary = syncLabel(lastSync),
+            )
         },
-        tabs =
-            listOf(
-                TabSpec("Weather", storePlaces.size),
-                TabSpec("Climate", 0),
-            ),
-        selectedTab = selectedTab,
-        onSelectTab = { selectedTab = it },
         onAction = { action ->
             when (action) {
                 ActionKind.SYNC ->
-                    if (selectedTab == TAB_CLIMATE) {
-                        scope.launch { container.climateRepository.refresh() }
-                    } else {
-                        scope.launch {
-                            container.sync.run("weather") {
-                                container.sync.step("refreshing observations")
-                                runCatching { container.feeds.refresh(force = true) }
-                                reload++
-                                container.sync.step("done: ${storePlaces.size} places")
-                            }
+                    scope.launch {
+                        container.sync.run("weather") {
+                            container.sync.step("refreshing observations")
+                            runCatching { container.feeds.refresh(force = true) }
+                            reload++
+                            container.sync.step("done: ${storePlaces.size} places")
                         }
                     }
 
@@ -284,10 +262,6 @@ fun WeatherScreen(
             }
         },
     ) { query ->
-        if (selectedTab == TAB_CLIMATE) {
-            ClimateTab(repository = container.climateRepository)
-            return@TileScaffold
-        }
         val places =
             remember(storePlaces, query) {
                 val q = query.trim()

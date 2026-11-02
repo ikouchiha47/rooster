@@ -2,8 +2,8 @@
 
 - **Status:** In progress.
 - **ADR:** `docs/adrs/0013-climate-dashboard.md`
-- **Goal:** a global Climate tab in the Weather service, backed by cached monthly
-  series from public sources.
+- **Goal:** a global Climate service tile, backed by cached monthly series from
+  public sources. Weather stays local; Regional is a later Weather lens.
 - **Rule:** resolve every join point before parallel work starts.
 
 ## Join points (must land first)
@@ -13,7 +13,7 @@
 | **J1** | `climate_series` schema + migration 28→29 + DAO | every adapter writes the same row shape | `ClimateEntities.kt`, `ClimateDao.kt`, `Sql.kt`, `Migrations.kt`, `AppDatabase.kt`, schema 29 |
 | **J2** | Domain contract: `ClimatePoint`, `ClimateSeries`, `ClimateMetric`, `ClimateSource` | all adapters and the UI compile against it | `core/climate/Climate.kt` |
 | **J3** | `ClimateRepository` + source registry + AppContainer | one owner for cache, staleness, source health | `data/ClimateRepository.kt`, `AppContainer.kt` |
-| **J4** | Weather tabs `Weather | Climate`, `ClimateTab` shell | UI cannot be split before the tab contract | `WeatherScreen.kt`, `ui/weather/ClimateTab.kt` |
+| **J4** | `ClimateScreen` route/tile + `ClimateTab` shell | UI cannot be split before the route contract | `ClimateScreen.kt`, `ClimateTab.kt`, `Navigation.kt`, Home/Services tiles |
 | **J5** | Metric naming, units, baselines, and source IDs | prevents two adapters inventing different IDs | `ClimateMetrics.kt` + tests |
 
 Only after J1–J5 compile and tests pass may the lanes branch.
@@ -51,9 +51,10 @@ J4 shell ───────────────────────�
 - [ ] AppContainer wiring.
 
 ### J4 — shell
-- [ ] `WeatherScreen` tabs: `Weather` (existing) and `Climate`.
+- [ ] `ClimateScreen` route, Home/Services tile, `Sync` action.
 - [ ] `ClimateTab` header + featured cards + placeholder states.
 - [ ] cards read `ClimateDashboard`; no adapter logic in UI.
+- [ ] Weather stays local; Regional is a later Weather lens.
 
 ### J5 — metric contract
 - [ ] IDs: `global_temp_anomaly`, `global_temp_anomaly_ncei`, `oni`, `soi`,

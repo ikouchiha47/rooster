@@ -1,4 +1,4 @@
-# ADR 0013: Climate dashboard — slow signals as a second Weather tab
+# ADR 0013: Climate dashboard — slow signals as a separate service
 
 - **Status:** Proposed.
 - **Date:** 2026-11-02.
@@ -22,26 +22,34 @@ Those are different facts from weather:
 - Mixing them in one list would let a daily temperature line imply a climate
   trend, or let a global anomaly look like a local forecast.
 
-The dashboard still belongs to the Weather service: it is the natural place to
-look up "what is happening to the climate?" The tile becomes two views:
+Climate is its own service. Weather stays location-based and can later add a
+**Regional** weather lens; Climate is global, slow, and monthly. They share the
+atmosphere but not the time scale, the baseline, or the location contract.
 
 ```
 Weather
-  Weather   local now / 7-day
-  Climate   global slow signals
+  Weather    local now / 7-day
+  Regional   map/radar/regional alerts, later
+
+Climate
+  Global     temperature, ENSO, CO₂, sea ice, sea level
+  Regional   monthly anomaly map, later
+
+News
+  editorial, separate
 ```
 
-A separate service tile would add navigation cost for a view that is read
-occasionally. A separate **Hazards** surface remains a later, different feature:
-fast events (cyclones, floods, fires, quakes) are not climate signals.
+A separate **Hazards** surface remains a later, different feature: fast events
+(cyclones, floods, fires, quakes) are not climate signals.
 
 ## Decision
 
-### 1. Add a `Climate` tab to the Weather tile
+### 1. Add a `Climate` service tile
 
-`WeatherScreen` keeps its current content as the `Weather` tab and adds a
-`Climate` tab. The shells share the Weather accent and header; the Climate tab
-does not search, and its content is not filtered by the selected place.
+`ClimateScreen` is its own route and service tile, with a Sync action and a
+global header. It is not nested under Weather and has no place selector. Weather
+keeps its current local content; a Regional weather lens is a later addition,
+not part of this ADR.
 
 The first version is **global**, with a small set of regional lenses deferred.
 Do not present a global series as if it were local.
@@ -159,7 +167,7 @@ default. A climate advisory is a dashboard state, not an emergency push.
 
 ### 7. UI
 
-Climate tab:
+Climate service:
 
 - header: `Climate`, `GLOBAL · LAST UPDATED <date>`
 - featured cards:
@@ -176,6 +184,37 @@ Climate tab:
 
 The tab is dense and editorial, not a dashboard of giant gauges. It reuses the
 Weather tile’s header and typography.
+
+### 7b. Chart interaction
+
+The detail chart is a **scrubber**, not a static sparkline:
+
+- Default state shows the **latest** point; the card header shows that value.
+- Tap the line: select the nearest point, draw a dot and a vertical rule, and update
+  the header to that period's value and label.
+- Drag horizontally: scrub continuously, snapping to the nearest real point.
+- Tap the selected dot again: clear the selection and return to the latest value.
+- Tap outside the chart, or tap a `LATEST` reset chip: clear the selection.
+- Missing points are skipped; the nearest valid point is selected.
+- Vertical page scrolling must not be stolen: only horizontal drags past touch slop
+  enter scrubbing.
+- Card sparklines are not scrubbable on the card itself; tap opens the detail chart.
+  This avoids fighting the card carousel/LazyColumn and keeps the target large.
+
+The card's "original value" means the latest point, not a cached first render.
+
+### 7c. Regional map
+
+- Fixed map viewport with pan/zoom; the map is not the page scroll container.
+- Month slider, not live data.
+- Layer chips: temperature, rain, drought, sea ice, fires.
+- Legend with units and baseline.
+- Source and `valid for <month>` visible.
+- Tap a place: show a value only when the layer has a point/region dataset;
+  otherwise show coordinates, layer and source, never an invented number.
+- Cache recent tiles/months; do not promise full offline global maps.
+- NASA GIBS is the v1 visual source; numeric gridded anomalies (ERA5/C3S) are a
+  later layer.
 
 ### 8. Data sources (first set)
 
@@ -237,9 +276,10 @@ Notes:
 
 ## Alternatives considered
 
-1. **Separate Climate service tile.**
-   Rejected for v1: the Weather tile already owns the atmospheric context, and a
-   second tile adds navigation for an occasional read.
+1. **A Climate tab inside Weather.**
+   Rejected: it would inherit Weather’s location contract and make a global
+   monthly series look local. Climate gets its own service; Weather can later
+   grow a Regional weather lens.
 2. **Put climate cards on the Weather overview.**
    Rejected: it would mix local daily weather with global monthly signals and
    make both harder to read.
@@ -259,11 +299,12 @@ Notes:
 
 Positive:
 
-- one coherent place for slow climate context
+- one coherent service for slow climate context
 - source-specific baselines and freshness are visible
 - no second copy of a climate fact
 - adding a signal is a new source adapter, not a screen branch
-- the Weather tile becomes more useful without turning into a hazard map
+- Weather stays local and Climate stays global; neither absorbs the other's
+  cadence
 
 Costs:
 
@@ -282,9 +323,9 @@ Costs:
    - NASA GISTEMP
    - NOAA CPC ONI
    - NOAA GML CO₂
-3. **Climate tab**
+3. **Climate service**
    - featured cards, sparklines, source/baseline labels
-   - Weather/Climate tabs on the Weather tile
+   - own route and Home/Services tile; Weather stays local
 4. **Cross-checks and remaining signals**
    - NOAA NCEI, NSIDC ice, NOAA sea level, SOI
 5. **Advisories**

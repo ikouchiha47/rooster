@@ -389,7 +389,25 @@ class AppContainer(
      */
     val climateRepository: com.personalos.app.data.ClimateRepository =
         com.personalos.app.data
-            .ClimateRepository(database.climateDao(), emptyList())
+            .ClimateRepository(
+                database.climateDao(),
+                listOf(
+                    com.personalos.app.data.remote.climate
+                        .GistempClimateSource(),
+                    com.personalos.app.data.remote.climate
+                        .NceiClimateSource(),
+                    com.personalos.app.data.remote.climate
+                        .CpcOniClimateSource(),
+                    com.personalos.app.data.remote.climate
+                        .CpcSoiClimateSource(),
+                    com.personalos.app.data.remote.climate
+                        .NoaaCo2ClimateSource(),
+                    com.personalos.app.data.remote.climate
+                        .NsidcSeaIceClimateSource(),
+                    com.personalos.app.data.remote.climate
+                        .NoaaSeaLevelClimateSource(),
+                ),
+            )
 
     val plannerRepository: com.personalos.app.data.PlannerRepository =
         com.personalos.app.data
