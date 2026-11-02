@@ -26,6 +26,7 @@ import com.personalos.app.ui.calendar.PlannerEditorScreen
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.RadarColors
 import com.personalos.app.ui.common.StatusBarIconsFor
+import com.personalos.app.ui.hazards.HazardsScreen
 import com.personalos.app.ui.home.HomeScreen
 import com.personalos.app.ui.me.MeScreen
 import com.personalos.app.ui.messages.ComposeSmsScreen
@@ -77,6 +78,9 @@ sealed interface Destination {
 
     /** Global climate signals; not location-based weather. */
     data object Climate : Destination
+
+    /** Earthquakes today, from USGS; separate from weather and climate. */
+    data object Hazards : Destination
 
     /** One climate series with the scrubber. */
     data class ClimateDetail(
@@ -172,6 +176,7 @@ private fun routeFor(destination: Destination): String =
         is Destination.Money -> "money"
         is Destination.Weather -> "weather"
         is Destination.Climate -> "climate"
+        is Destination.Hazards -> "hazards"
         is Destination.ClimateDetail -> "climateDetail/${destination.metric}"
         is Destination.Sources -> "sources"
         is Destination.Watchers -> "watchers"
@@ -371,6 +376,9 @@ fun AppNavHost(
                 onNavigate = { navigateToDetail(navController, it) },
                 onBack = backOrNull(navController),
             )
+        }
+        composable("hazards") {
+            HazardsScreen(onBack = backOrNull(navController))
         }
         composable(
             route = "forecast/{place}",

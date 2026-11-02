@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(hazards): USGS earthquakes as a separate service
+
+_2026-11-03_
+
+Merges the Hazards worktree: a standalone service for USGS all-day earthquakes, with a pure GeoJSON parser, last-good repository, magnitude-coloured map markers and a dense event list. Hazards is separate from Weather and Climate; MapMarker gained an optional colour without changing existing maps.
+
+Build, unit tests and ktlint pass after merge. Weather Regional now has rain, wind and pressure; cyclone tracks remain pending because a track source is still needed.
+
 ## feat(weather): regional rain, wind and pressure
 
 _2026-11-03_
@@ -14,6 +22,26 @@ _2026-11-03_
 Adds daily rain and cloud-compatible regional layers to Weather Regional, removes the vague Clouds chip for now, and surfaces wind speed/direction and pressure for weather places. Wind arrows are drawn as GeoJSON lines from each place using the current direction; the selected place card shows wind and pressure. Adds wind_direction_10m and surface_pressure to Open-Meteo current observations and the weather store fields.
 
 Build, tests and ktlint pass. Cyclone tracks are not included yet; they need a track source rather than a current-point marker.
+
+## feat(hazards): USGS earthquakes as a separate service
+
+_2026-11-03_
+
+
+Adds a Hazards service beside Weather and Climate, backed only by the USGS
+'all earthquakes, past day' GeoJSON feed. QuakeGeoJsonParser is a pure parser:
+missing magnitudes stay null, non-point geometries and malformed features are
+skipped. HazardRepository owns the snapshot, refreshes behind a flow, keeps the
+last good data when USGS fails, and exposes the failure without blanking the map.
+
+The Hazards tile renders the shared MapLibreWorldMap with magnitude-coloured
+markers and a dense event list; marker taps select a row, row taps recentre the
+map. MapMarker gained an optional colour so other maps keep their amber pins.
+
+Verified: curl against the live feed; ktlintFormat; assembleDebug,
+testDebugUnitTest (QuakeGeoJsonParserTest 6, HazardRepositoryTest 2) and
+ktlintCheck all pass.
+>>>>>>> feat/hazards
 
 ## feat(climate): colour-range highlight for temperature and rain
 

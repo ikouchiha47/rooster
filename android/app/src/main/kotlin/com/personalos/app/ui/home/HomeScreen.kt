@@ -150,6 +150,7 @@ fun HomeScreen(
                                 "M&M" -> onNavigate(Destination.Money)
                                 "Weather" -> onNavigate(Destination.Weather)
                                 "Climate" -> onNavigate(Destination.Climate)
+                                "Hazards" -> onNavigate(Destination.Hazards)
                                 "Calendar" -> onNavigate(Destination.Calendar)
                                 "Travel" -> onNavigate(Destination.Travel)
                                 "Settings" -> onNavigate(Destination.Settings)
@@ -558,6 +559,7 @@ private val HOME_TILES: List<TileSpec> =
         TileSpec("Watchers", CategoryColors.Teal, Glyph.Eye),
         TileSpec("Weather", CategoryColors.Cyan, Glyph.CloudRain),
         TileSpec("Climate", CategoryColors.Cyan, Glyph.CloudSun),
+        TileSpec("Hazards", CategoryColors.Rust, Glyph.Storm),
         TileSpec("Calendar", CategoryColors.Rust, Glyph.Clock),
         TileSpec("Notes", RadarColors.ink, Glyph.Note),
         TileSpec("Settings", RadarColors.ink2, Glyph.Tune),
