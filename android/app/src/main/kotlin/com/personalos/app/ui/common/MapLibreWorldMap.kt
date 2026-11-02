@@ -27,16 +27,21 @@ import com.personalos.app.core.map.MapCamera
 import com.personalos.app.ui.theme.RadarType
 import org.maplibre.android.MapLibre
 import org.maplibre.android.WellKnownTileServer
-import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.RasterLayer
+import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.style.sources.RasterSource
 import org.maplibre.android.style.sources.TileSet
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.Point
 import kotlin.math.abs
 import kotlin.math.log2
 
@@ -132,8 +137,13 @@ fun MapLibreWorldMap(
                             ready.addOnCameraIdleListener {
                                 currentOnCamera.value(ready.cameraPosition.toMapCamera().normalised())
                             }
-                            ready.setOnMarkerClickListener { marker ->
-                                val id = marker.snippet
+                            ready.addOnMapClickListener { latLng ->
+                                val features =
+                                    ready.queryRenderedFeatures(
+                                        ready.projection.toScreenLocation(latLng),
+                                        "places-layer",
+                                    )
+                                val id = features.firstOrNull()?.getStringProperty("id")
                                 if (id != null) currentOnMarker.value?.invoke(id)
                                 id != null
                             }
@@ -183,15 +193,26 @@ fun MapLibreWorldMap(
         LaunchedEffect(map, styleReady, markers) {
             val active = map ?: return@LaunchedEffect
             if (!styleReady) return@LaunchedEffect
-            active.markers.toList().forEach { active.removeMarker(it) }
-            markers.forEach { marker ->
-                active.addMarker(
-                    MarkerOptions()
-                        .position(LatLng(marker.lat, marker.lon))
-                        .title(marker.label)
-                        .snippet(marker.id),
-                )
-            }
+            val style = active.style ?: return@LaunchedEffect
+            style.getLayer("places-layer")?.let { style.removeLayer(it) }
+            style.getSource("places-source")?.let { style.removeSource(it) }
+            if (markers.isEmpty()) return@LaunchedEffect
+            val features =
+                markers.map { marker ->
+                    Feature.fromGeometry(Point.fromLngLat(marker.lon, marker.lat)).apply {
+                        addStringProperty("id", marker.id)
+                        addStringProperty("label", marker.label)
+                    }
+                }
+            style.addSource(GeoJsonSource("places-source", FeatureCollection.fromFeatures(features)))
+            style.addLayer(
+                CircleLayer("places-layer", "places-source").withProperties(
+                    PropertyFactory.circleRadius(7f),
+                    PropertyFactory.circleColor("#F2B233"),
+                    PropertyFactory.circleStrokeColor("#FFFDF7"),
+                    PropertyFactory.circleStrokeWidth(2f),
+                ),
+            )
         }
 
         androidx.compose.material3.Text(

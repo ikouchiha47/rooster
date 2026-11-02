@@ -258,7 +258,7 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             camera = camera,
             overlayTileUrl = overlayUrl,
             overlayMaxZoom = 6f,
-            maxZoom = 5.0,
+            maxZoom = 4.5,
             onCameraChange = { camera = it },
             modifier = Modifier.fillMaxWidth(),
         )

@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(climate): stable map markers and raster presentation
+
+_2026-11-03_
+
+Replaces deprecated MapLibre annotation markers with a GeoJSON circle layer and map-click query, so Weather Regional place pins are visible and selectable. Adds linear raster resampling and 82% opacity so the Blue Marble base remains legible under the climate overlay, and lowers the climate max zoom to 4.5 to reduce overzoom blockiness.
+
+Build, 986 unit tests and ktlint pass. Device disconnected before this build could be installed, so the marker layer and final zoom screenshot remain device-unverified.
+
 ## feat(climate): shared map, saved regions and weather regional
 
 _2026-11-03_
