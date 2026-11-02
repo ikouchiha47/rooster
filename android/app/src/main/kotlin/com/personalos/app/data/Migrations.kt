@@ -1087,6 +1087,28 @@ val MIGRATION_27_28_PLANNER_STATEMENTS: List<String> =
         "CREATE INDEX IF NOT EXISTS index_planner_item_tags_tag_id ON planner_item_tags (tag_id)",
     ) + TAG_SEED_STATEMENTS
 
+/** v28 -> v29: stored climate series. */
+val MIGRATION_28_29_CLIMATE_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS climate_series (
+            source_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            region TEXT NOT NULL,
+            period_start INTEGER NOT NULL,
+            period_end INTEGER NOT NULL,
+            value REAL NOT NULL,
+            anomaly REAL,
+            unit TEXT NOT NULL,
+            baseline TEXT NOT NULL,
+            source_url TEXT NOT NULL,
+            fetched_at INTEGER NOT NULL,
+            PRIMARY KEY(source_id, metric, region, period_start)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS index_climate_series_metric_region_period_start ON climate_series (metric, region, period_start)",
+    )
+
 val MIGRATION_STATEMENTS: Map<Int, List<String>> =
     mapOf(
         3 to MIGRATION_2_3_STATEMENTS,
@@ -1115,6 +1137,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         26 to MIGRATION_25_26_ITEM_EMBEDDINGS_STATEMENTS,
         27 to MIGRATION_26_27_CALENDAR_SETTINGS_STATEMENTS,
         28 to MIGRATION_27_28_PLANNER_STATEMENTS,
+        29 to MIGRATION_28_29_CLIMATE_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

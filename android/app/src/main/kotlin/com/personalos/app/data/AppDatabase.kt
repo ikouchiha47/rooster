@@ -10,9 +10,9 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 
 @Database(
-    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, TaggedItemEntity::class, ItemEmbeddingEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class, CalendarSettingsEntity::class, CalendarSelectionEntity::class, PlannerWorkspaceEntity::class, PlannerItemEntity::class, PlannerTagEntity::class, PlannerItemTagEntity::class, ConversationEntity::class, CategoryEntity::class, CategoryRuleEntity::class],
+    entities = [EventEntity::class, TaggerEntity::class, ItemTagEntity::class, PlaceEntity::class, MentionEntity::class, PartyEntity::class, PartySourceEntity::class, SourceEntity::class, RuleEntity::class, ItemRuleEntity::class, TaggedItemEntity::class, ItemEmbeddingEntity::class, ItemFieldEntity::class, KindEntity::class, FacetEntity::class, KindFacetEntity::class, SyncRunEntity::class, CalendarDateEntity::class, CalendarSettingsEntity::class, CalendarSelectionEntity::class, PlannerWorkspaceEntity::class, PlannerItemEntity::class, PlannerTagEntity::class, PlannerItemTagEntity::class, ClimateSeriesEntity::class, ConversationEntity::class, CategoryEntity::class, CategoryRuleEntity::class],
     views = [ItemTagCurrent::class],
-    version = 28,
+    version = 29,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -77,6 +77,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun plannerDao(): PlannerDao
 
     abstract fun plannerTagDao(): PlannerTagDao
+
+    abstract fun climateDao(): ClimateDao
 
     companion object {
         @Volatile

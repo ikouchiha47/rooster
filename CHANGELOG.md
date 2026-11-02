@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(climate): dashboard foundation and source contract
+
+_2026-11-02_
+
+Adds the shared climate join points before any source work: climate_series schema and migration 28 -> 29, ClimatePoint/ClimateSeries/ClimateSource contracts, ClimateRepository, metric definitions, and a Weather | Climate tab shell.
+
+No live source adapters yet; the dashboard renders an honest empty state. Task DAG and ADR 0013 included.
+
 ## feat(calendar): edit, delete and place planner items
 
 _2026-10-30_

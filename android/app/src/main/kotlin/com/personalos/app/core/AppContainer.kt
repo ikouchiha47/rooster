@@ -387,6 +387,10 @@ class AppContainer(
      * observances. The Calendar tile and Travel's Calendar tab both read this
      * one instance, so they can never disagree on which regions are followed.
      */
+    val climateRepository: com.personalos.app.data.ClimateRepository =
+        com.personalos.app.data
+            .ClimateRepository(database.climateDao(), emptyList())
+
     val plannerRepository: com.personalos.app.data.PlannerRepository =
         com.personalos.app.data
             .PlannerRepository(database.plannerDao(), database.plannerTagDao())
