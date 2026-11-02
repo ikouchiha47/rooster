@@ -245,18 +245,22 @@ MapLibre provides:
 - tile cache
 - camera animations
 - no Google Maps key
+- Climate is capped at zoom 4.5: the MERRA2/GLDAS grids are coarser than the
+  base tiles and deep zoom shows the data grid, not a rendering fault
 
 MapLibre Native wraps the world horizontally by design (a longitude modulo,
 not duplicate tiles). It has no `renderWorldCopies` switch. The shared map
 therefore raises its minimum zoom to the width-fill level and starts there, so
-the maximum zoom-out shows one world rather than several copies. Panning across
-the antimeridian can still wrap at the edge; that is the renderer, not a second
-tile set.
+the maximum zoom-out shows one world rather than several copies. Longitude is
+kept continuous during a pan so crossing the antimeridian does not snap the
+camera back. Panning far enough still wraps at the edge; that is the renderer,
+not a second tile set.
 
 Raster sources:
 
 - base: NASA Blue Marble shaded relief
-- data overlay: GIBS WMTS raster layer for the selected month
+- data overlay: GIBS WMTS raster layer for the selected month, linear
+  resampling and 82% opacity so the base map remains legible
 - fires: GIBS WMS on the EPSG:4326 endpoint with an EPSG:3857 SRS/BBOX, because
   thermal anomalies are vector-only in WMTS; the WMS endpoint returns the
   rendered dots as raster tiles

@@ -17,6 +17,14 @@ class MapCameraTest {
     }
 
     @Test
+    fun `clamped keeps a continuous longitude during a pan`() {
+        val camera = MapCamera(lat = 20.0, lon = 190.0, zoom = 2.0).clamped()
+
+        assertEquals(190.0, camera.lon, 0.0001)
+        assertEquals(20.0, camera.lat, 0.0001)
+    }
+
+    @Test
     fun `bearing wraps instead of staying negative`() {
         assertEquals(350.0, MapCamera(0.0, 0.0, 1.0, bearing = -10.0).normalised().bearing, 0.0001)
     }

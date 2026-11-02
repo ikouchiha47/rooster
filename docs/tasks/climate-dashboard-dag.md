@@ -123,14 +123,17 @@ J4 shell ───────────────────────�
 - [x] Per-layer timeline from actual ranges; LATEST; clamp; no blank fake frames.
 - [x] Switch Climate Regional from static image to this component.
 - [x] Weather Regional reuses the same component and region store.
+- [x] Weather places render as a GeoJSON circle layer, not deprecated annotations.
 - [x] Fires drawn via GIBS WMS raster tiles because WMTS fires are vector-only.
-- [x] Cap max zoom to the raster layer (5) so the base/overlay do not overzoom into pixels.
+- [x] Cap max zoom to 4.5 and use linear raster resampling; the remaining blocks
+      are the coarse climate grid, not overzoom.
+- [x] Keep longitude continuous during pan; do not snap on the antimeridian.
 
 ### I — Map tests and gates — PARTIAL
 - [x] Pure camera/region tests.
 - [x] Device: pan, place marker, layer change, fires, save view, locate button.
 - [x] Build, unit tests, ktlint.
-- [ ] Pinch-out clamp and max-zoom quality re-check after the final zoom bounds change (device disconnected).
+- [ ] Pinch-out clamp and marker-layer check after the final GeoJSON change (device disconnected).
 - [ ] Offline tile cache and failure states.
 
 ### F — Integration and gates — DONE except final device check

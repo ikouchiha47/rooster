@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(map): keep longitude continuous while panning
+
+_2026-11-03_
+
+Splits MapCamera into clamped() (physical limits, continuous longitude) and normalised() (wrapped longitude for saved regions). The live map uses clamped(), so crossing the antimeridian no longer reports a wrapped target and animates the camera back across the world. Adds a test for the continuous longitude.
+
+Also documents the 4.5 climate zoom cap, raster opacity/resampling and GeoJSON place markers. Build, tests and ktlint pass. Device recheck still pending.
+
 ## fix(climate): stable map markers and raster presentation
 
 _2026-11-03_

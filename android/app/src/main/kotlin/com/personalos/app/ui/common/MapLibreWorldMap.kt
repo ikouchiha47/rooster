@@ -135,7 +135,7 @@ fun MapLibreWorldMap(
                             ready.setMinZoomPreference(minZoom)
                             ready.setMaxZoomPreference(maxZoom)
                             ready.addOnCameraIdleListener {
-                                currentOnCamera.value(ready.cameraPosition.toMapCamera().normalised())
+                                currentOnCamera.value(ready.cameraPosition.toMapCamera().clamped())
                             }
                             ready.addOnMapClickListener { latLng ->
                                 val features =

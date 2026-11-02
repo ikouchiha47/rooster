@@ -11,13 +11,18 @@ data class MapCamera(
     val bearing: Double = 0.0,
     val pitch: Double = 0.0,
 ) {
-    fun normalised(): MapCamera =
+    /** Clamps physical limits but keeps longitude continuous during a pan. */
+    fun clamped(): MapCamera =
         copy(
             lat = lat.coerceIn(-MAX_LAT, MAX_LAT),
-            lon = ((lon + 180.0) % 360.0 + 360.0) % 360.0 - 180.0,
             zoom = zoom.coerceIn(0.0, MAX_ZOOM),
             bearing = ((bearing % 360.0) + 360.0) % 360.0,
             pitch = pitch.coerceIn(0.0, 60.0),
+        )
+
+    fun normalised(): MapCamera =
+        clamped().copy(
+            lon = ((lon + 180.0) % 360.0 + 360.0) % 360.0 - 180.0,
         )
 
     private companion object {
