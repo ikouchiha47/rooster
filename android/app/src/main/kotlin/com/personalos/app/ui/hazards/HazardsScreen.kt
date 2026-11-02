@@ -184,14 +184,17 @@ fun HazardsScreen(
                 )
             },
             onAction = { action ->
-                if (action == ActionKind.SYNC) {
-                    scope.launch {
-                        container.sync.run("hazards") {
-                            container.sync.step("fetching USGS earthquakes")
-                            container.hazards.refresh(window)
-                            container.sync.step("done: ${container.hazards.snapshot.value.quakes.size} events")
+                when (action) {
+                    ActionKind.FILTER -> scope.launch { drawer.open() }
+                    ActionKind.SYNC ->
+                        scope.launch {
+                            container.sync.run("hazards") {
+                                container.sync.step("fetching USGS earthquakes")
+                                container.hazards.refresh(window)
+                                container.sync.step("done: ${container.hazards.snapshot.value.quakes.size} events")
+                            }
                         }
-                    }
+                    else -> Unit
                 }
             },
         ) { query ->

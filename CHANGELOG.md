@@ -7,6 +7,12 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(hazards): wire the Filter action to the drawer
+
+_2026-11-03_
+
+The FILTER action was present in the header but the onAction branch was missing, so tapping it did nothing. It now opens the hazard filter drawer. Build, tests and ktlint pass.
+
 ## fix(hazards): centre carousel dots and space the carousel header
 
 _2026-11-03_
