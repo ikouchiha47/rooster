@@ -50,6 +50,19 @@ data class SavedRegion(
         get() = camera.radiusKm
 }
 
+data class MapBounds(
+    val north: Double,
+    val east: Double,
+    val south: Double,
+    val west: Double,
+)
+
+data class MapViewport(
+    val bounds: MapBounds,
+    val width: Int,
+    val height: Int,
+)
+
 object RegionConsumers {
     const val HOME = "home"
     const val CLIMATE = "climate"

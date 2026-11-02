@@ -2,6 +2,7 @@ package com.personalos.app.ui.weather
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -27,15 +28,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.map.MapCamera
+import com.personalos.app.core.map.MapViewport
 import com.personalos.app.core.map.RegionConsumers
 import com.personalos.app.core.map.SavedRegion
+import com.personalos.app.data.remote.climate.ClimateColormap
+import com.personalos.app.data.remote.climate.fetchClimateColormap
+import com.personalos.app.data.remote.climate.fetchRangeBitmap
 import com.personalos.app.ui.common.FlatButton
 import com.personalos.app.ui.common.LocalAppContainer
+import com.personalos.app.ui.common.MapHighlight
 import com.personalos.app.ui.common.MapLibreWorldMap
 import com.personalos.app.ui.common.MapMarker
 import com.personalos.app.ui.common.RadarColors
@@ -45,8 +53,10 @@ import com.personalos.app.ui.common.SaveRegionDialog
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -150,6 +160,11 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
     var iceHemisphere by remember { mutableStateOf("arctic") }
     var placingPin by remember { mutableStateOf(false) }
     var pendingPin by remember { mutableStateOf<MapMarker?>(null) }
+    var viewport by remember { mutableStateOf<MapViewport?>(null) }
+    var colormap by remember { mutableStateOf<ClimateColormap?>(null) }
+    var rangeLow by remember { mutableStateOf(0f) }
+    var rangeHigh by remember { mutableStateOf(1f) }
+    var highlight by remember { mutableStateOf<MapHighlight?>(null) }
 
     val selectedRegion = regions.firstOrNull { it.id == selectedRegionId }
     val areaPin =
@@ -174,6 +189,42 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
                 else -> null
             }
         }
+
+    val supportsRange = layer.id == "temperature" || layer.id == "rain"
+    val lowIndex = colormap?.colors?.lastIndex?.let { (rangeLow * it).toInt().coerceIn(0, it) } ?: 0
+    val highIndex = colormap?.colors?.lastIndex?.let { (rangeHigh * it).toInt().coerceIn(0, it) } ?: 0
+    val rangeActive = supportsRange && colormap != null && (lowIndex > 0 || highIndex < (colormap?.colors?.lastIndex ?: 0))
+
+    LaunchedEffect(layer.id, supportsRange) {
+        colormap = null
+        rangeLow = 0f
+        rangeHigh = 1f
+        highlight = null
+        if (supportsRange) {
+            colormap = withContext(Dispatchers.IO) { fetchClimateColormap(layer.gibsLayer) }
+        }
+    }
+
+    LaunchedEffect(viewport, layer.id, month, lowIndex, highIndex, rangeActive, colormap) {
+        if (!rangeActive || month == null || colormap == null) {
+            highlight = null
+            return@LaunchedEffect
+        }
+        val current = viewport ?: return@LaunchedEffect
+        highlight =
+            withContext(Dispatchers.IO) {
+                fetchRangeBitmap(
+                    layer = layer.gibsLayer,
+                    date = month.atDay(1).toString(),
+                    bounds = current.bounds,
+                    width = current.width,
+                    height = current.height,
+                    colormap = colormap!!,
+                    lowIndex = lowIndex,
+                    highIndex = highIndex,
+                )?.let { MapHighlight(current.bounds, it) }
+            }
+    }
 
     LaunchedEffect(climateDefault, homeDefault, regions) {
         if (initialised) return@LaunchedEffect
@@ -347,15 +398,31 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             )
         }
 
+        if (supportsRange && colormap != null) {
+            RangeLegend(
+                colormap = colormap!!,
+                low = rangeLow,
+                high = rangeHigh,
+                onLow = { rangeLow = it },
+                onHigh = { rangeHigh = it },
+                onClear = {
+                    rangeLow = 0f
+                    rangeHigh = 1f
+                },
+            )
+        }
+
         MapLibreWorldMap(
             camera = camera,
-            overlayTileUrl = overlayUrl,
+            overlayTileUrl = if (rangeActive) null else overlayUrl,
             overlayMaxZoom = 6f,
             overlaySaturation = if (layer.id == "ice") -1f else 0f,
             maxZoom = 4.5,
             areaPin = areaPin,
             areaRadiusKm = areaRadiusKm,
+            highlight = highlight,
             onCameraChange = { camera = it },
+            onViewportChange = { viewport = it },
             onMapTap = ::dropPin,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         )
@@ -369,12 +436,14 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             )
         }
 
-        layer.legendUrl?.let { legend ->
-            RemoteBitmapImage(
-                url = legend,
-                contentDescription = "Legend",
-                modifier = Modifier.fillMaxWidth().height(34.dp).padding(horizontal = 8.dp, vertical = 2.dp),
-            )
+        if (!(supportsRange && colormap != null)) {
+            layer.legendUrl?.let { legend ->
+                RemoteBitmapImage(
+                    url = legend,
+                    contentDescription = "Legend",
+                    modifier = Modifier.fillMaxWidth().height(34.dp).padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            }
         }
         layer.legendText?.let { text ->
             Text(
@@ -458,5 +527,67 @@ private fun MonthSlider(
         val x = size.width * fraction
         drawCircle(color = RadarColors.ink, radius = 6.dp.toPx(), center = Offset(x, y))
         drawCircle(color = RadarColors.paper2, radius = 3.dp.toPx(), center = Offset(x, y))
+    }
+}
+
+@Composable
+private fun RangeLegend(
+    colormap: ClimateColormap,
+    low: Float,
+    high: Float,
+    onLow: (Float) -> Unit,
+    onHigh: (Float) -> Unit,
+    onClear: () -> Unit,
+) {
+    val last = colormap.colors.lastIndex.coerceAtLeast(1)
+    val lowLabel = colormap.displayValue(colormap.values[(low * last).toInt().coerceIn(0, last)])
+    val highLabel = colormap.displayValue(colormap.values[(high * last).toInt().coerceIn(0, last)])
+    var width by remember { mutableIntStateOf(1) }
+    var dragging by remember { mutableStateOf<Int?>(null) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .onSizeChanged { width = it.width }
+                .pointerInput(low, high, last) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            dragging =
+                                if (kotlin.math.abs(offset.x - low * width) <= kotlin.math.abs(offset.x - high * width)) 0 else 1
+                        },
+                        onDragEnd = { dragging = null },
+                        onDragCancel = { dragging = null },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            val fraction = (change.position.x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                            if (dragging == 0) onLow(fraction.coerceAtMost(high - 0.01f)) else onHigh(fraction.coerceAtLeast(low + 0.01f))
+                        },
+                    )
+                },
+        ) {
+            val segment = size.width / colormap.colors.size.coerceAtLeast(1)
+            colormap.colors.forEachIndexed { index, color ->
+                drawRect(Color(color), topLeft = Offset(index * segment, 0f), size = Size(segment + 1f, size.height))
+            }
+            listOf(low, high).forEach { fraction ->
+                val x = size.width * fraction
+                drawLine(RadarColors.paper2, Offset(x, 0f), Offset(x, size.height), 3.dp.toPx())
+                drawCircle(RadarColors.ink, 6.dp.toPx(), Offset(x, size.height / 2f))
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = lowLabel, style = RadarType.labelMicro, color = RadarColors.ink3)
+            Spacer(Modifier.weight(1f))
+            if (low > 0.01f || high < 0.99f) {
+                Text(text = "$lowLabel to $highLabel", style = RadarType.microPlain, color = RadarColors.ink2)
+                Spacer(Modifier.width(8.dp))
+                FlatButton(text = "Clear range", onClick = onClear)
+            } else {
+                Text(text = "Drag the ends to pick a range", style = RadarType.microPlain, color = RadarColors.ink3)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(text = highLabel, style = RadarType.labelMicro, color = RadarColors.ink3)
+        }
     }
 }

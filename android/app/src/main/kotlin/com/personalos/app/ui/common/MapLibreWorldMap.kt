@@ -1,5 +1,6 @@
 package com.personalos.app.ui.common
 
+import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -23,13 +24,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.personalos.app.core.map.MapBounds
 import com.personalos.app.core.map.MapCamera
+import com.personalos.app.core.map.MapViewport
 import com.personalos.app.ui.theme.RadarType
 import org.maplibre.android.MapLibre
 import org.maplibre.android.WellKnownTileServer
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngQuad
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -39,6 +43,7 @@ import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.RasterLayer
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.android.style.sources.ImageSource
 import org.maplibre.android.style.sources.RasterSource
 import org.maplibre.android.style.sources.TileSet
 import org.maplibre.geojson.Feature
@@ -62,6 +67,11 @@ data class MapMarker(
     val lon: Double,
 )
 
+data class MapHighlight(
+    val bounds: MapBounds,
+    val bitmap: Bitmap,
+)
+
 /**
  * The shared regional map. Camera is only a viewport (lat/lon/zoom/bearing/pitch),
  * never a device camera or street-level view. The caller owns the camera state so
@@ -78,7 +88,9 @@ fun MapLibreWorldMap(
     markers: List<MapMarker> = emptyList(),
     areaPin: MapMarker? = null,
     areaRadiusKm: Double? = null,
+    highlight: MapHighlight? = null,
     onCameraChange: (MapCamera) -> Unit,
+    onViewportChange: ((MapViewport) -> Unit)? = null,
     onMarkerClick: ((String) -> Unit)? = null,
     onMapTap: ((Double, Double) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -99,6 +111,7 @@ fun MapLibreWorldMap(
     val currentOnCamera = rememberUpdatedState(onCameraChange)
     val currentOnMarker = rememberUpdatedState(onMarkerClick)
     val currentOnMapTap = rememberUpdatedState(onMapTap)
+    val currentOnViewport = rememberUpdatedState(onViewportChange)
     val countryLabels =
         remember(context) {
             runCatching {
@@ -174,6 +187,21 @@ fun MapLibreWorldMap(
                             ready.setMaxZoomPreference(maxZoom)
                             ready.addOnCameraIdleListener {
                                 currentOnCamera.value(ready.cameraPosition.toMapCamera().clamped())
+                                currentOnViewport.value?.invoke(
+                                    ready.projection.visibleRegion.latLngBounds.let { bounds ->
+                                        MapViewport(
+                                            bounds =
+                                                MapBounds(
+                                                    north = bounds.latitudeNorth,
+                                                    east = bounds.longitudeEast,
+                                                    south = bounds.latitudeSouth,
+                                                    west = bounds.longitudeWest,
+                                                ),
+                                            width = mapView.width,
+                                            height = mapView.height,
+                                        )
+                                    },
+                                )
                             }
                             ready.addOnMapClickListener { latLng ->
                                 val features =
@@ -311,6 +339,26 @@ fun MapLibreWorldMap(
                     PropertyFactory.circleStrokeWidth(2f),
                 ),
             )
+        }
+
+        LaunchedEffect(map, styleReady, highlight) {
+            val active = map ?: return@LaunchedEffect
+            if (!styleReady) return@LaunchedEffect
+            val style = active.style ?: return@LaunchedEffect
+            style.getLayer("range-highlight-layer")?.let { style.removeLayer(it) }
+            style.getSource("range-highlight")?.let { style.removeSource(it) }
+            val image = highlight ?: return@LaunchedEffect
+            val quad =
+                LatLngQuad(
+                    LatLng(image.bounds.north, image.bounds.west),
+                    LatLng(image.bounds.north, image.bounds.east),
+                    LatLng(image.bounds.south, image.bounds.east),
+                    LatLng(image.bounds.south, image.bounds.west),
+                )
+            style.addSource(ImageSource("range-highlight", quad, image.bitmap))
+            val layer = RasterLayer("range-highlight-layer", "range-highlight")
+            val below = style.getLayer("world-country-labels-major")
+            if (below != null) style.addLayerBelow(layer, "world-country-labels-major") else style.addLayer(layer)
         }
 
         LaunchedEffect(map, styleReady, areaPin, areaRadiusKm) {

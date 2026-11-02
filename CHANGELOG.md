@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(climate): colour-range highlight for temperature and rain
+
+_2026-11-03_
+
+Loads the GIBS colormap for temperature and rain, replaces the raster legend with a labelled two-handle range bar, and requests the visible viewport from GIBS WMS when a range is selected. Pixels outside the selected colour band are dropped and the filtered image is placed back as a georeferenced MapLibre image source; the normal raster overlay is hidden while the range is active. Clears back to the full layer when the range handles are returned to the ends or Clear range is tapped.
+
+Build, unit tests and ktlint pass. Verified on device: one legend bar, WMS filter renders, Clear range restores the normal overlay.
+
 ## fix(map): pin placement row, icon tiles and compact month
 
 _2026-11-03_
