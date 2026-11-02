@@ -122,6 +122,7 @@ fun ServicesScreen(
                                     "M&M" -> onNavigate(Destination.Money)
                                     "Weather" -> onNavigate(Destination.Weather)
                                     "Climate" -> onNavigate(Destination.Climate)
+                                    "Hazards" -> onNavigate(Destination.Hazards)
                                     "Sources" -> onNavigate(Destination.Sources)
                                     "Calendar" -> onNavigate(Destination.Calendar)
                                     "Travel" -> onNavigate(Destination.Travel)
@@ -189,6 +190,7 @@ private val SERVICE_GROUPS: List<ServiceGroup> =
                     TileSpec("Radio", CategoryColors.Cyan, Glyph.Broadcast),
                     TileSpec("Weather", CategoryColors.Chartreuse, Glyph.CloudRain),
                     TileSpec("Climate", CategoryColors.Cyan, Glyph.CloudSun),
+                    TileSpec("Hazards", CategoryColors.Rust, Glyph.Storm),
                     TileSpec("Calendar", CategoryColors.Rust, Glyph.Clock),
                     TileSpec("Notes", RadarColors.ink, Glyph.Note),
                 ),

@@ -32,6 +32,7 @@ import com.personalos.app.data.CategorySeeder
 import com.personalos.app.data.CategoryStore
 import com.personalos.app.data.ContentResolverSmsReader
 import com.personalos.app.data.FieldWriter
+import com.personalos.app.data.HazardRepository
 import com.personalos.app.data.MentionWriter
 import com.personalos.app.data.ObservationRepository
 import com.personalos.app.data.PartySeeder
@@ -60,6 +61,7 @@ import com.personalos.app.data.remote.ArticleEnricher
 import com.personalos.app.data.remote.FeedIngestor
 import com.personalos.app.data.remote.FrankfurterFxProvider
 import com.personalos.app.data.remote.OpenMeteoWeatherProvider
+import com.personalos.app.data.remote.UsgsEarthquakeSource
 import com.personalos.app.data.remote.WeatherLocation
 import com.personalos.app.data.resolveSmsSubscription
 import com.personalos.app.data.sample.SampleGlanceProvider
@@ -413,6 +415,12 @@ class AppContainer(
     val regions: com.personalos.app.data.RegionRepository =
         com.personalos.app.data
             .RegionRepository(database.regionDao())
+
+    /**
+     * The single owner of the hazard feed. USGS earthquakes today; a volcano
+     * source is a second implementation, not a branch in a weather provider.
+     */
+    val hazards: HazardRepository = HazardRepository(UsgsEarthquakeSource())
 
     val plannerRepository: com.personalos.app.data.PlannerRepository =
         com.personalos.app.data

@@ -7,6 +7,25 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(hazards): USGS earthquakes as a separate service
+
+_2026-11-03_
+
+
+Adds a Hazards service beside Weather and Climate, backed only by the USGS
+'all earthquakes, past day' GeoJSON feed. QuakeGeoJsonParser is a pure parser:
+missing magnitudes stay null, non-point geometries and malformed features are
+skipped. HazardRepository owns the snapshot, refreshes behind a flow, keeps the
+last good data when USGS fails, and exposes the failure without blanking the map.
+
+The Hazards tile renders the shared MapLibreWorldMap with magnitude-coloured
+markers and a dense event list; marker taps select a row, row taps recentre the
+map. MapMarker gained an optional colour so other maps keep their amber pins.
+
+Verified: curl against the live feed; ktlintFormat; assembleDebug,
+testDebugUnitTest (QuakeGeoJsonParserTest 6, HazardRepositoryTest 2) and
+ktlintCheck all pass.
+
 ## feat(climate): colour-range highlight for temperature and rain
 
 _2026-11-03_

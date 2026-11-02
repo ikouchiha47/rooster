@@ -18,6 +18,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -65,6 +67,8 @@ data class MapMarker(
     val label: String,
     val lat: Double,
     val lon: Double,
+    /** Optional fill; null keeps the shared amber used by every other map. */
+    val color: Color? = null,
 )
 
 data class MapHighlight(
@@ -328,13 +332,16 @@ fun MapLibreWorldMap(
                     Feature.fromGeometry(Point.fromLngLat(marker.lon, marker.lat)).apply {
                         addStringProperty("id", marker.id)
                         addStringProperty("label", marker.label)
+                        // Always present, so the layer can read one property for
+                        // every marker instead of blending two paint paths.
+                        addStringProperty("color", marker.color?.toHex() ?: DEFAULT_MARKER_COLOR)
                     }
                 }
             style.addSource(GeoJsonSource("places-source", FeatureCollection.fromFeatures(features)))
             style.addLayer(
                 CircleLayer("places-layer", "places-source").withProperties(
                     PropertyFactory.circleRadius(7f),
-                    PropertyFactory.circleColor("#F2B233"),
+                    PropertyFactory.circleColor(Expression.toColor(Expression.get("color"))),
                     PropertyFactory.circleStrokeColor("#FFFDF7"),
                     PropertyFactory.circleStrokeWidth(2f),
                 ),
@@ -426,6 +433,10 @@ fun MapLibreWorldMap(
         )
     }
 }
+
+private const val DEFAULT_MARKER_COLOR = "#F2B233"
+
+private fun Color.toHex(): String = String.format("#%06X", 0xFFFFFF and toArgb())
 
 private fun circlePolygon(
     lat: Double,
