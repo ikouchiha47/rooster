@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(hazards): legend, filters and grouped earthquake list
+
+_2026-11-03_
+
+Adds a magnitude colour legend and header filter chips (All, M2.5+, M4.5+, M5+). Replaces the flat 283-row list with day-grouped sticky sections and 20-row Load more paging. Adds a single horizontal Largest carousel of four cards from the current feed, with magnitude, place and time. Carousel cards and markers select the same event and centre the map.
+
+Build, tests and ktlint pass. Verified on device: 283 events, legend, filters, Largest carousel and day grouping.
+
 ## feat(hazards): USGS earthquakes as a separate service
 
 _2026-11-03_
