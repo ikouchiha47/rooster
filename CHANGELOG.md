@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(climate): shared map, saved regions and weather regional
+
+_2026-11-03_
+
+Adds MapLibre Native as the shared regional renderer, a global SavedRegion/RegionDefault store (migration 29→30), Settings Home region, and Weather Regional using the same camera/region engine. Climate Regional now uses live raster tiles, per-layer ranges, locate, save-view and Home/saved chips. Fires use GIBS WMS on the EPSG:4326 endpoint because the WMTS fire layer is vector-only; programmatic raster sources now use TileSet so {z}/{y}/{x} placeholders expand.
+
+The map raises minimum zoom to stop the default low-zoom world copies and caps Climate zoom at 5 to avoid overzooming the raster layer. MapLibre Native still wraps longitude at the antimeridian; there is no renderWorldCopies switch. Unit tests and ktlint pass (986 tests). Pinch-out clamp and final max-zoom quality need rechecking after the device disconnected. Not pushed.
+
 ## feat(climate): chart scrubber and regional map shell
 
 _2026-11-03_

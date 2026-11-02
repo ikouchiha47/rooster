@@ -183,6 +183,9 @@ dependencies {
     // Scheduled background ingest
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 
+    // Shared regional map renderer. No API key, no Street View.
+    implementation("org.maplibre.gl:android-sdk:13.7.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")

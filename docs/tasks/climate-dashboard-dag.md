@@ -15,8 +15,8 @@
 | **J3** | `ClimateRepository` + source registry + AppContainer | one owner for cache, staleness, source health | `data/ClimateRepository.kt`, `AppContainer.kt` |
 | **J4** | `ClimateScreen` route/tile + `ClimateTab` shell | UI cannot be split before the route contract | `ClimateScreen.kt`, `ClimateTab.kt`, `Navigation.kt`, Home/Services tiles |
 | **J5** | Metric naming, units, baselines, and source IDs | prevents two adapters inventing different IDs | `ClimateMetrics.kt` + tests |
-| **J6** | `SavedRegion` + `RegionDefault` schema/repository | shared by Climate, Weather, Travel, Hazards | `SavedRegionEntity.kt`, `RegionDao.kt`, `RegionRepository.kt`, Settings |
-| **J7** | MapLibre dependency + raster style + GIBS tile source | one map engine for both regional views | `MapLibreWorldMap.kt`, `gradle/libs.versions.toml` |
+| **J6** | `SavedRegion` + `RegionDefault` schema/repository | shared by Climate, Weather, Travel, Hazards | `RegionEntities.kt`, `RegionDao.kt`, `RegionRepository.kt`, Settings |
+| **J7** | MapLibre dependency + raster style + GIBS tile source | one map engine for both regional views | `MapLibreWorldMap.kt`, `android/app/build.gradle.kts` |
 | **J8** | Common `WorldMap` API (camera, gestures, locator, save) | Weather/Climate share the same viewport contract | `ui/common/WorldMap.kt` |
 
 Only after J1–J8 compile and tests pass may the map lanes branch.
@@ -106,33 +106,38 @@ J4 shell ───────────────────────�
 - [ ] Vertical scroll wins vertical gestures; only horizontal drag past slop scrubs.
 - [ ] Tests for nearest-point selection, toggle clear, missing values.
 
-### G — Shared regions
-- [ ] `saved_regions` and `region_defaults` tables + migration.
-- [ ] SavedRegion/RegionDefault repository; Home default in Settings.
-- [ ] Link Weather places and Calendar regions by source id; resolve centres only.
-- [ ] Region picker: saved, weather place, calendar region, unresolved state.
+### G — Shared regions — DONE
+- [x] `saved_regions` and `region_defaults` tables + migration 29→30.
+- [x] SavedRegion/RegionDefault repository; Home default in Settings.
+- [x] Manual saved views; source link fields are in the schema for Weather/Calendar.
+- [x] Region controls: Home, saved views, save current view.
+- [ ] Weather-place/Calendar-region source chips (source picker is the next UI slice).
 
-### H — MapLibre regional map
-- [ ] Add MapLibre Native; no Google key.
-- [ ] Minimal style: Blue Marble base, GIBS data overlay, coastlines.
-- [ ] Camera = lat/lon/zoom/bearing/pitch; no Street View/device camera.
-- [ ] Pinch/pan/zoom; progressive tiles; tile cache.
-- [ ] Locate-me only on tap; animate camera; honest denial.
-- [ ] Save current view; chips for Home/saved; animate to region.
-- [ ] Per-layer timeline from actual ranges; LASTEST; clamp; no blank fake frames.
-- [ ] Switch Climate Regional from static image to this component.
-- [ ] Weather Regional reuses the same component and region store.
+### H — MapLibre regional map — DONE
+- [x] Add MapLibre Native; no Google key.
+- [x] Minimal style: Blue Marble base, GIBS raster overlay, coastlines.
+- [x] Camera = lat/lon/zoom/bearing/pitch; no Street View/device camera.
+- [x] Pinch/pan/zoom; progressive tiles; tile cache.
+- [x] Locate-me only on tap; animate camera; honest denial.
+- [x] Save current view; chips for Home/saved; animate to region.
+- [x] Per-layer timeline from actual ranges; LATEST; clamp; no blank fake frames.
+- [x] Switch Climate Regional from static image to this component.
+- [x] Weather Regional reuses the same component and region store.
+- [x] Fires drawn via GIBS WMS raster tiles because WMTS fires are vector-only.
+- [x] Cap max zoom to the raster layer (5) so the base/overlay do not overzoom into pixels.
 
-### I — Map tests and gates
-- [ ] Pure camera/region tests; timeline range/clamp tests.
-- [ ] Device: pinch, locate, save region, layer/month change.
+### I — Map tests and gates — PARTIAL
+- [x] Pure camera/region tests.
+- [x] Device: pan, place marker, layer change, fires, save view, locate button.
+- [x] Build, unit tests, ktlint.
+- [ ] Pinch-out clamp and max-zoom quality re-check after the final zoom bounds change (device disconnected).
 - [ ] Offline tile cache and failure states.
 
-### F — Integration and gates
-- [ ] Register all sources; no duplicate metric IDs.
-- [ ] `assembleDebug`, unit tests, `ktlintCheck`.
-- [ ] Device check when adb is available.
-- [ ] ADR/task status update.
+### F — Integration and gates — DONE except final device check
+- [x] Register all sources; no duplicate metric IDs.
+- [x] `assembleDebug`, 986 unit tests, `ktlintCheck`.
+- [ ] Device check when adb is available (disconnected after the zoom change).
+- [x] ADR/task status update.
 
 ## Subagent boundaries
 

@@ -14,37 +14,51 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.personalos.app.core.map.MapCamera
+import com.personalos.app.core.map.RegionConsumers
+import com.personalos.app.core.map.SavedRegion
 import com.personalos.app.ui.common.FlatButton
+import com.personalos.app.ui.common.LocalAppContainer
+import com.personalos.app.ui.common.MapLibreWorldMap
 import com.personalos.app.ui.common.RadarColors
+import com.personalos.app.ui.common.RegionControls
 import com.personalos.app.ui.common.RemoteBitmapImage
+import com.personalos.app.ui.common.SaveRegionDialog
 import com.personalos.app.ui.common.SoftRule
-import com.personalos.app.ui.common.WorldMap
 import com.personalos.app.ui.theme.CategoryColors
 import com.personalos.app.ui.theme.RadarType
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import kotlin.math.max
 
 private val MONTH_FMT = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)
 
 private data class RegionalLayer(
     val id: String,
     val label: String,
-    val wmsLayer: String,
-    /** Oldest/latest monthly file available; null for a "latest" layer. */
+    val gibsLayer: String,
     val start: YearMonth?,
     val latest: YearMonth?,
     val legendUrl: String?,
     val legendText: String? = null,
     val description: String,
+    val wms: Boolean = false,
 )
 
 private val LAYERS =
@@ -52,7 +66,7 @@ private val LAYERS =
         RegionalLayer(
             id = "temperature",
             label = "Temperature",
-            wmsLayer = "MERRA2_2m_Air_Temperature_Monthly",
+            gibsLayer = "MERRA2_2m_Air_Temperature_Monthly",
             start = YearMonth.of(1980, 1),
             latest = YearMonth.of(2026, 8),
             legendUrl = "https://gibs.earthdata.nasa.gov/legends/MERRA2_2m_Air_Temperature_Monthly_H.png",
@@ -61,7 +75,7 @@ private val LAYERS =
         RegionalLayer(
             id = "rain",
             label = "Rain",
-            wmsLayer = "GLDAS_Surface_Total_Precipitation_Rate_Monthly",
+            gibsLayer = "GLDAS_Surface_Total_Precipitation_Rate_Monthly",
             start = YearMonth.of(2000, 1),
             latest = YearMonth.of(2026, 6),
             legendUrl = "https://gibs.earthdata.nasa.gov/legends/GLDAS_Surface_Total_Precipitation_Rate_Monthly_H.png",
@@ -70,7 +84,7 @@ private val LAYERS =
         RegionalLayer(
             id = "ice",
             label = "Sea ice",
-            wmsLayer = "AMSRU2_Sea_Ice_Concentration_12km",
+            gibsLayer = "AMSRU2_Sea_Ice_Concentration_12km",
             start = YearMonth.of(2012, 7),
             latest = YearMonth.of(2025, 9),
             legendUrl = null,
@@ -80,44 +94,53 @@ private val LAYERS =
         RegionalLayer(
             id = "fires",
             label = "Fires",
-            wmsLayer = "VIIRS_SNPP_Thermal_Anomalies_375m_All",
+            gibsLayer = "VIIRS_SNPP_Thermal_Anomalies_375m_All",
             start = null,
             latest = null,
             legendUrl = null,
             legendText = "Orange dots = thermal anomalies.",
             description = "Latest thermal anomalies; not a monthly series.",
+            wms = true,
         ),
     )
 
-private const val GIBS =
-    "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi" +
-        "?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&CRS=EPSG:4326" +
-        "&BBOX=-90,-180,90,180&WIDTH=1024&HEIGHT=512&FORMAT=image/png"
-
-private const val BASE_LAYER = "BlueMarble_ShadedRelief_Bathymetry"
-private const val OUTLINE_LAYER = "Coastlines_15m"
-
-private fun gibsUrl(
-    layer: String,
-    month: YearMonth?,
-    transparent: Boolean,
+private fun gibsTile(
+    layer: RegionalLayer,
+    month: YearMonth,
 ): String =
-    buildString {
-        append(GIBS)
-        append("&LAYERS=").append(layer)
-        if (transparent) append("&TRANSPARENT=TRUE")
-        if (month != null) append("&TIME=").append(month.atDay(1))
-    }
+    "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer.gibsLayer}/" +
+        "default/${month.atDay(1)}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png"
 
-/**
- * Fixed regional map viewport. The map is a rendered NASA GIBS WMS image, not a
- * live feed; month and layer are explicit, and every image carries its source
- * and valid period.
- */
+private fun gibsFireWms(layer: RegionalLayer): String =
+    "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi" +
+        "?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&SRS=EPSG:3857" +
+        "&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256" +
+        "&LAYERS=${layer.gibsLayer}&FORMAT=image/png&TRANSPARENT=TRUE" +
+        "&TIME=${LocalDate.now().minusDays(1)}"
+
 @Composable
 fun ClimateRegionalTab(modifier: Modifier = Modifier) {
+    val container = LocalAppContainer.current
+    val scope = rememberCoroutineScope()
+    val regions by container.regions.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val climateDefault by
+        container.regions
+            .observeDefault(RegionConsumers.CLIMATE)
+            .collectAsStateWithLifecycle(initialValue = null)
+    val homeDefault by
+        container.regions
+            .observeDefault(RegionConsumers.HOME)
+            .collectAsStateWithLifecycle(initialValue = null)
+
     var layerIndex by remember { mutableIntStateOf(0) }
     var monthOffset by remember { mutableIntStateOf(0) }
+    var camera by remember { mutableStateOf(MapCamera(20.0, 0.0, 1.2)) }
+    var selectedRegionId by remember { mutableStateOf<String?>(null) }
+    var initialised by remember { mutableStateOf(false) }
+    var showSave by remember { mutableStateOf(false) }
+    var locating by remember { mutableStateOf(false) }
+    var locateNote by remember { mutableStateOf<String?>(null) }
+
     val layer = LAYERS[layerIndex]
     val maxOffset =
         if (layer.start != null && layer.latest != null) {
@@ -126,9 +149,49 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             0
         }
     val month = layer.latest?.minusMonths(monthOffset.toLong())
-    val overlayUrl = remember(layer, month) { gibsUrl(layer.wmsLayer, month, transparent = true) }
-    val baseUrl = remember { gibsUrl(BASE_LAYER, null, transparent = false) }
-    val outlineUrl = remember { gibsUrl(OUTLINE_LAYER, null, transparent = true) }
+    val overlayUrl =
+        remember(layer, month) {
+            when {
+                layer.wms -> gibsFireWms(layer)
+                month != null -> gibsTile(layer, month)
+                else -> null
+            }
+        }
+
+    LaunchedEffect(climateDefault, homeDefault, regions) {
+        if (initialised) return@LaunchedEffect
+        val start = climateDefault ?: homeDefault ?: regions.firstOrNull()
+        if (start != null) {
+            camera = start.camera
+            selectedRegionId = start.id
+            initialised = true
+        } else if (regions.isNotEmpty() || climateDefault != null || homeDefault != null) {
+            initialised = true
+        }
+    }
+
+    fun selectRegion(region: SavedRegion) {
+        selectedRegionId = region.id
+        camera = region.camera
+    }
+
+    fun locate() {
+        if (locating) return
+        locating = true
+        locateNote = null
+        scope.launch {
+            val snapshot = runCatching { container.presentLocation.observe().firstOrNull() }.getOrNull()
+            val lat = snapshot?.lat
+            val lon = snapshot?.lon
+            if (lat != null && lon != null) {
+                camera = camera.copy(lat = lat, lon = lon, zoom = max(camera.zoom, 4.0))
+                selectedRegionId = null
+            } else {
+                locateNote = "Location unavailable. Coarse permission is required."
+            }
+            locating = false
+        }
+    }
 
     Column(modifier.fillMaxSize().background(RadarColors.paper2)) {
         Row(
@@ -149,7 +212,17 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
         }
         SoftRule()
 
-        if (layer.latest != null && month != null) {
+        RegionControls(
+            regions = regions,
+            defaultRegion = climateDefault ?: homeDefault,
+            selectedId = selectedRegionId,
+            onSelect = ::selectRegion,
+            onSaveView = { showSave = true },
+            onLocate = ::locate,
+            locating = locating,
+        )
+
+        if (month != null && layer.start != null) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "MONTH", style = RadarType.labelMicro, color = RadarColors.ink3)
                 Spacer(Modifier.width(8.dp))
@@ -160,12 +233,7 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text =
-                        if (layer.start != null && layer.latest != null) {
-                            "${layer.start.year}–${layer.latest.year}"
-                        } else {
-                            "LATEST"
-                        },
+                    text = "${layer.start.year}–${layer.latest.year}",
                     style = RadarType.labelMicro,
                     color = RadarColors.ink3,
                 )
@@ -186,13 +254,24 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             )
         }
 
-        WorldMap(
-            baseUrl = baseUrl,
-            overlayUrl = overlayUrl,
-            outlineUrl = outlineUrl,
-            contentDescription = "${layer.label} regional map",
+        MapLibreWorldMap(
+            camera = camera,
+            overlayTileUrl = overlayUrl,
+            overlayMaxZoom = 6f,
+            maxZoom = 5.0,
+            onCameraChange = { camera = it },
             modifier = Modifier.fillMaxWidth(),
         )
+
+        locateNote?.let { note ->
+            Text(
+                text = note,
+                style = RadarType.microPlain,
+                color = RadarColors.ink3,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+
         layer.legendUrl?.let { legend ->
             RemoteBitmapImage(
                 url = legend,
@@ -220,11 +299,23 @@ fun ClimateRegionalTab(modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.weight(1f))
             Text(
-                text = if (month != null) "VALID ${month.format(MONTH_FMT).uppercase(Locale.ENGLISH)}" else "LATEST",
+                text = month?.let { "VALID ${it.format(MONTH_FMT).uppercase(Locale.ENGLISH)}" } ?: "LATEST",
                 style = RadarType.labelMicro,
                 color = RadarColors.ink3,
             )
         }
         Spacer(Modifier.height(20.dp))
+    }
+
+    if (showSave) {
+        SaveRegionDialog(
+            onDismiss = { showSave = false },
+            onSave = { name ->
+                scope.launch {
+                    val saved = container.regions.save(name = name, camera = camera)
+                    selectedRegionId = saved.id
+                }
+            },
+        )
     }
 }

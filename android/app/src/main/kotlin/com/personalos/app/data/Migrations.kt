@@ -1109,6 +1109,34 @@ val MIGRATION_28_29_CLIMATE_STATEMENTS: List<String> =
         "CREATE INDEX IF NOT EXISTS index_climate_series_metric_region_period_start ON climate_series (metric, region, period_start)",
     )
 
+/** v29 -> v30: shared saved map cameras and per-consumer defaults. */
+val MIGRATION_29_30_SAVED_REGIONS_STATEMENTS: List<String> =
+    listOf(
+        """
+        CREATE TABLE IF NOT EXISTS saved_regions (
+            id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lon REAL NOT NULL,
+            zoom REAL NOT NULL,
+            bearing REAL NOT NULL,
+            pitch REAL NOT NULL,
+            source_kind TEXT,
+            source_id TEXT,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(id)
+        )
+        """.trimIndent(),
+        "CREATE UNIQUE INDEX IF NOT EXISTS index_saved_regions_source_kind_source_id ON saved_regions (source_kind, source_id)",
+        """
+        CREATE TABLE IF NOT EXISTS region_defaults (
+            consumer TEXT NOT NULL,
+            region_id TEXT,
+            PRIMARY KEY(consumer)
+        )
+        """.trimIndent(),
+    )
+
 val MIGRATION_STATEMENTS: Map<Int, List<String>> =
     mapOf(
         3 to MIGRATION_2_3_STATEMENTS,
@@ -1138,6 +1166,7 @@ val MIGRATION_STATEMENTS: Map<Int, List<String>> =
         27 to MIGRATION_26_27_CALENDAR_SETTINGS_STATEMENTS,
         28 to MIGRATION_27_28_PLANNER_STATEMENTS,
         29 to MIGRATION_28_29_CLIMATE_STATEMENTS,
+        30 to MIGRATION_29_30_SAVED_REGIONS_STATEMENTS,
     )
 
 val MIGRATIONS: Array<Migration> =

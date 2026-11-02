@@ -409,6 +409,11 @@ class AppContainer(
                 ),
             )
 
+    /** The single owner of saved map cameras, shared by Climate and Weather. */
+    val regions: com.personalos.app.data.RegionRepository =
+        com.personalos.app.data
+            .RegionRepository(database.regionDao())
+
     val plannerRepository: com.personalos.app.data.PlannerRepository =
         com.personalos.app.data
             .PlannerRepository(database.plannerDao(), database.plannerTagDao())

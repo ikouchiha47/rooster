@@ -29,8 +29,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.AppContainer
 import com.personalos.app.core.Chars
+import com.personalos.app.core.map.RegionConsumers
 import com.personalos.app.core.theme.RadarTheme
 import com.personalos.app.data.BatteryOptimization
 import com.personalos.app.data.KnownArtifacts
@@ -100,6 +102,9 @@ fun SettingsScreen(
             FooterStrip("Theme is stored on this device")
 
             Spacer(Modifier.height(12.dp))
+            RegionSection()
+
+            Spacer(Modifier.height(12.dp))
             ModelsSection(
                 title = "Models",
                 blurb =
@@ -148,6 +153,57 @@ fun SettingsScreen(
             EnrichmentSection()
         }
     }
+}
+
+@Composable
+private fun RegionSection() {
+    val container = LocalAppContainer.current
+    val scope = rememberCoroutineScope()
+    val regions by container.regions.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val home by
+        container.regions
+            .observeDefault(RegionConsumers.HOME)
+            .collectAsStateWithLifecycle(initialValue = null)
+
+    WidgetHeader(title = "Home region", note = if (home == null) "not set" else "set")
+    Text(
+        text = "The saved map view that Climate and Weather start at. Save a view from either Regional tab, then choose it here.",
+        style = RadarType.microPlain,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+    if (regions.isEmpty()) {
+        Text(
+            text = "No saved views yet.",
+            style = RadarType.small,
+            color = RadarColors.ink3,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        )
+    } else {
+        regions.forEach { region ->
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { scope.launch { container.regions.setDefault(RegionConsumers.HOME, region.id) } }
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = region.name,
+                    style = RadarType.small,
+                    color = RadarColors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = if (home?.id == region.id) "HOME" else "SET HOME",
+                    style = RadarType.labelMicro,
+                    color = if (home?.id == region.id) CategoryColors.Teal else RadarColors.ink3,
+                )
+            }
+        }
+    }
+    FooterStrip("Saved views are shared across regional surfaces")
 }
 
 /**

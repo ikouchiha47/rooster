@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,6 +59,7 @@ import com.personalos.app.ui.common.HeaderMeta
 import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.NewItemsPill
 import com.personalos.app.ui.common.RadarColors
+import com.personalos.app.ui.common.TabSpec
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.common.compactNumber
 import com.personalos.app.ui.common.dayLabel
@@ -117,6 +119,7 @@ fun WeatherScreen(
     // Bumping this re-subscribes the provider's flow, which is what a manual sync
     // means for data that is already cached.
     var reload by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     val snapshots by
         remember(reload) { container.weather.observe() }
@@ -143,7 +146,7 @@ fun WeatherScreen(
                     val identity =
                         com.personalos.app.core.sources.SourceKeys
                             .sourceFor(row.id, spec)
-                    spec.place to identity
+                    spec to identity
                 }.getOrNull()
             }
         val views =
@@ -154,11 +157,13 @@ fun WeatherScreen(
             }
         val bySource = views.associateBy { it.source }
         storePlaces =
-            specs.map { (place, identity) ->
+            specs.map { (spec, identity) ->
                 val view = bySource[identity]
                 val temp = (view?.fields?.get("temp_c") as? com.personalos.app.core.rules.FieldValue.Num)?.value
                 StorePlace(
-                    place = place,
+                    place = spec.place,
+                    lat = spec.lat,
+                    lon = spec.lon,
                     temperatureC = temp?.let { kotlin.math.round(it).toInt() },
                     observed = view != null,
                     weatherCode = (view?.fields?.get("weather_code") as? com.personalos.app.core.rules.FieldValue.Num)?.value?.toInt(),
@@ -242,10 +247,18 @@ fun WeatherScreen(
         onBack = onBack,
         header = {
             HeaderMeta(
-                primary = "${compactNumber(storePlaces.size)} PLACES",
-                secondary = syncLabel(lastSync),
+                primary =
+                    if (selectedTab == 1) {
+                        "REGIONAL"
+                    } else {
+                        "${compactNumber(storePlaces.size)} PLACES"
+                    },
+                secondary = if (selectedTab == 1) "MAP VIEW" else syncLabel(lastSync),
             )
         },
+        tabs = listOf(TabSpec("Weather"), TabSpec("Regional")),
+        selectedTab = selectedTab,
+        onSelectTab = { selectedTab = it },
         onAction = { action ->
             when (action) {
                 ActionKind.SYNC ->
@@ -262,162 +275,178 @@ fun WeatherScreen(
             }
         },
     ) { query ->
-        val places =
-            remember(storePlaces, query) {
-                val q = query.trim()
-                if (q.isEmpty()) {
-                    storePlaces
-                } else {
-                    storePlaces.filter { it.place.contains(q, ignoreCase = true) }
+        if (selectedTab == 1) {
+            WeatherRegionalTab(
+                places =
+                    storePlaces.map {
+                        WeatherPin(
+                            id = it.place,
+                            name = it.place,
+                            lat = it.lat,
+                            lon = it.lon,
+                            temperatureC = it.temperatureC,
+                        )
+                    },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            val places =
+                remember(storePlaces, query) {
+                    val q = query.trim()
+                    if (q.isEmpty()) {
+                        storePlaces
+                    } else {
+                        storePlaces.filter { it.place.contains(q, ignoreCase = true) }
+                    }
                 }
+
+            // The root week is the PRESENT location's forecast when a fix exists; a
+            // configured place's own week lives on that place's forecast screen, not
+            // here. Only when there is no fix does it fall back to the first place the
+            // user can currently see, so search still filters the week.
+            val weekPlace =
+                present?.place
+                    ?: places.firstOrNull()?.place
+                    ?: snapshots.firstOrNull()?.place
+            val weekNote = present?.let(::positionLabel) ?: weekPlace.orEmpty()
+            // Configured places read the week from the store. The present location
+            // is not a source and never will be — no row could own it — so its
+            // week reads the provider like it always did.
+            val isPresentWeek = present != null && weekPlace == present?.place
+            val providerWeek by
+                remember(weekPlace, reload, isPresentWeek) {
+                    if (isPresentWeek && weekPlace != null) {
+                        container.weather.forecast(weekPlace)
+                    } else {
+                        flowOf(emptyList<WeatherDay>())
+                    }
+                }.collectAsStateWithLifecycle(initialValue = emptyList())
+            var storeWeek by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
+            LaunchedEffect(weekPlace, maxId, reload, isPresentWeek) {
+                storeWeek =
+                    if (weekPlace == null || isPresentWeek) {
+                        emptyList()
+                    } else {
+                        val slug =
+                            com.personalos.app.core.sources.SourceKeys
+                                .slug(weekPlace)
+                        container.observationRepository.forecastWeek(slug)
+                    }
             }
+            val week = if (isPresentWeek) providerWeek else storeWeek
 
-        // The root week is the PRESENT location's forecast when a fix exists; a
-        // configured place's own week lives on that place's forecast screen, not
-        // here. Only when there is no fix does it fall back to the first place the
-        // user can currently see, so search still filters the week.
-        val weekPlace =
-            present?.place
-                ?: places.firstOrNull()?.place
-                ?: snapshots.firstOrNull()?.place
-        val weekNote = present?.let(::positionLabel) ?: weekPlace.orEmpty()
-        // Configured places read the week from the store. The present location
-        // is not a source and never will be — no row could own it — so its
-        // week reads the provider like it always did.
-        val isPresentWeek = present != null && weekPlace == present?.place
-        val providerWeek by
-            remember(weekPlace, reload, isPresentWeek) {
-                if (isPresentWeek && weekPlace != null) {
-                    container.weather.forecast(weekPlace)
-                } else {
-                    flowOf(emptyList<WeatherDay>())
-                }
-            }.collectAsStateWithLifecycle(initialValue = emptyList())
-        var storeWeek by remember { mutableStateOf<List<WeatherDay>>(emptyList()) }
-        LaunchedEffect(weekPlace, maxId, reload, isPresentWeek) {
-            storeWeek =
-                if (weekPlace == null || isPresentWeek) {
-                    emptyList()
-                } else {
-                    val slug =
-                        com.personalos.app.core.sources.SourceKeys
-                            .slug(weekPlace)
-                    container.observationRepository.forecastWeek(slug)
-                }
-        }
-        val week = if (isPresentWeek) providerWeek else storeWeek
+            // Day buckets for the weather timeline: display-only grouping over the
+            // page, so the one batched mention read per page is untouched and row
+            // keys stay `event:id`.
+            val newsGroups = remember(news) { groupIntoDays(news) { it.event.timestamp } }
+            // Position of the weather-news header: present, then the week when it
+            // exists, then places. Collapsing never moves it - collapsed rows sit
+            // below it - so the badge can scroll straight to it.
+            val newsHeaderIndex = 1 + (if (week.isNotEmpty()) 1 else 0) + 1
 
-        // Day buckets for the weather timeline: display-only grouping over the
-        // page, so the one batched mention read per page is untouched and row
-        // keys stay `event:id`.
-        val newsGroups = remember(news) { groupIntoDays(news) { it.event.timestamp } }
-        // Position of the weather-news header: present, then the week when it
-        // exists, then places. Collapsing never moves it - collapsed rows sit
-        // below it - so the badge can scroll straight to it.
-        val newsHeaderIndex = 1 + (if (week.isNotEmpty()) 1 else 0) + 1
-
-        Box(Modifier.fillMaxSize()) {
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                item(key = "present") {
-                    CardSection {
-                        PresentCard(present) {
-                            present?.let { onNavigate(Destination.Forecast(it.place)) }
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    item(key = "present") {
+                        CardSection {
+                            PresentCard(present) {
+                                present?.let { onNavigate(Destination.Forecast(it.place)) }
+                            }
                         }
                     }
-                }
 
-                if (week.isNotEmpty()) {
-                    item(key = "week") {
-                        CardSection { WeekCard(note = weekNote, days = week) }
+                    if (week.isNotEmpty()) {
+                        item(key = "week") {
+                            CardSection { WeekCard(note = weekNote, days = week) }
+                        }
                     }
-                }
 
-                item(key = "places") {
-                    CardSection {
-                        StorePlacesCard(
-                            places = places,
-                            emptyNote = if (storePlaces.isEmpty()) "No places configured." else "No places match.",
-                            onOpen = { onNavigate(Destination.Forecast(it.place)) },
+                    item(key = "places") {
+                        CardSection {
+                            StorePlacesCard(
+                                places = places,
+                                emptyNote = if (storePlaces.isEmpty()) "No places configured." else "No places match.",
+                                onOpen = { onNavigate(Destination.Forecast(it.place)) },
+                            )
+                        }
+                    }
+
+                    item(key = "news-header") {
+                        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                            WidgetHeader(
+                                title = "Weather news",
+                                note = news.size.toString(),
+                                glyph = Glyph.News,
+                            )
+                        }
+                    }
+                    if (news.isEmpty()) {
+                        item(key = "news-empty") {
+                            Text(
+                                text = "Nothing tagged weather yet.",
+                                style = RadarType.body,
+                                color = RadarColors.ink3,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
+                    newsGroups.forEach { group ->
+                        stickyHeader(key = "wday:${group.dayStart}") {
+                            val label = remember(group.dayStart) { dayLabel(group.dayStart) }
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        onClickLabel =
+                                            if (group.dayStart in collapsedDays) "Expand day" else "Collapse day",
+                                    ) {
+                                        collapsedDays =
+                                            if (group.dayStart in collapsedDays) {
+                                                collapsedDays - group.dayStart
+                                            } else {
+                                                collapsedDays + group.dayStart
+                                            }
+                                    },
+                            ) {
+                                DayMarker(label = label, right = dayLabelRight(label, group.dayStart))
+                            }
+                        }
+                        if (group.dayStart !in collapsedDays) {
+                            items(group.items, key = { "event:${it.event.id}" }) { item ->
+                                WeatherNewsLine(item, mentions = weatherMentions[item.event.id].orEmpty())
+                            }
+                        }
+                    }
+
+                    item(key = "footer") {
+                        FooterStrip(
+                            text =
+                                "${storePlaces.size} places ${Chars.MIDDLE_DOT} " +
+                                    "${news.size} weather items ${Chars.MIDDLE_DOT} end of list",
                         )
                     }
                 }
 
-                item(key = "news-header") {
-                    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                        WidgetHeader(
-                            title = "Weather news",
-                            note = news.size.toString(),
-                            glyph = Glyph.News,
-                        )
-                    }
-                }
-                if (news.isEmpty()) {
-                    item(key = "news-empty") {
-                        Text(
-                            text = "Nothing tagged weather yet.",
-                            style = RadarType.body,
-                            color = RadarColors.ink3,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                        )
-                    }
-                }
-                newsGroups.forEach { group ->
-                    stickyHeader(key = "wday:${group.dayStart}") {
-                        val label = remember(group.dayStart) { dayLabel(group.dayStart) }
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable(
-                                    onClickLabel =
-                                        if (group.dayStart in collapsedDays) "Expand day" else "Collapse day",
-                                ) {
-                                    collapsedDays =
-                                        if (group.dayStart in collapsedDays) {
-                                            collapsedDays - group.dayStart
-                                        } else {
-                                            collapsedDays + group.dayStart
-                                        }
-                                },
-                        ) {
-                            DayMarker(label = label, right = dayLabelRight(label, group.dayStart))
-                        }
-                    }
-                    if (group.dayStart !in collapsedDays) {
-                        items(group.items, key = { "event:${it.event.id}" }) { item ->
-                            WeatherNewsLine(item, mentions = weatherMentions[item.event.id].orEmpty())
-                        }
-                    }
-                }
+                // The body is a long feed; without this the first screenful read as a
+                // static page. Thin and ink-tinted so it belongs to the print look.
+                ThinScrollbar(
+                    state = listState,
+                    modifier =
+                        Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(vertical = 2.dp),
+                )
 
-                item(key = "footer") {
-                    FooterStrip(
-                        text =
-                            "${storePlaces.size} places ${Chars.MIDDLE_DOT} " +
-                                "${news.size} weather items ${Chars.MIDDLE_DOT} end of list",
+                if (pendingNews > 0 && awayFromTop) {
+                    NewItemsPill(
+                        count = pendingNews,
+                        onTap = {
+                            pendingNews = 0
+                            scope.launch { listState.animateScrollToItem(newsHeaderIndex) }
+                        },
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
                     )
                 }
-            }
-
-            // The body is a long feed; without this the first screenful read as a
-            // static page. Thin and ink-tinted so it belongs to the print look.
-            ThinScrollbar(
-                state = listState,
-                modifier =
-                    Modifier
-                        .align(Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .padding(vertical = 2.dp),
-            )
-
-            if (pendingNews > 0 && awayFromTop) {
-                NewItemsPill(
-                    count = pendingNews,
-                    onTap = {
-                        pendingNews = 0
-                        scope.launch { listState.animateScrollToItem(newsHeaderIndex) }
-                    },
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
-                )
             }
         }
     }
@@ -643,6 +672,8 @@ private fun PlacesCard(
  */
 private data class StorePlace(
     val place: String,
+    val lat: Double,
+    val lon: Double,
     val temperatureC: Int?,
     val observed: Boolean,
     val weatherCode: Int? = null,
