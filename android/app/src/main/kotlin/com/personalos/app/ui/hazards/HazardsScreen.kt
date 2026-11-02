@@ -1,10 +1,12 @@
 package com.personalos.app.ui.hazards
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,8 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -307,16 +310,37 @@ private fun LargestCarousel(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             )
         } else {
-            LazyRow(
+            val pager = rememberPagerState(pageCount = { largest.size })
+            LaunchedEffect(largest) {
+                if (pager.currentPage > largest.lastIndex) pager.scrollToPage(0)
+            }
+            HorizontalPager(
+                state = pager,
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                pageSpacing = 8.dp,
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding =
-                    androidx.compose.foundation.layout
-                        .PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            ) { page ->
+                LargestCard(quake = largest[page], onSelect = { onSelect(largest[page]) })
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                items(largest, key = { it.id }) { quake ->
-                    LargestCard(quake = quake, onSelect = { onSelect(quake) })
-                    Spacer(Modifier.width(6.dp))
+                largest.indices.forEach { index ->
+                    Box(
+                        Modifier
+                            .padding(end = 4.dp)
+                            .width(if (index == pager.currentPage) 14.dp else 6.dp)
+                            .height(3.dp)
+                            .background(if (index == pager.currentPage) RadarColors.ink else RadarColors.ruleSoft),
+                    )
                 }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "${pager.currentPage + 1} / ${largest.size}",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink3,
+                )
             }
         }
     }
@@ -330,8 +354,10 @@ private fun LargestCard(
     Column(
         modifier =
             Modifier
-                .width(190.dp)
+                .fillMaxWidth()
+                .height(96.dp)
                 .background(RadarColors.paper2)
+                .border(1.dp, RadarColors.ruleSoft)
                 .clickable(onClick = onSelect)
                 .padding(8.dp),
     ) {
@@ -347,7 +373,12 @@ private fun LargestCard(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(text = timeLabel(quake.time), style = RadarType.microPlain, color = RadarColors.ink3, maxLines = 1)
+        Text(
+            text = "${timeLabel(quake.time)} ${Chars.MIDDLE_DOT} ${depthLabel(quake.depth)}",
+            style = RadarType.microPlain,
+            color = RadarColors.ink3,
+            maxLines = 1,
+        )
         Spacer(Modifier.height(4.dp))
         Box(Modifier.fillMaxWidth().height(3.dp).background(magnitudeColor(quake.magnitude)))
     }

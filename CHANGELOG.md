@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(hazards): full-width single-card largest pager
+
+_2026-11-03_
+
+Replaces the clipped LazyRow carousel with a one-card HorizontalPager: each largest event fills the available width, all cards share a fixed height, and page dots plus 1 / 4 make the swipe position explicit. Cards now include depth alongside time.
+
+Build, tests and ktlint pass. Verified on device: one full-width card, four pages, equal height.
+
 ## feat(hazards): legend, filters and grouped earthquake list
 
 _2026-11-03_
