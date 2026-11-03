@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(hazards): retain fullscreen across orientation
+
+_2026-11-03_
+
+Adds configChanges for orientation/screen size and saves the fullscreen flag, so entering landscape does not recreate the activity and immediately drop the fullscreen dialog.
+
+Build, tests and ktlint pass.
+
 ## feat(hazards): filter apply flow, area pin and fullscreen map
 
 _2026-11-03_

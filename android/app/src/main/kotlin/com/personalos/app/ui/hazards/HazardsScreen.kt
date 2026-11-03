@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -134,7 +135,7 @@ fun HazardsScreen(
     var placingPin by remember { mutableStateOf(false) }
     var pendingPin by remember { mutableStateOf<MapCamera?>(null) }
     var showSaveRegion by remember { mutableStateOf(false) }
-    var fullscreen by remember { mutableStateOf(false) }
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val savedRegions by
         container.regions.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
