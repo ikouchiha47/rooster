@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(hazards): region dropdown and map-area filter
+
+_2026-11-03_
+
+Replaces the free-text location filter with a region dropdown built from USGS place suffixes, and adds Search this area / Clear area using the captured map viewport bounds. Main search remains case-insensitive and is bounded by the region and area filters.
+
+Build, tests and ktlint pass. Device verification blocked by the lock screen.
+
 ## fix(hazards): clarify location filter and align reset
 
 _2026-11-03_

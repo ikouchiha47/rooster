@@ -20,9 +20,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -43,7 +44,9 @@ import com.personalos.app.core.Chars
 import com.personalos.app.core.hazard.HazardSnapshot
 import com.personalos.app.core.hazard.HazardWindow
 import com.personalos.app.core.hazard.Quake
+import com.personalos.app.core.map.MapBounds
 import com.personalos.app.core.map.MapCamera
+import com.personalos.app.core.map.MapViewport
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.ui.common.FlatButton
@@ -99,13 +102,17 @@ fun HazardsScreen(
     var selectedId by remember { mutableStateOf<String?>(null) }
     var minMagnitude by remember { mutableStateOf<Double?>(null) }
     var visibleCount by remember { mutableIntStateOf(20) }
-    var locationFilter by remember { mutableStateOf("") }
+    var regionFilter by remember { mutableStateOf<String?>(null) }
+    var areaBounds by remember { mutableStateOf<MapBounds?>(null) }
+    var viewport by remember { mutableStateOf<MapViewport?>(null) }
     var window by remember { mutableStateOf(HazardWindow.DAY) }
+    var regionMenu by remember { mutableStateOf(false) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
 
     // Ordering is a display decision, so it lives here rather than in the feed.
     val ordered = remember(snapshot.quakes) { snapshot.quakes.sortedByDescending { it.time } }
-    LaunchedEffect(minMagnitude, locationFilter, window) { visibleCount = 20 }
+    val regions = remember(ordered) { ordered.mapNotNull { regionOf(it.place) }.distinct().sorted() }
+    LaunchedEffect(minMagnitude, regionFilter, areaBounds, window) { visibleCount = 20 }
     LaunchedEffect(window) { container.hazards.refresh(window) }
 
     fun select(quake: Quake) {
@@ -123,15 +130,53 @@ fun HazardsScreen(
                     color = RadarColors.ink,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
-                OutlinedTextField(
-                    value = locationFilter,
-                    onValueChange = { locationFilter = it },
-                    singleLine = true,
-                    label = { Text("Location contains") },
-                    placeholder = { Text("e.g. Japan, Chile, California") },
-                    supportingText = { Text("Matches the place name in the USGS feed.") },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                Text(
+                    text = "REGION",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
                 )
+                Box(Modifier.padding(horizontal = 16.dp)) {
+                    FlatButton(
+                        text = regionFilter ?: "All regions",
+                        onClick = { regionMenu = true },
+                    )
+                    DropdownMenu(expanded = regionMenu, onDismissRequest = { regionMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("All regions") },
+                            onClick = {
+                                regionMenu = false
+                                regionFilter = null
+                            },
+                        )
+                        regions.forEach { region ->
+                            DropdownMenuItem(
+                                text = { Text(region) },
+                                onClick = {
+                                    regionMenu = false
+                                    regionFilter = region
+                                },
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "AREA",
+                    style = RadarType.labelMicro,
+                    color = RadarColors.ink3,
+                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                )
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    FlatButton(
+                        text = "Search this area",
+                        onClick = { areaBounds = viewport?.bounds },
+                        enabled = viewport != null,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    if (areaBounds != null) {
+                        FlatButton(text = "Clear area", onClick = { areaBounds = null })
+                    }
+                }
                 Text(
                     text = "MIN MAGNITUDE",
                     style = RadarType.labelMicro,
@@ -166,7 +211,8 @@ fun HazardsScreen(
                 FlatButton(
                     text = "Reset filters",
                     onClick = {
-                        locationFilter = ""
+                        regionFilter = null
+                        areaBounds = null
                         minMagnitude = null
                         window = HazardWindow.DAY
                     },
@@ -202,11 +248,12 @@ fun HazardsScreen(
             },
         ) { query ->
             val shown =
-                remember(ordered, query, minMagnitude) {
+                remember(ordered, query, minMagnitude, regionFilter, areaBounds) {
                     val needle = query.trim()
                     ordered.filter { quake ->
                         (minMagnitude == null || (quake.magnitude ?: 0.0) >= minMagnitude!!) &&
-                            (locationFilter.isBlank() || quake.place.contains(locationFilter, ignoreCase = true)) &&
+                            (regionFilter == null || regionOf(quake.place) == regionFilter) &&
+                            (areaBounds == null || quake.inBounds(areaBounds!!)) &&
                             (needle.isEmpty() || quake.matches(needle))
                     }
                 }
@@ -545,6 +592,20 @@ private fun dayLabel(key: String): String =
         dayKey(System.currentTimeMillis() - 86_400_000L) -> "YESTERDAY"
         else -> runCatching { DAY_LABEL.format(DAY_KEY.parse(key)!!).uppercase(Locale.US) }.getOrDefault(key)
     }
+
+private fun regionOf(place: String): String? =
+    place.substringAfterLast(',', "").trim().ifBlank {
+        place.substringAfterLast(" of ", "").trim().takeIf { it.isNotBlank() }
+    }
+
+private fun Quake.inBounds(bounds: MapBounds): Boolean {
+    if (lat < bounds.south || lat > bounds.north) return false
+    return if (bounds.west <= bounds.east) {
+        lon in bounds.west..bounds.east
+    } else {
+        lon >= bounds.west || lon <= bounds.east
+    }
+}
 
 private fun Quake.matches(needle: String): Boolean =
     place.contains(needle, ignoreCase = true) ||
