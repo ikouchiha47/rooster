@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(hazards): clarify location filter and align reset
+
+_2026-11-03_
+
+Labels the location field as a contains filter, adds examples and the USGS place-name hint, and pads the Reset filters button off the drawer edge.
+
+Build, tests and ktlint pass. Verified on device: filter drawer opens from FILTER.
+
 ## fix(hazards): wire the Filter action to the drawer
 
 _2026-11-03_

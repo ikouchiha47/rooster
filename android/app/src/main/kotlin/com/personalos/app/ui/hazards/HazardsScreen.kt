@@ -127,7 +127,9 @@ fun HazardsScreen(
                     value = locationFilter,
                     onValueChange = { locationFilter = it },
                     singleLine = true,
-                    label = { Text("Location") },
+                    label = { Text("Location contains") },
+                    placeholder = { Text("e.g. Japan, Chile, California") },
+                    supportingText = { Text("Matches the place name in the USGS feed.") },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 )
                 Text(
@@ -168,6 +170,7 @@ fun HazardsScreen(
                         minMagnitude = null
                         window = HazardWindow.DAY
                     },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
         },
