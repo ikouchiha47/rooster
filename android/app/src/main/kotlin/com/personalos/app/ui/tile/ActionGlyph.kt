@@ -12,6 +12,7 @@ fun ActionKind.glyph(): Glyph =
         ActionKind.SEARCH -> Glyph.Search
         ActionKind.SYNC -> Glyph.Refresh
         ActionKind.FILTER -> Glyph.Tune
+        ActionKind.FULLSCREEN -> Glyph.Scan
         ActionKind.ADD_RULE -> Glyph.Plus
         ActionKind.ADD_FEED -> Glyph.Rss
         ActionKind.ADD_LOCATION -> Glyph.Place

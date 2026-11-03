@@ -7,6 +7,7 @@ enum class ActionKind(
     SEARCH("Search"),
     SYNC("Sync"),
     FILTER("Filter"),
+    FULLSCREEN("Full"),
     ADD_RULE("Rule"),
     ADD_FEED("Feed"),
     ADD_LOCATION("Place"),

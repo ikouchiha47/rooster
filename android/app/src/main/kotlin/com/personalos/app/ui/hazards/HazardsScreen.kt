@@ -1,5 +1,9 @@
 package com.personalos.app.ui.hazards
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,14 +23,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,16 +45,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.personalos.app.core.Chars
+import com.personalos.app.core.hazard.HazardArea
 import com.personalos.app.core.hazard.HazardSnapshot
 import com.personalos.app.core.hazard.HazardWindow
 import com.personalos.app.core.hazard.Quake
 import com.personalos.app.core.map.MapBounds
 import com.personalos.app.core.map.MapCamera
 import com.personalos.app.core.map.MapViewport
+import com.personalos.app.core.map.SavedRegion
 import com.personalos.app.core.tile.ActionKind
 import com.personalos.app.core.tile.TileConfig
 import com.personalos.app.ui.common.FlatButton
@@ -57,6 +71,7 @@ import com.personalos.app.ui.common.LocalAppContainer
 import com.personalos.app.ui.common.MapLibreWorldMap
 import com.personalos.app.ui.common.MapMarker
 import com.personalos.app.ui.common.RadarColors
+import com.personalos.app.ui.common.SaveRegionDialog
 import com.personalos.app.ui.common.SoftRule
 import com.personalos.app.ui.common.WidgetHeader
 import com.personalos.app.ui.theme.CategoryColors
@@ -67,12 +82,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private data class HazardFilters(
+    val minMagnitude: Double? = null,
+    val region: String? = null,
+    val area: HazardArea? = null,
+    val window: HazardWindow = HazardWindow.DAY,
+)
+
 private val HAZARDS_TILE =
     TileConfig(
         id = "hazards",
         title = "Hazards",
         searchHint = "Search place or magnitude",
-        actions = listOf(ActionKind.SYNC, ActionKind.FILTER),
+        actions = listOf(ActionKind.SYNC, ActionKind.FILTER, ActionKind.FULLSCREEN),
     )
 
 private val TIME_FORMAT = SimpleDateFormat("d MMM HH:mm", Locale.getDefault())
@@ -100,123 +122,101 @@ fun HazardsScreen(
 
     var camera by remember { mutableStateOf(MapCamera(18.0, 0.0, 0.4)) }
     var selectedId by remember { mutableStateOf<String?>(null) }
-    var minMagnitude by remember { mutableStateOf<Double?>(null) }
     var visibleCount by remember { mutableIntStateOf(20) }
-    var regionFilter by remember { mutableStateOf<String?>(null) }
-    var areaBounds by remember { mutableStateOf<MapBounds?>(null) }
     var viewport by remember { mutableStateOf<MapViewport?>(null) }
-    var window by remember { mutableStateOf(HazardWindow.DAY) }
-    var regionMenu by remember { mutableStateOf(false) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
+
+    var filters by remember { mutableStateOf(HazardFilters()) }
+    var draftMagnitude by remember { mutableStateOf<Double?>(null) }
+    var draftRegion by remember { mutableStateOf<String?>(null) }
+    var draftArea by remember { mutableStateOf<HazardArea?>(null) }
+    var draftWindow by remember { mutableStateOf(HazardWindow.DAY) }
+    var placingPin by remember { mutableStateOf(false) }
+    var pendingPin by remember { mutableStateOf<MapCamera?>(null) }
+    var showSaveRegion by remember { mutableStateOf(false) }
+    var fullscreen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val savedRegions by
+        container.regions.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
 
     // Ordering is a display decision, so it lives here rather than in the feed.
     val ordered = remember(snapshot.quakes) { snapshot.quakes.sortedByDescending { it.time } }
     val regions = remember(ordered) { ordered.mapNotNull { regionOf(it.place) }.distinct().sorted() }
-    LaunchedEffect(minMagnitude, regionFilter, areaBounds, window) { visibleCount = 20 }
-    LaunchedEffect(window) { container.hazards.refresh(window) }
+    DisposableEffect(fullscreen) {
+        val activity = context.findActivity()
+        val previous = activity?.requestedOrientation
+        if (fullscreen) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        onDispose {
+            activity?.requestedOrientation = previous ?: ActivityInfo.SCREEN_ORIENTATION_USER
+        }
+    }
+
+    LaunchedEffect(filters) { visibleCount = 20 }
+    LaunchedEffect(filters.window) { container.hazards.refresh(filters.window) }
+
+    fun openFilters() {
+        draftMagnitude = filters.minMagnitude
+        draftRegion = filters.region
+        draftArea = filters.area
+        draftWindow = filters.window
+        scope.launch { drawer.open() }
+    }
 
     fun select(quake: Quake) {
         selectedId = quake.id
         camera = camera.copy(lat = quake.lat, lon = quake.lon, zoom = maxOf(camera.zoom, 4.0))
     }
 
+    fun dropPin(
+        lat: Double,
+        lon: Double,
+    ) {
+        if (!placingPin) return
+        placingPin = false
+        pendingPin = camera.copy(lat = lat, lon = lon)
+    }
+
     ModalNavigationDrawer(
         drawerState = drawer,
+        gesturesEnabled = false,
         drawerContent = {
             ModalDrawerSheet {
-                Text(
-                    text = "Hazard filters",
-                    style = RadarType.serifTitle,
-                    color = RadarColors.ink,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
-                Text(
-                    text = "REGION",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.ink3,
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
-                )
-                Box(Modifier.padding(horizontal = 16.dp)) {
-                    FlatButton(
-                        text = regionFilter ?: "All regions",
-                        onClick = { regionMenu = true },
-                    )
-                    DropdownMenu(expanded = regionMenu, onDismissRequest = { regionMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("All regions") },
-                            onClick = {
-                                regionMenu = false
-                                regionFilter = null
-                            },
-                        )
-                        regions.forEach { region ->
-                            DropdownMenuItem(
-                                text = { Text(region) },
-                                onClick = {
-                                    regionMenu = false
-                                    regionFilter = region
-                                },
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = "AREA",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.ink3,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-                )
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    FlatButton(
-                        text = "Search this area",
-                        onClick = { areaBounds = viewport?.bounds },
-                        enabled = viewport != null,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    if (areaBounds != null) {
-                        FlatButton(text = "Clear area", onClick = { areaBounds = null })
-                    }
-                }
-                Text(
-                    text = "MIN MAGNITUDE",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.ink3,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-                )
-                val mags = listOf<Pair<String, Double?>>("All" to null, "M2.5+" to 2.5, "M4.5+" to 4.5, "M5+" to 5.0)
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    mags.forEach { (label, value) ->
-                        FlatButton(text = label, onClick = { minMagnitude = value }, solid = minMagnitude == value)
-                        Spacer(Modifier.width(4.dp))
-                    }
-                }
-                Text(
-                    text = "WINDOW",
-                    style = RadarType.labelMicro,
-                    color = RadarColors.ink3,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-                )
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    HazardWindow.entries.forEach { option ->
-                        FlatButton(text = option.label, onClick = { window = option }, solid = window == option)
-                        Spacer(Modifier.width(4.dp))
-                    }
-                }
-                Text(
-                    text = "USGS updates the 24H feed continuously. 7D and 30D are historical windows.",
-                    style = RadarType.microPlain,
-                    color = RadarColors.ink3,
-                    modifier = Modifier.padding(16.dp),
-                )
-                FlatButton(
-                    text = "Reset filters",
-                    onClick = {
-                        regionFilter = null
-                        areaBounds = null
-                        minMagnitude = null
-                        window = HazardWindow.DAY
+                HazardFilterDrawer(
+                    regions = regions,
+                    savedRegions = savedRegions,
+                    draftMagnitude = draftMagnitude,
+                    draftRegion = draftRegion,
+                    draftArea = draftArea,
+                    draftWindow = draftWindow,
+                    viewportAvailable = viewport != null,
+                    onMagnitude = { draftMagnitude = it },
+                    onRegion = { draftRegion = it },
+                    onWindow = { draftWindow = it },
+                    onCurrentMap = { viewport?.bounds?.let { draftArea = HazardArea.Bounds(it) } },
+                    onSavedRegion = { draftArea = HazardArea.Saved(it) },
+                    onClearArea = { draftArea = null },
+                    onDropPin = {
+                        scope.launch { drawer.close() }
+                        placingPin = true
                     },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    onReset = {
+                        draftMagnitude = null
+                        draftRegion = null
+                        draftArea = null
+                        draftWindow = HazardWindow.DAY
+                    },
+                    onApply = {
+                        filters =
+                            HazardFilters(
+                                minMagnitude = draftMagnitude,
+                                region = draftRegion,
+                                area = draftArea,
+                                window = draftWindow,
+                            )
+                        scope.launch { drawer.close() }
+                    },
                 )
             }
         },
@@ -234,12 +234,13 @@ fun HazardsScreen(
             },
             onAction = { action ->
                 when (action) {
-                    ActionKind.FILTER -> scope.launch { drawer.open() }
+                    ActionKind.FILTER -> openFilters()
+                    ActionKind.FULLSCREEN -> fullscreen = true
                     ActionKind.SYNC ->
                         scope.launch {
                             container.sync.run("hazards") {
                                 container.sync.step("fetching USGS earthquakes")
-                                container.hazards.refresh(window)
+                                container.hazards.refresh(filters.window)
                                 container.sync.step("done: ${container.hazards.snapshot.value.quakes.size} events")
                             }
                         }
@@ -248,12 +249,12 @@ fun HazardsScreen(
             },
         ) { query ->
             val shown =
-                remember(ordered, query, minMagnitude, regionFilter, areaBounds) {
+                remember(ordered, query, filters) {
                     val needle = query.trim()
                     ordered.filter { quake ->
-                        (minMagnitude == null || (quake.magnitude ?: 0.0) >= minMagnitude!!) &&
-                            (regionFilter == null || regionOf(quake.place) == regionFilter) &&
-                            (areaBounds == null || quake.inBounds(areaBounds!!)) &&
+                        (filters.minMagnitude == null || (quake.magnitude ?: 0.0) >= filters.minMagnitude!!) &&
+                            (filters.region == null || regionOf(quake.place) == filters.region) &&
+                            (filters.area == null || quake.inArea(filters.area!!)) &&
                             (needle.isEmpty() || quake.matches(needle))
                     }
                 }
@@ -269,8 +270,8 @@ fun HazardsScreen(
 
             Column(Modifier.fillMaxSize()) {
                 HazardFilterBar(
-                    minMagnitude = minMagnitude,
-                    onMinMagnitude = { minMagnitude = it },
+                    minMagnitude = filters.minMagnitude,
+                    onMinMagnitude = { filters = filters.copy(minMagnitude = it) },
                 )
                 MagnitudeLegend()
                 MapLibreWorldMap(
@@ -286,11 +287,58 @@ fun HazardsScreen(
                                 color = magnitudeColor(it.magnitude),
                             )
                         },
+                    areaPin =
+                        pendingPin?.let { MapMarker("pending", "Area pin", it.lat, it.lon) }
+                            ?: when (val area = filters.area) {
+                                is HazardArea.Pin -> MapMarker("area", "Area pin", area.camera.lat, area.camera.lon)
+                                is HazardArea.Saved ->
+                                    MapMarker("area", area.region.name, area.region.camera.lat, area.region.camera.lon)
+                                else -> null
+                            },
+                    areaRadiusKm =
+                        pendingPin?.radiusKm
+                            ?: when (val area = filters.area) {
+                                is HazardArea.Pin -> area.radiusKm
+                                is HazardArea.Saved -> area.region.radiusKm
+                                else -> null
+                            },
                     onCameraChange = { camera = it },
+                    onViewportChange = { viewport = it },
+                    onMapTap = ::dropPin,
                     onMarkerClick = { id -> shown.firstOrNull { it.id == id }?.let(::select) },
                     mapAspectRatio = 2.4f,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 )
+                if (placingPin) {
+                    Text(
+                        text = "Tap the map to drop the area pin.",
+                        style = RadarType.microPlain,
+                        color = RadarColors.ink3,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+                if (pendingPin != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = "Pin dropped", style = RadarType.microPlain, color = RadarColors.ink3)
+                        Spacer(Modifier.width(8.dp))
+                        FlatButton(
+                            text = "Use area",
+                            onClick = {
+                                pendingPin?.let { pin ->
+                                    filters = filters.copy(area = HazardArea.Pin(pin, pin.radiusKm))
+                                }
+                                pendingPin = null
+                            },
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        FlatButton(text = "Save region", onClick = { showSaveRegion = true })
+                        Spacer(Modifier.width(4.dp))
+                        FlatButton(text = "Cancel", onClick = { pendingPin = null })
+                    }
+                }
                 LargestCarousel(
                     largest = largest,
                     onSelect = ::select,
@@ -370,14 +418,244 @@ fun HazardsScreen(
                 }
 
                 FooterStrip(
-                    "USGS all earthquakes, ${window.label} ${Chars.MIDDLE_DOT} " +
+                    "USGS all earthquakes, ${filters.window.label} ${Chars.MIDDLE_DOT} " +
                         "${ordered.size} events ${Chars.MIDDLE_DOT} " +
                         (if (snapshot.error == null) "live" else "cached"),
                 )
             }
         }
     }
+
+    if (showSaveRegion) {
+        val pin = pendingPin
+        SaveRegionDialog(
+            onDismiss = { showSaveRegion = false },
+            radiusKm = pin?.radiusKm,
+            onSave = { name ->
+                if (pin != null) {
+                    scope.launch {
+                        val saved = container.regions.save(name = name, camera = pin)
+                        filters = filters.copy(area = HazardArea.Saved(saved))
+                        pendingPin = null
+                    }
+                }
+            },
+        )
+    }
+
+    if (fullscreen) {
+        Dialog(
+            onDismissRequest = { fullscreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            Box(Modifier.fillMaxSize().background(RadarColors.paper2)) {
+                MapLibreWorldMap(
+                    camera = camera,
+                    overlayTileUrl = null,
+                    markers =
+                        ordered
+                            .filter { quake ->
+                                (filters.minMagnitude == null || (quake.magnitude ?: 0.0) >= filters.minMagnitude!!) &&
+                                    (filters.region == null || regionOf(quake.place) == filters.region) &&
+                                    (filters.area == null || quake.inArea(filters.area!!))
+                            }.map {
+                                MapMarker(
+                                    id = it.id,
+                                    label = it.place,
+                                    lat = it.lat,
+                                    lon = it.lon,
+                                    color = magnitudeColor(it.magnitude),
+                                )
+                            },
+                    onCameraChange = { camera = it },
+                    onMarkerClick = { id -> ordered.firstOrNull { it.id == id }?.let(::select) },
+                    mapAspectRatio = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FlatButton(text = "Exit map", onClick = { fullscreen = false })
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = "${ordered.size} events ${Chars.MIDDLE_DOT} ${filters.window.label}",
+                        style = RadarType.labelMicro,
+                        color = RadarColors.ink2,
+                        modifier = Modifier.background(RadarColors.paper2).padding(6.dp),
+                    )
+                }
+            }
+        }
+    }
 }
+
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return current as? Activity
+}
+
+@Composable
+private fun HazardFilterDrawer(
+    regions: List<String>,
+    savedRegions: List<SavedRegion>,
+    draftMagnitude: Double?,
+    draftRegion: String?,
+    draftArea: HazardArea?,
+    draftWindow: HazardWindow,
+    viewportAvailable: Boolean,
+    onMagnitude: (Double?) -> Unit,
+    onRegion: (String?) -> Unit,
+    onWindow: (HazardWindow) -> Unit,
+    onCurrentMap: () -> Unit,
+    onSavedRegion: (SavedRegion) -> Unit,
+    onClearArea: () -> Unit,
+    onDropPin: () -> Unit,
+    onReset: () -> Unit,
+    onApply: () -> Unit,
+) {
+    var regionMenu by remember { mutableStateOf(false) }
+    var savedMenu by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            text = "Hazard filters",
+            style = RadarType.serifTitle,
+            color = RadarColors.ink,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        FilterLabel("REGION")
+        Box(Modifier.padding(horizontal = 16.dp)) {
+            FilterDropdown(text = draftRegion ?: "All regions", onClick = { regionMenu = true })
+            DropdownMenu(expanded = regionMenu, onDismissRequest = { regionMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text("All regions") },
+                    onClick = {
+                        regionMenu = false
+                        onRegion(null)
+                    },
+                )
+                regions.forEach { region ->
+                    DropdownMenuItem(
+                        text = { Text(region) },
+                        onClick = {
+                            regionMenu = false
+                            onRegion(region)
+                        },
+                    )
+                }
+            }
+        }
+        FilterLabel("AREA", top = 12.dp)
+        Text(
+            text = draftArea.describe(),
+            style = RadarType.microPlain,
+            color = RadarColors.ink3,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+        )
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            FlatButton(text = "Current map", onClick = onCurrentMap, enabled = viewportAvailable)
+            Spacer(Modifier.width(4.dp))
+            FlatButton(text = "Drop pin", onClick = onDropPin)
+        }
+        if (savedRegions.isNotEmpty()) {
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
+                FilterDropdown(text = "Saved region", onClick = { savedMenu = true })
+                DropdownMenu(expanded = savedMenu, onDismissRequest = { savedMenu = false }) {
+                    savedRegions.forEach { region ->
+                        DropdownMenuItem(
+                            text = { Text(region.name) },
+                            onClick = {
+                                savedMenu = false
+                                onSavedRegion(region)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        if (draftArea != null) {
+            FlatButton(
+                text = "Clear area",
+                onClick = onClearArea,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+        }
+        FilterLabel("MIN MAGNITUDE", top = 12.dp)
+        val mags = listOf<Pair<String, Double?>>("All" to null, "M2.5+" to 2.5, "M4.5+" to 4.5, "M5+" to 5.0)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            mags.forEach { (label, value) ->
+                FlatButton(text = label, onClick = { onMagnitude(value) }, solid = draftMagnitude == value)
+                Spacer(Modifier.width(4.dp))
+            }
+        }
+        FilterLabel("WINDOW", top = 12.dp)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            HazardWindow.entries.forEach { option ->
+                FlatButton(text = option.label, onClick = { onWindow(option) }, solid = draftWindow == option)
+                Spacer(Modifier.width(4.dp))
+            }
+        }
+        Text(
+            text = "USGS updates the 24H feed continuously. 7D and 30D are historical windows.",
+            style = RadarType.microPlain,
+            color = RadarColors.ink3,
+            modifier = Modifier.padding(16.dp),
+        )
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            FlatButton(text = "Reset", onClick = onReset)
+            Spacer(Modifier.width(8.dp))
+            FlatButton(text = "Apply", onClick = onApply)
+        }
+    }
+}
+
+@Composable
+private fun FilterLabel(
+    text: String,
+    top: Dp = 4.dp,
+) {
+    Text(
+        text = text,
+        style = RadarType.labelMicro,
+        color = RadarColors.ink3,
+        modifier = Modifier.padding(start = 16.dp, top = top, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun FilterDropdown(
+    text: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .border(1.dp, RadarColors.ruleSoft)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = text, style = RadarType.body, color = RadarColors.ink, modifier = Modifier.weight(1f))
+        Icon(
+            imageVector = Icons.Filled.ArrowDropDown,
+            contentDescription = null,
+            tint = RadarColors.ink3,
+        )
+    }
+}
+
+private fun HazardArea?.describe(): String =
+    when (this) {
+        null -> "No area filter."
+        is HazardArea.Bounds -> "Current map bounds."
+        is HazardArea.Pin -> "Dropped pin, radius ~${radiusKm.toInt()} km."
+        is HazardArea.Saved -> "Saved region ${region.name}, radius ~${region.radiusKm.toInt()} km."
+    }
 
 @Composable
 private fun HazardFilterBar(
@@ -592,6 +870,30 @@ private fun dayLabel(key: String): String =
         dayKey(System.currentTimeMillis() - 86_400_000L) -> "YESTERDAY"
         else -> runCatching { DAY_LABEL.format(DAY_KEY.parse(key)!!).uppercase(Locale.US) }.getOrDefault(key)
     }
+
+private fun Quake.inArea(area: HazardArea): Boolean =
+    when (area) {
+        is HazardArea.Bounds -> inBounds(area.bounds)
+        is HazardArea.Pin -> distanceKm(lat, lon, area.camera.lat, area.camera.lon) <= area.radiusKm
+        is HazardArea.Saved ->
+            distanceKm(lat, lon, area.region.camera.lat, area.region.camera.lon) <= area.region.radiusKm
+    }
+
+private fun distanceKm(
+    lat1: Double,
+    lon1: Double,
+    lat2: Double,
+    lon2: Double,
+): Double {
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a =
+        kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+            kotlin.math.cos(Math.toRadians(lat1)) *
+            kotlin.math.cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+    return 6371.0 * 2.0 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+}
 
 private fun regionOf(place: String): String? =
     place.substringAfterLast(',', "").trim().ifBlank {

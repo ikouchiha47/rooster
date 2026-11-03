@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## feat(hazards): filter apply flow, area pin and fullscreen map
+
+_2026-11-03_
+
+Disables drawer edge gestures so pinch-zoom cannot open filters. Converts the drawer to a draft/Apply flow with region dropdown, current map bounds, saved regions, and a dropped pin with zoom-derived radius. A dropped pin can be used as the filter or saved as a shared region. Adds a fullscreen landscape map with exit and active-filter status. Area filtering uses map bounds or haversine radius; search remains case-insensitive and is bounded by active filters.
+
+Build, tests and ktlint pass. Device verification blocked by the notification shade.
+
 ## fix(map): report viewport on initial map load
 
 _2026-11-03_
