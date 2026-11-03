@@ -7,6 +7,14 @@ and entries read newest-first.
 Notes marked *recovered from the pre-hook commit message* predate the hook.
 
 <!-- entries -->
+## fix(map): report viewport on initial map load
+
+_2026-11-03_
+
+The Hazards area filter was disabled until the first camera move because the map only reported viewport bounds on camera-idle. The shared map now reports the viewport immediately after the initial camera is applied, so Search this area is available as soon as the map renders.
+
+Build, tests and ktlint pass.
+
 ## feat(hazards): region dropdown and map-area filter
 
 _2026-11-03_

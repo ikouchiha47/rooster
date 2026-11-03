@@ -202,21 +202,7 @@ fun MapLibreWorldMap(
                             ready.setMaxZoomPreference(maxZoom)
                             ready.addOnCameraIdleListener {
                                 currentOnCamera.value(ready.cameraPosition.toMapCamera().clamped())
-                                currentOnViewport.value?.invoke(
-                                    ready.projection.visibleRegion.latLngBounds.let { bounds ->
-                                        MapViewport(
-                                            bounds =
-                                                MapBounds(
-                                                    north = bounds.latitudeNorth,
-                                                    east = bounds.longitudeEast,
-                                                    south = bounds.latitudeSouth,
-                                                    west = bounds.longitudeWest,
-                                                ),
-                                            width = mapView.width,
-                                            height = mapView.height,
-                                        )
-                                    },
-                                )
+                                currentOnViewport.value?.invoke(ready.viewport(mapView.width, mapView.height))
                             }
                             ready.addOnMapClickListener { latLng ->
                                 val features =
@@ -236,6 +222,7 @@ fun MapLibreWorldMap(
                             ready.cameraPosition =
                                 camera.copy(zoom = camera.zoom.coerceIn(minZoom, maxZoom)).toCameraPosition()
                             cameraInitialised = true
+                            currentOnViewport.value?.invoke(ready.viewport(mapView.width, mapView.height))
                         }
                     }
                 }
@@ -475,6 +462,24 @@ fun MapLibreWorldMap(
 private const val DEFAULT_MARKER_COLOR = "#F2B233"
 
 private fun Color.toHex(): String = String.format("#%06X", 0xFFFFFF and toArgb())
+
+private fun MapLibreMap.viewport(
+    width: Int,
+    height: Int,
+): MapViewport {
+    val bounds = projection.visibleRegion.latLngBounds
+    return MapViewport(
+        bounds =
+            MapBounds(
+                north = bounds.latitudeNorth,
+                east = bounds.longitudeEast,
+                south = bounds.latitudeSouth,
+                west = bounds.longitudeWest,
+            ),
+        width = width,
+        height = height,
+    )
+}
 
 private fun circlePolygon(
     lat: Double,
